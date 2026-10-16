@@ -35,7 +35,7 @@ function DemoPhones() {
         <PhoneFrame title="Phone 2 · Nequi">
           <NequiExperience />
         </PhoneFrame>
-        <PhoneFrame title="Phone 3 · Nequi Negocios">
+        <PhoneFrame title="Phone 3 · Nequi Negocios" edgeToEdge>
           <NequiBusinessExperience />
         </PhoneFrame>
       </div>

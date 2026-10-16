@@ -68,6 +68,22 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/004-arq-ui.md](prompts/004-arq-ui.md)
 - Human review: Pending team review. Compare the screens with the reference screenshots. Wallet amounts, card suffixes, transactions, and exchange-rate numbers are local `demo/test data`, not live values.
 
+### 2026-10-16 — Claude Code — Nequi Negocios surface UI
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - Nequi Negocios UI recreation of the simulated merchant wallet (`frontend/src/features/nequi-business/`)
+  - merchant frontend component implementation: `NequiBusinessExperience`, the home, sales-summary and link-payments screens, the NFC-fallback and QR bottom sheets, the bottom nav, icons, and `nequi-business-demo-content.ts`
+  - responsive mobile layout for `/nequi-negocios` (`frontend/src/app/nequi-negocios/page.tsx`) and edge-to-edge Phone 3 in `frontend/src/features/demo/DemoStage.tsx`, reusing the existing generic `PhoneFrame` option
+  - visual adaptation from four team-provided screenshots of the Nequi Negocios app. No screenshot, photo, logo, or other asset was copied or embedded. The UI is DOM, Tailwind, and inline SVG.
+  - local demo interactions only: screen navigation and bottom sheets held in component state
+  - the QR shown is a decorative pattern with no encoded payload. It is not a real payment QR.
+  - no real Nequi, Nequi Negocios, Wompi, or Bre-B integration
+  - no payment execution and no Open Payments implementation in this task
+  - ran lint, typecheck and build with the Node runtime bundled with Cursor, because Node was not on PATH
+- Prompt log: [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
+- Human review: Pending team review. Merchant name, sales amounts, dates, and the checkout link text are local `demo/test data`.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
