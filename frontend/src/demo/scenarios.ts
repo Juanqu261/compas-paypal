@@ -21,7 +21,23 @@ export type DemoScenario = {
   purchaseIntent: {
     merchant: {
       displayName: string;
+      categoryClaims: {
+        category: string;
+        trustLevel: string;
+      }[];
     };
+    lineItems: {
+      id: string;
+      description: string;
+      category: string;
+      amount: MoneyView;
+    }[];
+    amount: MoneyView;
+  };
+  /** The story outcome the fixture expects. The backend makes the real decision. */
+  expectedPolicyResult: {
+    outcome: "ALLOW" | "DENY" | "REVIEW";
+    reason?: string;
   };
 };
 
@@ -32,6 +48,7 @@ export function asDemoScenario(fixture: {
   merchantSurface: string;
   mandate: DemoScenario["mandate"];
   purchaseIntent: DemoScenario["purchaseIntent"];
+  expectedPolicyResult: DemoScenario["expectedPolicyResult"];
 }): DemoScenario {
   if (
     fixture.id === "medication-pharmacy" ||
@@ -44,6 +61,7 @@ export function asDemoScenario(fixture: {
       merchantSurface: fixture.merchantSurface,
       mandate: fixture.mandate,
       purchaseIntent: fixture.purchaseIntent,
+      expectedPolicyResult: fixture.expectedPolicyResult,
     };
   }
 

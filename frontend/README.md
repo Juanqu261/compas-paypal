@@ -4,7 +4,7 @@ One Next.js application for the hackathon demo.
 
 | Route | Surface |
 | --- | --- |
-| `/` | Project entry and links |
+| `/` | Story, purpose dial and links |
 | `/demo` | ARQ, Nequi, and Nequi Negocios together |
 | `/arq` | Pedro, payer |
 | `/nequi` | Andrea, delegate |

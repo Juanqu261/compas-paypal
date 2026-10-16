@@ -13,7 +13,7 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 ## Tools Used
 
 - Cursor (repository foundation and monorepo restructure)
-- Claude Code (Claude Opus 5.5) (agent skills, Claude integration, and the ARQ, Nequi, and Nequi Negocios simulated surfaces)
+- Claude Code (Claude Opus 5.5) (agent skills, Claude integration, the ARQ, Nequi, and Nequi Negocios simulated surfaces, and the site redesign with the third-party `frontend-design` skill)
 
 ## Where and How We Used AI
 
@@ -103,6 +103,24 @@ The dated running log below is the detailed record: which tool, which files or c
 - Prompt log: [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
 - Human review: Pending team review. Merchant name, sales amounts, dates, and the checkout link text are local `demo/test data`.
 
+### 2026-10-16 — Claude Code — frontend design skill
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role: copied the third-party `frontend-design` skill from `anthropics/skills` (Apache-2.0, unchanged) into `.skills/frontend-design/`, wrote its wrapper `.claude/skills/frontend-design/SKILL.md` and listed it in `AGENTS.md`. No application code was changed.
+- Prompt log: [prompts/007-frontend-design-skill.md](prompts/007-frontend-design-skill.md)
+- Human review: Pending team review.
+
+### 2026-10-16 — Claude Code — site redesign and transitions
+
+- Tool: Claude Code (Claude Opus 5.5) with the `frontend-design` skill
+- Role:
+  - visual direction and implementation of the site around the phones: `app/layout.tsx`, `app/globals.css`, `app/page.tsx`, `app/demo/page.tsx`, the `/arq`, `/nequi` and `/nequi-negocios` page wrappers, `components/phone/PhoneFrame.tsx`, `features/demo/DemoStage.tsx`, `features/site/` and `features/landing/`
+  - React `<ViewTransition>` page slides along the story order, an anchored header, a moving nav marker, name morphs and readout crossfades
+  - extended the display type in `demo/scenarios.ts` with line items, the merchant's category claims and the fixture's `expectedPolicyResult`. The landing page and `/demo` show that outcome labelled as the expected story outcome from demo/test data. The browser computes no policy decision.
+  - the simulated apps inside the phones were not changed
+- Prompt log: [prompts/008-site-redesign.md](prompts/008-site-redesign.md)
+- Human review: Pending team review. Check the copy against the pitch guardrails in `.skills/compas-context/SKILL.md`.
+
 ### 2026-10-16 — Claude Code — Nequi Negocios COMPAS merchant configuration
 
 - Tool: Claude Code (Claude Opus 5.5)
@@ -113,7 +131,7 @@ The dated running log below is the detailed record: which tool, which files or c
   - local frontend configuration state held in `NequiBusinessExperience.tsx`, with labels and defaults in `nequi-business-compas-demo.ts`. Saving updates component state only. It is not a backend enrollment, not a merchant-registry write, and not a real Nequi merchant verification.
   - no backend integration, no Open Payments integration, and no ALLOW/DENY/REVIEW decision in the browser
   - restructured this file under the section headings that `.skills/hackathon-ai-rules/scripts/ai_rules.py check` requires. Every earlier entry is kept word for word.
-  - Claude Code also made commits `2f8635b` (the Nequi Negocios UI) and `c20646a` (the merge of `cf28a86`) at the team's request. It renumbered the Nequi Negocios prompt log to 006 and kept both new entries in this file. That request was a git instruction and is not in `prompts/`.
+  - Claude Code also made commits `2f8635b` (the Nequi Negocios UI) and `c20646a` (the merge of `cf28a86`) at the team's request. It renumbered the Nequi Negocios prompt log to 006 and kept both new entries in this file. It later made `cb30773` (this entry's work) and the merge of `8da1554`: it renumbered this prompt log from 007 to 009 because 007 and 008 were taken, and moved the 007 and 008 entries, unchanged, from below the entry template into this log. Both requests were git instructions and are not in `prompts/`.
 - Prompt log: [prompts/009-nequi-negocios-compas.md](prompts/009-nequi-negocios-compas.md)
 - Human review: Pending team review. The categories and the enabled state are local `demo/test data`.
 
@@ -135,6 +153,8 @@ Verbatim prompts for each AI coding session are in `/prompts/`, numbered in orde
 - [prompts/004-arq-ui.md](prompts/004-arq-ui.md)
 - [prompts/005-nequi-ui.md](prompts/005-nequi-ui.md)
 - [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
+- [prompts/007-frontend-design-skill.md](prompts/007-frontend-design-skill.md)
+- [prompts/008-site-redesign.md](prompts/008-site-redesign.md)
 - [prompts/009-nequi-negocios-compas.md](prompts/009-nequi-negocios-compas.md)
 
 ## Entry template
