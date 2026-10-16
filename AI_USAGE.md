@@ -24,6 +24,17 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/001-repository-foundation.md](prompts/001-repository-foundation.md)
 - Human review: Pending team review. This entry does not mark any file as human-written.
 
+### 2026-10-16 — Claude Code
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - design interview (`/grill-me`) and web research on Colombian merchant registries, wallet merchant data and food-bonus programs
+  - wrote `.skills/compas-context/SKILL.md` and `.skills/compas-context/REFERENCE.md`
+  - copied `.skills/hackathon-ai-rules/`, which an AI assistant wrote in an earlier session
+  - added the `Skills` section to `AGENTS.md` and a pointer line to `.cursor/rules/compas.mdc`
+- Prompt log: [prompts/002-agent-skills.md](prompts/002-agent-skills.md)
+- Human review: Pending team review. The CIIU codes in `.skills/compas-context/REFERENCE.md` are unverified and marked as such.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name

@@ -31,6 +31,13 @@ These invariants apply to every coding agent working in this repository.
 - Update `AI_USAGE.md` when an AI tool's role changes materially.
 - Do not claim that a file is human-written unless that has been explicitly verified.
 
+## Skills
+
+Agent-agnostic skills live in `.skills/`. Before a task that matches a skill's description, read its `SKILL.md`, and read its other files only when needed. This file and `docs/` take precedence over any skill.
+
+- `.skills/compas-context/` covers product rationale, design decisions, the scope ladder, Colombian research and pitch guardrails. Read it before product, policy, merchant-trust, demo or pitch work.
+- `.skills/hackathon-ai-rules/` covers the hackathon AI policy, prompt logging and the pre-submission check (`python .skills/hackathon-ai-rules/scripts/ai_rules.py check .`). Keep this repo's numbered `prompts/NNN-*.md` convention.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
