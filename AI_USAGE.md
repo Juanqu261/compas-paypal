@@ -35,6 +35,13 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/002-agent-skills.md](prompts/002-agent-skills.md)
 - Human review: Pending team review. The CIIU codes in `.skills/compas-context/REFERENCE.md` are unverified and marked as such.
 
+### 2026-10-16 — Claude Code (Claude integration)
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role: wrote `CLAUDE.md` (imports `AGENTS.md`) and the wrapper skills `.claude/skills/compas-context/SKILL.md` and `.claude/skills/hackathon-ai-rules/SKILL.md`, which point to `.skills/`. `.skills/` was not changed.
+- Prompt log: [prompts/002-agent-skills.md](prompts/002-agent-skills.md), prompts 11–12
+- Human review: Pending team review.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
