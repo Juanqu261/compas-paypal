@@ -26,3 +26,4 @@ Agent-agnostic skills live in `.skills/`. Before a task that matches a skill's d
 
 - `.skills/compas-context/` covers product rationale, design decisions, the scope ladder, Colombian research and pitch guardrails. Read it before product, policy, merchant-trust, demo or pitch work.
 - `.skills/hackathon-ai-rules/` covers the hackathon AI policy, prompt logging and the pre-submission check (`python .skills/hackathon-ai-rules/scripts/ai_rules.py check .`). Keep this repo's numbered `prompts/NNN-*.md` convention.
+- `.skills/frontend-design/` (from `anthropics/skills`, Apache-2.0) covers aesthetic direction, typography and layout for distinctive UI. Read it before visual design work on COMPAS's own surfaces. The ARQ, Nequi and Nequi Negocios simulations follow their reference screenshots instead.

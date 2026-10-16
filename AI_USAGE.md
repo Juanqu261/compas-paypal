@@ -105,3 +105,10 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log:
 - Human review:
 - Notes:
+
+### 2026-10-16 — Claude Code — frontend design skill
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role: copied the third-party `frontend-design` skill from `anthropics/skills` (Apache-2.0, unchanged) into `.skills/frontend-design/`, wrote its wrapper `.claude/skills/frontend-design/SKILL.md` and listed it in `AGENTS.md`. No application code was changed.
+- Prompt log: [prompts/007-frontend-design-skill.md](prompts/007-frontend-design-skill.md)
+- Human review: Pending team review.
