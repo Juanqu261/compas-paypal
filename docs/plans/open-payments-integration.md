@@ -1,6 +1,6 @@
 # Plan — Open Payments integration
 
-Status: proposed, 2026-10-16. Owner: the Open Payments feature team.
+Status: implemented on branch `open-payments`, 2026-10-16, except the people steps in Phase 0 and the test-network run in Phase 3. Owner: the Open Payments feature team.
 
 This feature builds the real Open Payments layer that the COMPAS backend will call to run a payment end to end. The orchestrator, the category and purpose policy, the merchant registry and the HTTP API for the surfaces are other features. They are out of scope here. This plan does stop at a clear handoff contract so the orchestrator can plug in without reopening this work.
 
@@ -19,6 +19,19 @@ When this feature is done, a backend caller can do the following against the Int
 7. Cancel the grant when a mandate is revoked or expires.
 
 A smoke script proves steps 1 to 6 with real test wallets before the orchestrator exists. That script is our first evidence for the eligibility rule "real Open Payments integration".
+
+## Implementation notes
+
+The code follows this plan. These are the places where it differs, and why:
+
+- **Port.** Calls bound to a grant (`createOutgoingPayment`, `readOutgoingPayment`, `readGrantSpentAmounts`) take only `grantKey`. The grant store already knows the payer wallet and resource server. `readIncomingPayment` was added so the demo can show the merchant-side view. The spec doesn't promise that `sentAmount` reaches `debitAmount` when fees apply, so receiver completion is the cross-check.
+- **Errors.** Codes are `GRANT_NOT_FOUND`, `GRANT_NOT_ACTIVE`, `INVALID_INTERACTION_HASH`, `GRANT_NOT_FINALIZED`, `GRANT_EXPIRED`, `ASSET_MISMATCH`, `QUOTE_EXPIRED`, `INVALID_INPUT`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `REJECTED` and `UPSTREAM`. `GRANT_LIMIT_EXCEEDED` and `INSUFFICIENT_FUNDS` were dropped. The test network's exact responses for those cases are unverified, so they surface as `FORBIDDEN` or `REJECTED`, with the server's description kept.
+- **Quote expiry.** The adapter refuses a quote it knows has expired (`QUOTE_EXPIRED`). It does not re-quote silently. A new quote can change the debit amount, so the orchestrator must re-quote and re-run policy.
+- **Idempotency** moved into Phase 2. `createOutgoingPayment` makes at most one payment per `compasDecisionId`, including for concurrent calls. The map is in memory.
+- **Smoke script consent.** The script listens on `http://localhost:4123/smoke-finish` (`OP_SMOKE_PORT`) for the redirect instead of asking for a pasted URL. It never clashes with the backend's own finish route.
+- **Finish hash.** openpayments.dev says the hash is Base64 "with no padding", but its sample code pads. The check ignores padding, accepts the URL-safe alphabet and restores a `+` that a query string decoded as a space. It also accepts the grant endpoint with or without a trailing slash.
+- **Env loading.** The npm scripts use `node --env-file-if-exists=.env`, so the backend needs Node 22.9 or later (`engines` in `package.json`). The return page after consent is `OPEN_PAYMENTS_RETURN_URL`, default `http://localhost:3000/demo`.
+- **SDK.** The CommonJS package imports cleanly under `--experimental-strip-types`. `npm audit` reports 3 moderate advisories in `uuid` (v3/v5/v6 buffer handling), a transitive SDK dependency. There is no direct fix.
 
 ## Out of scope
 
@@ -101,6 +114,8 @@ contracts/
 
 ## Port redesign (Phase 1)
 
+This sketch was the starting point. The source of truth is `backend/src/ports/open-payments-gateway.ts`. The implementation notes above list the differences.
+
 The port keeps COMPAS words on its surface. Access tokens, continuation tokens and nonces never leave the adapter. The caller refers to a grant by `grantKey`, the COMPAS mandate id.
 
 ```ts
@@ -167,35 +182,35 @@ Each phase is a mergeable PR that keeps `npm run typecheck` and `npm test` green
 
 - [ ] Create three test wallet accounts or addresses: COMPAS client, Pedro (USD) and the merchant. Fund Pedro's wallet with test money.
 - [ ] Generate a developer key on the client wallet. Put `KEY_ID` and the key file path in `backend/.env`. `*.key` and `.env*` are already gitignored. Check with `git status` before every commit.
-- [ ] `cd backend && npm install @interledger/open-payments@7.4.0`, pinned exactly.
-- [ ] Check that `import { createAuthenticatedClient } from "@interledger/open-payments"` runs under `node --experimental-strip-types`. If named CJS exports fail, use a default import in `sdk-client.ts` only.
-- [ ] Decide how `.env` loads: `process.loadEnvFile()` in `config.ts`, or `--env-file-if-exists=.env` in the npm scripts. No new dependency.
-- [ ] Create the missing `AI_USAGE.md` at the repo root. `docs/08-hackathon-compliance.md` says it exists, and it doesn't.
+- [x] `cd backend && npm install @interledger/open-payments@7.4.0`, pinned exactly.
+- [x] Check that `import { createAuthenticatedClient } from "@interledger/open-payments"` runs under `node --experimental-strip-types`. If named CJS exports fail, use a default import in `sdk-client.ts` only.
+- [x] Decide how `.env` loads: `process.loadEnvFile()` in `config.ts`, or `--env-file-if-exists=.env` in the npm scripts. No new dependency.
+- [x] Restore `AI_USAGE.md` at the repo root. Merge commit `762d25a` had deleted it.
 
 ### Phase 1 — Port, grant store, mappers (no network)
 
-- [ ] Replace the port types as above. Update `UnimplementedOpenPaymentsGateway` and `createOutgoingPaymentIfAllowed` to match.
-- [ ] Add the `GrantStore` port and `InMemoryGrantStore`.
-- [ ] `mappers.ts`: SDK `amount` to `MoneyAmount` (same shape, validated). Outgoing payment to `PaymentState`: `failed` means `FAILED`, `sentAmount >= debitAmount` means `COMPLETED`, anything else is `PENDING`.
-- [ ] `SafePaymentMetadata` is built through a whitelist function, so an extra key can't slip into Open Payments metadata.
-- [ ] Tests: mappers, the metadata whitelist and the existing gate test.
+- [x] Replace the port types as above. Update `UnimplementedOpenPaymentsGateway` and `createOutgoingPaymentIfAllowed` to match.
+- [x] Add the `GrantStore` port and `InMemoryGrantStore`.
+- [x] `mappers.ts`: SDK `amount` to `MoneyAmount` (same shape, validated). Outgoing payment to `PaymentState`: `failed` means `FAILED`, `sentAmount >= debitAmount` means `COMPLETED`, anything else is `PENDING`.
+- [x] `SafePaymentMetadata` is built through a whitelist function, so an extra key can't slip into Open Payments metadata.
+- [x] Tests: mappers, the metadata whitelist and the existing gate test.
 
 ### Phase 2 — Real adapter
 
-- [ ] `config.ts` reads `CLIENT_WALLET_ADDRESS`, `KEY_ID`, `PRIVATE_KEY_PATH` and `OPEN_PAYMENTS_FINISH_URI`. If any is missing, the composition root uses `UnimplementedOpenPaymentsGateway`, which keeps throwing. It never falls back to a fake.
-- [ ] `sdk-client.ts` builds a single `AuthenticatedClient`.
-- [ ] `InterledgerOpenPaymentsGateway` implements every port method with the calls in the table above:
+- [x] `config.ts` reads `CLIENT_WALLET_ADDRESS`, `KEY_ID`, `PRIVATE_KEY_PATH` and `OPEN_PAYMENTS_FINISH_URI`. If any is missing, the composition root uses `UnimplementedOpenPaymentsGateway`, which keeps throwing. It never falls back to a fake.
+- [x] `sdk-client.ts` builds a single `AuthenticatedClient`.
+- [x] `InterledgerOpenPaymentsGateway` implements every port method with the calls in the table above:
   - Payer grant: `outgoing-payment` access with `identifier` = payer wallet, `limits.debitAmount` = budget and no `receiver`. We generate the nonce with `crypto.randomUUID()` or random bytes.
   - Incoming payment and quote grants are non-interactive. Request them when needed and cache them per wallet until they expire.
-  - Before `createOutgoingPayment`, re-quote if `expiresAt` has passed. Never reuse an expired quote.
+  - Before `createOutgoingPayment`, refuse a quote whose `expiresAt` has passed. Never reuse an expired quote. See the implementation notes.
   - Rotate the payer token when it has expired, then retry once.
-- [ ] `errors.ts` maps `OpenPaymentsClientError` to typed codes such as `GRANT_PENDING`, `GRANT_LIMIT_EXCEEDED`, `QUOTE_EXPIRED`, `INSUFFICIENT_FUNDS`, `UNAUTHORIZED` and `UPSTREAM`. Unknown errors fail closed.
-- [ ] `interaction-hash.ts` implements the hash check and gets a unit test.
-- [ ] `gateway.test.ts` uses an injected SDK test double. It asserts the grant request has no `receiver`, that metadata has only safe keys, that tokens don't appear in returned values, and that a bad hash stops `grant.continue`. The SDK's `mock*` helpers may build fixtures. They are test doubles, not Open Payments responses.
+- [x] `errors.ts` maps `OpenPaymentsClientError` to typed codes. The final list is in the implementation notes. Unknown errors fail closed.
+- [x] `interaction-hash.ts` implements the hash check and gets a unit test.
+- [x] `gateway.test.ts` uses an injected SDK test double. It asserts the grant request has no `receiver`, that metadata has only safe keys, that tokens don't appear in returned values, and that a bad hash stops `grant.continue`. The SDK's `mock*` helpers may build fixtures. They are test doubles, not Open Payments responses.
 
 ### Phase 3 — Smoke script on the test network (eligibility proof)
 
-- [ ] `backend/scripts/op-smoke.ts` plus `npm run op:smoke`. It drives the real gateway: resolve wallets, start the payer grant, print the redirect URL, wait for the pasted finish URL, finish the grant, create a USD 40 incoming payment on the merchant wallet, quote, create the outgoing payment with demo metadata ids, then poll until `COMPLETED`.
+- [x] `backend/scripts/op-smoke.ts` plus `npm run op:smoke`. It drives the real gateway: resolve wallets, start the payer grant, print the redirect URL, wait for the pasted finish URL, finish the grant, create a USD 40 incoming payment on the merchant wallet, quote, create the outgoing payment with demo metadata ids, then poll until `COMPLETED`.
 - [ ] Run it once with real test wallets. Record the outgoing-payment URL and the test wallet's transaction screen for the demo. Don't commit any token.
 - [ ] Try `limits.interval` here (for example `R/<validFrom>/P1M`). If the test network rejects it, ship without an interval and enforce expiry in COMPAS with `cancelPayerGrant`.
 - [ ] Try `readGrantSpentAmounts`. If it isn't supported, the orchestrator tracks `remainingAuthorizedAmount` from completed `debitAmount`s.
@@ -204,20 +219,20 @@ Merge this phase before the code freeze on Sat 17 Oct 2026 at 11:00, even if Pha
 
 ### Phase 4 — Finish callback and contracts
 
-- [ ] `GET /open-payments/finish?grantKey=…&interact_ref=…&hash=…` in `api/server.ts`. It calls `finishPayerGrant`, then redirects the browser to a frontend URL such as `/demo?payerAuthorization=granted`. It returns no token or Open Payments payload. Moving the mandate from `PENDING_AUTHORIZATION` to `ACTIVE` is the orchestrator's job, done through an injected `onPayerGrantFinished(grantKey)` hook.
-- [ ] `contracts/open-payments/README.md` defines the two shapes the frontend will see: `PayerAuthorizationStarted { redirectUrl }` and `PaymentReceipt { outgoingPaymentUrl, state, debitAmount, receiveAmount }`. No tokens.
+- [x] `GET /open-payments/finish?grantKey=…&interact_ref=…&hash=…` in `api/server.ts`. It calls `finishPayerGrant`, then redirects the browser to a frontend URL such as `/demo?payerAuthorization=granted`. It returns no token or Open Payments payload. Moving the mandate from `PENDING_AUTHORIZATION` to `ACTIVE` is the orchestrator's job, done through an injected `onPayerGrantFinished(grantKey)` hook.
+- [x] `contracts/open-payments/README.md` defines the two shapes the frontend will see: `PayerAuthorizationStarted { redirectUrl }` and `PaymentReceipt { outgoingPaymentUrl, state, debitAmount, receiveAmount }`. No tokens.
 
 ### Phase 5 — Hardening, if time allows
 
-- [ ] Idempotency: store the outgoing-payment URL by `compasDecisionId`. A retry with the same decision reads the existing payment instead of creating another one.
-- [ ] `cancelPayerGrant` is wired for mandate revoke and expiry.
-- [ ] Integration test in `backend/tests/integration/`: a denied intent through the application service never calls `createOutgoingPayment` on the real adapter type, as `tests/integration/README.md` asks.
+- [x] Idempotency: store the outgoing-payment URL by `compasDecisionId`. A retry with the same decision reads the existing payment instead of creating another one.
+- [ ] `cancelPayerGrant` is wired for mandate revoke and expiry. The gateway method exists. The wiring belongs to the orchestrator.
+- [x] Integration test in `backend/tests/integration/`: a denied intent through the application service never calls `createOutgoingPayment` on the real adapter type, as `tests/integration/README.md` asks.
 
 ### Phase 6 — Docs and compliance (alongside each phase)
 
-- [ ] Update `docs/04-open-payments-mapping.md`, `.AGENTS/open-payments.md` and `backend/README.md` with the real flow and the new env names.
-- [ ] Add the new env names to `backend/.env.example`, with empty values.
-- [ ] Log each coding prompt in `prompts/NNN-*.md` and update `AI_USAGE.md`.
+- [x] Update `docs/04-open-payments-mapping.md`, `.AGENTS/open-payments.md` and `backend/README.md` with the real flow and the new env names.
+- [x] Add the new env names to `backend/.env.example`, with empty values.
+- [x] Log each coding prompt in `prompts/NNN-*.md` and update `AI_USAGE.md`.
 
 ## Handoff to the orchestrator
 

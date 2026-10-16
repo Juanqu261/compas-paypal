@@ -1,6 +1,9 @@
 # API
 
-The only implemented route is `GET /health`.
+Implemented routes:
+
+- `GET /health`
+- `GET /open-payments/finish`: Pedro's wallet redirects here after consent. The route checks the finish hash, finishes the grant and redirects to `OPEN_PAYMENTS_RETURN_URL` with `payerAuthorization=granted|rejected|failed`. See `contracts/open-payments/README.md`.
 
 The frontend must call this process later. It must not import `backend/src`.
 

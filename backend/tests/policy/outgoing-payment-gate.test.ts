@@ -2,12 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createOutgoingPaymentIfAllowed } from "../../src/application/create-outgoing-payment-if-allowed.ts";
 import { POLICY_EVALUATION_ORDER } from "../../src/policy/evaluation-order.ts";
-import type { CreateOutgoingPaymentInput } from "../../src/ports/open-payments-gateway.ts";
+import type {
+  CreateOutgoingPaymentInput,
+  OutgoingPaymentRef,
+} from "../../src/ports/open-payments-gateway.ts";
 
 const input: CreateOutgoingPaymentInput = {
-  resourceServer: "test-double://resource-server",
-  walletAddressUrl: "test-double://wallet",
-  quoteUrl: "test-double://quote",
+  grantKey: "test-double-mandate",
+  quoteId: "test-double://quote",
+  metadata: { compasDecisionId: "test-double-decision" },
+};
+
+const testDoublePayment: OutgoingPaymentRef = {
+  url: "test-double://outgoing-payment",
+  state: "PENDING",
+  receiverUrl: "test-double://incoming-payment",
+  debitAmount: { value: "0", assetCode: "XTS", assetScale: 2 },
+  receiveAmount: { value: "0", assetCode: "XTS", assetScale: 2 },
+  sentAmount: { value: "0", assetCode: "XTS", assetScale: 2 },
+  createdAt: "1970-01-01T00:00:00Z",
 };
 
 test("policy evaluation reaches Open Payments only after ALLOW", () => {
@@ -22,7 +35,7 @@ test("a denied decision never calls createOutgoingPayment", async () => {
   const payments = {
     async createOutgoingPayment() {
       calls += 1;
-      return { url: "test-double://outgoing-payment", status: "test-double" };
+      return testDoublePayment;
     },
   };
 
@@ -37,7 +50,7 @@ test("review does not call createOutgoingPayment", async () => {
   const payments = {
     async createOutgoingPayment() {
       calls += 1;
-      return { url: "test-double://outgoing-payment", status: "test-double" };
+      return testDoublePayment;
     },
   };
 
@@ -56,7 +69,7 @@ test("allow is the only outcome that reaches the gateway", async () => {
   const payments = {
     async createOutgoingPayment() {
       calls += 1;
-      return { url: "test-double://outgoing-payment", status: "test-double" };
+      return testDoublePayment;
     },
   };
 

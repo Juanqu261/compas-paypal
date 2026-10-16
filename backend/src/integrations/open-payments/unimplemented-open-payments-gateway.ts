@@ -1,16 +1,17 @@
 import type {
-  GrantContinuation,
+  GrantSpentAmounts,
   IncomingPaymentRef,
   OpenPaymentsGateway,
   OutgoingPaymentRef,
-  PaymentStatus,
+  PayerGrantFinished,
+  PayerGrantStarted,
   QuoteRef,
   WalletAddressInfo,
 } from "../../ports/open-payments-gateway";
-import { notImplemented } from "../../lib/not-implemented";
+import { notImplemented } from "../../lib/not-implemented.ts";
 
 /**
- * Placeholder adapter. Every method rejects.
+ * Used when the Open Payments client is not configured. Every method rejects.
  * Do not replace a rejection with a fabricated wallet, grant, quote, or payment.
  */
 export class UnimplementedOpenPaymentsGateway implements OpenPaymentsGateway {
@@ -18,16 +19,24 @@ export class UnimplementedOpenPaymentsGateway implements OpenPaymentsGateway {
     return notImplemented("OpenPaymentsGateway.resolveWallet");
   }
 
-  requestGrant(): Promise<GrantContinuation> {
-    return notImplemented("OpenPaymentsGateway.requestGrant");
+  startPayerGrant(): Promise<PayerGrantStarted> {
+    return notImplemented("OpenPaymentsGateway.startPayerGrant");
   }
 
-  continueGrant(): Promise<GrantContinuation> {
-    return notImplemented("OpenPaymentsGateway.continueGrant");
+  finishPayerGrant(): Promise<PayerGrantFinished> {
+    return notImplemented("OpenPaymentsGateway.finishPayerGrant");
+  }
+
+  cancelPayerGrant(): Promise<void> {
+    return notImplemented("OpenPaymentsGateway.cancelPayerGrant");
   }
 
   createIncomingPayment(): Promise<IncomingPaymentRef> {
     return notImplemented("OpenPaymentsGateway.createIncomingPayment");
+  }
+
+  readIncomingPayment(): Promise<IncomingPaymentRef> {
+    return notImplemented("OpenPaymentsGateway.readIncomingPayment");
   }
 
   createQuote(): Promise<QuoteRef> {
@@ -38,7 +47,11 @@ export class UnimplementedOpenPaymentsGateway implements OpenPaymentsGateway {
     return notImplemented("OpenPaymentsGateway.createOutgoingPayment");
   }
 
-  readPaymentStatus(): Promise<PaymentStatus> {
-    return notImplemented("OpenPaymentsGateway.readPaymentStatus");
+  readOutgoingPayment(): Promise<OutgoingPaymentRef> {
+    return notImplemented("OpenPaymentsGateway.readOutgoingPayment");
+  }
+
+  readGrantSpentAmounts(): Promise<GrantSpentAmounts> {
+    return notImplemented("OpenPaymentsGateway.readGrantSpentAmounts");
   }
 }

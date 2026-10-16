@@ -6,8 +6,8 @@ COMPAS is an entry for the Interledger Open Payments Hackathon 2026 in Medellín
 
 - The submission is a public GitHub repository.
 - The submission needs a working proof of concept.
-- Eligibility requires an actual Open Payments integration. This scaffold does not contain one. A later prompt must implement it against the test environment. Simulated ARQ or Nequi screens do not satisfy that requirement.
-- The demo must visibly show a payment request, authorization, payment execution, and successful completion. Those steps are not implemented yet.
+- Eligibility requires an actual Open Payments integration. The backend gateway in `backend/src/integrations/open-payments/` uses the official SDK against the test network. `npm run op:smoke` is the end-to-end check. It has not been run against the test network as of this entry. Simulated ARQ or Nequi screens do not satisfy that requirement.
+- The demo must visibly show a payment request, authorization, payment execution, and successful completion. The gateway implements each step. The orchestrator and the `/demo` wiring are not implemented yet.
 - AI usage is disclosed in `AI_USAGE.md`.
 - The exact prompts used for coding are stored under `prompts/`.
 - The team must review and understand all AI-generated work before submission. This repository does not claim that any file was written without AI assistance.
@@ -22,7 +22,7 @@ COMPAS is an entry for the Interledger Open Payments Hackathon 2026 in Medellín
 
 ## What is still required for eligibility
 
-- A real Open Payments client, using the variable names in `backend/.env.example`.
+- Test wallet credentials in `backend/.env`, using the variable names in `backend/.env.example`, and one passing `npm run op:smoke` run.
 - A visible flow on `/demo`: request, authorization, execution, completion.
 - The medication path completing a payment from Pedro's wallet to the merchant wallet.
 - The alcohol path stopping with no outgoing payment.

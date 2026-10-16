@@ -8,4 +8,4 @@ The same rule applies to `REVIEW`. Only `ALLOW` may reach the gateway.
 
 `backend/tests/policy/outgoing-payment-gate.test.ts` locks that gate with a test double. The double is not an Open Payments response.
 
-When a real gateway exists, add an integration test here that drives a denied purchase intent through the application service and asserts `createOutgoingPayment` is not called. `UnimplementedOpenPaymentsGateway` must keep throwing until that real adapter exists. Do not stub a successful payment to make this test pass.
+`denied-payment-never-reaches-open-payments.test.ts` drives `createOutgoingPaymentIfAllowed` with the real `InterledgerOpenPaymentsGateway` over an SDK test double. With an active payer grant, `DENY` and `REVIEW` still make no `outgoingPayment.create` call. When the orchestrator exists, extend it to drive a denied purchase intent end to end. Do not stub a successful payment in the running backend to make a test pass. `UnimplementedOpenPaymentsGateway` keeps throwing when the client env is missing.
