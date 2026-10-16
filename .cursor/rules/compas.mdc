@@ -1,0 +1,27 @@
+---
+description: COMPAS non-custodial policy and Open Payments invariants
+alwaysApply: true
+---
+
+# COMPAS invariants
+
+COMPAS moves permission, not money. It is non-custodial. Delegated capacity is not a transfer to the delegate, and `remainingAuthorizedAmount` is not a wallet balance.
+
+Purpose rules belong to COMPAS. Open Payments grants, actions, and limits are a separate layer. Do not call `MEDICATION` an Open Payments scope.
+
+Never fake a successful Open Payments call. Throw until the gateway is real. Label fixtures `demo/test data`, and do not present them as live quotes or payments.
+
+AI can classify. AI cannot authorize. Low confidence fails closed. Call `createOutgoingPayment` only after policy returns `ALLOW`.
+
+```ts
+if (!outgoingPaymentMayProceed(decision.outcome)) {
+  return;
+}
+await gateway.createOutgoingPayment(input);
+```
+
+Keep the Interledger SDK behind `OpenPaymentsGateway`. Do not put health data in Open Payments metadata. Use opaque `compasMandateId`, `compasDecisionId`, and `externalReference` only.
+
+Reuse the Mandate for every later context. Do not add a blockchain, a new app, or a library without a concrete need. Do not claim a simulated ARQ, Nequi, Bre-B, or other integration is real.
+
+Copy any new AI coding prompt verbatim into `prompts/`. Update `AI_USAGE.md` when an AI tool's role changes materially.
