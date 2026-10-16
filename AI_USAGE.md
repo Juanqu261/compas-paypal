@@ -10,7 +10,14 @@ This log does not claim that any file was written without AI assistance. The tea
 
 Copy the template, fill it in, and link the prompt file under `prompts/`.
 
-## Entries
+## Tools Used
+
+- Cursor (repository foundation and monorepo restructure)
+- Claude Code (Claude Opus 5.5) (agent skills, Claude integration, and the ARQ, Nequi, and Nequi Negocios simulated surfaces)
+
+## Where and How We Used AI
+
+The dated running log below is the detailed record: which tool, which files or components, and the review status of each session.
 
 ### 2026-10-16 — Cursor
 
@@ -95,6 +102,40 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
   - ran lint, typecheck and build with the Node runtime bundled with Cursor, because Node was not on PATH
 - Prompt log: [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
 - Human review: Pending team review. Merchant name, sales amounts, dates, and the checkout link text are local `demo/test data`.
+
+### 2026-10-16 — Claude Code — Nequi Negocios COMPAS merchant configuration
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - merchant-side COMPAS UX inside the simulated Nequi Negocios app (`frontend/src/features/nequi-business/`)
+  - Nequi Negocios `Conoce más` implementation: a services screen (`NequiBusinessMore.tsx`) reached from the bottom nav, which now shows the active tab (`NequiBusinessBottomNav.tsx`)
+  - COMPAS merchant configuration UI (`NequiBusinessCompas.tsx`): an on/off switch, the establishment (Droguería Central), category checkboxes, a "how it works" section, and `Guardar configuración`
+  - local frontend configuration state held in `NequiBusinessExperience.tsx`, with labels and defaults in `nequi-business-compas-demo.ts`. Saving updates component state only. It is not a backend enrollment, not a merchant-registry write, and not a real Nequi merchant verification.
+  - no backend integration, no Open Payments integration, and no ALLOW/DENY/REVIEW decision in the browser
+  - restructured this file under the section headings that `.skills/hackathon-ai-rules/scripts/ai_rules.py check` requires. Every earlier entry is kept word for word.
+  - Claude Code also made commits `2f8635b` (the Nequi Negocios UI) and `c20646a` (the merge of `cf28a86`) at the team's request. It renumbered the Nequi Negocios prompt log to 006 and kept both new entries in this file. That request was a git instruction and is not in `prompts/`.
+- Prompt log: [prompts/009-nequi-negocios-compas.md](prompts/009-nequi-negocios-compas.md)
+- Human review: Pending team review. The categories and the enabled state are local `demo/test data`.
+
+## What We Did Ourselves
+
+- The product idea, the design-session answers, and the scope decisions came from the team. See the verbatim prompts in `prompts/002-agent-skills.md` and later prompt files.
+- The team supplied the reference screenshots for ARQ, Nequi, and Nequi Negocios. The assistants did not collect them.
+- The team made the commits and merges recorded in git history, except where an entry above says an assistant did the work.
+- Human review of AI-generated code is pending for every entry above. This file does not mark any file as written without AI.
+- Open Payments is not integrated yet. The integration belongs behind `OpenPaymentsGateway` in `backend/src/ports/open-payments-gateway.ts`. The current adapter, `backend/src/integrations/open-payments/unimplemented-open-payments-gateway.ts`, throws. Record who writes the real adapter, and how, when it lands.
+
+## Prompt Log
+
+Verbatim prompts for each AI coding session are in `/prompts/`, numbered in order:
+
+- [prompts/001-repository-foundation.md](prompts/001-repository-foundation.md)
+- [prompts/002-agent-skills.md](prompts/002-agent-skills.md)
+- [prompts/003-monorepo-restructure.md](prompts/003-monorepo-restructure.md)
+- [prompts/004-arq-ui.md](prompts/004-arq-ui.md)
+- [prompts/005-nequi-ui.md](prompts/005-nequi-ui.md)
+- [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
+- [prompts/009-nequi-negocios-compas.md](prompts/009-nequi-negocios-compas.md)
 
 ## Entry template
 

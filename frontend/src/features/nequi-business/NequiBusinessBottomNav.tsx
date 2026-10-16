@@ -1,12 +1,25 @@
 import { GridIcon, HomeIcon, SalesIcon } from "./NequiBusinessIcons";
 
+/** Persistent tabs. `Ventas` opens the pushed sales summary instead. */
+export type NequiBusinessTab = "home" | "more";
+
 const tabButton =
   "flex w-full flex-col items-center gap-0.5 rounded-lg py-1.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--nb-blue)";
 
+function tabClass(active: boolean) {
+  return `${tabButton} ${
+    active ? "bg-(--nb-card) font-semibold" : "hover:bg-(--nb-card)/60"
+  }`;
+}
+
 /** Floating bottom navigation. It sits outside the scroll area. */
 export function NequiBusinessBottomNav({
+  activeTab,
+  onSelectTab,
   onOpenSales,
 }: {
+  activeTab: NequiBusinessTab;
+  onSelectTab: (tab: NequiBusinessTab) => void;
   onOpenSales: () => void;
 }) {
   return (
@@ -18,25 +31,27 @@ export function NequiBusinessBottomNav({
         <li>
           <button
             type="button"
-            aria-current="page"
-            className={`${tabButton} bg-(--nb-card) font-semibold`}
+            aria-current={activeTab === "home" ? "page" : undefined}
+            onClick={() => onSelectTab("home")}
+            className={tabClass(activeTab === "home")}
           >
-            <HomeIcon filled className="size-6" />
+            <HomeIcon filled={activeTab === "home"} className="size-6" />
             Inicio
           </button>
         </li>
         <li>
-          <button
-            type="button"
-            onClick={onOpenSales}
-            className={`${tabButton} hover:bg-(--nb-card)/60`}
-          >
+          <button type="button" onClick={onOpenSales} className={tabClass(false)}>
             <SalesIcon className="size-6" />
             Ventas
           </button>
         </li>
         <li>
-          <button type="button" className={`${tabButton} hover:bg-(--nb-card)/60`}>
+          <button
+            type="button"
+            aria-current={activeTab === "more" ? "page" : undefined}
+            onClick={() => onSelectTab("more")}
+            className={tabClass(activeTab === "more")}
+          >
             <GridIcon className="size-6" />
             Conoce más
           </button>

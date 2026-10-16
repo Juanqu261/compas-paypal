@@ -1,6 +1,5 @@
 import { useId, useState, type ComponentType, type ReactNode } from "react";
 import { nequiBusinessDemo } from "./nequi-business-demo-content";
-import { NequiBusinessBottomNav } from "./NequiBusinessBottomNav";
 import {
   ArrowRightIcon,
   CardIcon,
@@ -171,7 +170,6 @@ export function NequiBusinessHome({
 
         <SalesToday onOpenSales={onOpenSales} />
       </div>
-      <NequiBusinessBottomNav onOpenSales={onOpenSales} />
     </div>
   );
 }

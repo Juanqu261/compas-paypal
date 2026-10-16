@@ -246,6 +246,15 @@ export function InstantMoneyIcon(props: IconProps) {
   );
 }
 
+export function CompassIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m15.5 8.5-2 5-5 2 2-5z" />
+    </Icon>
+  );
+}
+
 /** Neutral geometric stand-ins for provider marks. Not logos. */
 export function ZigzagMark({ className }: IconProps) {
   return (
