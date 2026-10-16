@@ -68,6 +68,18 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/004-arq-ui.md](prompts/004-arq-ui.md)
 - Human review: Pending team review. Compare the screens with the reference screenshots. Wallet amounts, card suffixes, transactions, and exchange-rate numbers are local `demo/test data`, not live values.
 
+### 2026-10-16 — Claude Code — Nequi surface UI
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - Nequi UI recreation of the simulated delegate wallet (Andrea) in `frontend/src/features/nequi/`: `NequiExperience`, `NequiHome`, `NequiHero`, `NequiHomeSections`, `NequiBottomNav`, `NequiActionMenu`, `NequiScreen`, `NequiSendOptions`, `NequiCompasShell`, `NequiIcons`, `nequi-demo-content.ts`
+  - visual adaptation from three screenshots of the Nequi app provided by the team (home, "$" action menu, "Opciones para enviar"). Icons and illustrations are hand-drawn SVG. No screenshot, logo or third-party asset was copied or embedded.
+  - full-screen layout for `/nequi` (`frontend/src/app/nequi/page.tsx`, same wrapper as `/arq`). The Nequi phone in `/demo` now uses the edge-to-edge `PhoneFrame` mode (`frontend/src/features/demo/DemoStage.tsx`).
+  - COMPAS entry point: a `Compas` tile under `Sugeridos Nequi` that slides in a placeholder shell. No mandate, policy, backend, or Open Payments logic.
+  - focus fix in `frontend/src/features/arq/ArqCompasShell.tsx`: the shell now becomes visible as soon as it opens, so the back button gets focus and Escape closes it. Before the fix, focus stayed on the page body.
+- Prompt log: [prompts/005-nequi-ui.md](prompts/005-nequi-ui.md)
+- Human review: Pending team review. Compare the screens with the reference screenshots. The balance and promo copy are local `demo/test data`.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
