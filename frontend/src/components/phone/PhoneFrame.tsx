@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
 type PhoneFrameProps = {
-  title: string;
+  /** Names the device for assistive technology, e.g. "Pedro's phone, ARQ". */
+  label: string;
   /**
    * Gives the child an unpadded, device-height screen. Use it for a surface
    * that draws its own edge-to-edge layout and manages its own scrolling.
@@ -11,23 +12,29 @@ type PhoneFrameProps = {
 };
 
 export function PhoneFrame({
-  title,
+  label,
   edgeToEdge = false,
   children,
 }: PhoneFrameProps) {
   return (
     <section
-      className={`shrink-0 rounded-2xl border border-neutral-300 bg-white p-3 ${
+      aria-label={label}
+      className={`shrink-0 rounded-[2.75rem] bg-bezel p-[9px] shadow-[0_2px_0_rgb(255_255_255/0.08)_inset,0_30px_60px_-28px_rgb(14_35_56/0.55),0_12px_20px_-12px_rgb(14_35_56/0.35)] ${
         edgeToEdge ? "w-[22rem]" : "w-72"
       }`}
     >
-      <p className="mb-2 text-center text-xs text-neutral-500">{title}</p>
       {edgeToEdge ? (
-        <div className="h-[min(46rem,calc(100dvh_-_14rem))] min-h-[32rem] overflow-hidden rounded-[1.75rem] border border-neutral-200">
+        <div
+          data-surface
+          className="h-[min(46rem,calc(100dvh_-_16rem))] min-h-[32rem] overflow-hidden rounded-[2.2rem] bg-white"
+        >
           {children}
         </div>
       ) : (
-        <div className="min-h-80 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+        <div
+          data-surface
+          className="min-h-80 rounded-[2.2rem] bg-neutral-50 p-4"
+        >
           {children}
         </div>
       )}

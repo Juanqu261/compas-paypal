@@ -112,3 +112,14 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Role: copied the third-party `frontend-design` skill from `anthropics/skills` (Apache-2.0, unchanged) into `.skills/frontend-design/`, wrote its wrapper `.claude/skills/frontend-design/SKILL.md` and listed it in `AGENTS.md`. No application code was changed.
 - Prompt log: [prompts/007-frontend-design-skill.md](prompts/007-frontend-design-skill.md)
 - Human review: Pending team review.
+
+### 2026-10-16 — Claude Code — site redesign and transitions
+
+- Tool: Claude Code (Claude Opus 5.5) with the `frontend-design` skill
+- Role:
+  - visual direction and implementation of the site around the phones: `app/layout.tsx`, `app/globals.css`, `app/page.tsx`, `app/demo/page.tsx`, the `/arq`, `/nequi` and `/nequi-negocios` page wrappers, `components/phone/PhoneFrame.tsx`, `features/demo/DemoStage.tsx`, `features/site/` and `features/landing/`
+  - React `<ViewTransition>` page slides along the story order, an anchored header, a moving nav marker, name morphs and readout crossfades
+  - extended the display type in `demo/scenarios.ts` with line items, the merchant's category claims and the fixture's `expectedPolicyResult`. The landing page and `/demo` show that outcome labelled as the expected story outcome from demo/test data. The browser computes no policy decision.
+  - the simulated apps inside the phones were not changed
+- Prompt log: [prompts/008-site-redesign.md](prompts/008-site-redesign.md)
+- Human review: Pending team review. Check the copy against the pitch guardrails in `.skills/compas-context/SKILL.md`.

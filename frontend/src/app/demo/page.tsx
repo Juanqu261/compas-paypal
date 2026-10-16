@@ -1,17 +1,22 @@
 import { loadDemoScenarios } from "@/demo/load-scenarios";
 import { DemoStage } from "@/features/demo/DemoStage";
+import { PageTransition } from "@/features/site/PageTransition";
 
 export default function DemoPage() {
   return (
-    <main className="mx-auto max-w-6xl space-y-4 px-6 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Demo</h1>
-        <p className="text-sm text-neutral-600">
-          One payment lifecycle across three simulated wallet surfaces. The
-          phones share scenario state. Switching the fixture updates all three.
-        </p>
-      </header>
-      <DemoStage scenarios={loadDemoScenarios()} />
-    </main>
+    <PageTransition>
+      <main className="pt-10 pb-16 sm:pt-14">
+        <header className="mx-auto max-w-7xl space-y-3 px-4 pb-8 sm:px-8">
+          <h1 className="font-display text-4xl leading-tight text-ink sm:text-5xl">
+            One purchase, three phones.
+          </h1>
+          <p className="max-w-[44rem] text-lg leading-relaxed text-ink-soft">
+            Pedro authorizes, Andrea pays and the pharmacy collects. The phones
+            share one scenario, so switching the purchase updates all three.
+          </p>
+        </header>
+        <DemoStage scenarios={loadDemoScenarios()} />
+      </main>
+    </PageTransition>
   );
 }
