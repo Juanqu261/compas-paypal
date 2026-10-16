@@ -29,7 +29,7 @@ function DemoPhones() {
         ))}
       </div>
       <div className="flex gap-4 overflow-x-auto pb-2">
-        <PhoneFrame title="Phone 1 · ARQ">
+        <PhoneFrame title="Phone 1 · ARQ" edgeToEdge>
           <ArqExperience />
         </PhoneFrame>
         <PhoneFrame title="Phone 2 · Nequi">
