@@ -4,7 +4,7 @@ Open Payments and COMPAS are different layers.
 
 Open Payments moves value between wallet addresses. It speaks grants, access actions, and limits. COMPAS decides whether a delegate may cause a payment for a purpose. `MEDICATION` is not an Open Payments scope.
 
-The gateway in `src/compas/ports/open-payments-gateway.ts` is the only place the Interledger SDK should appear later. Nothing in this repository calls it.
+The gateway in `backend/src/ports/open-payments-gateway.ts` is the only place the Interledger SDK should appear later. Nothing in this repository calls it. The frontend does not hold the client key.
 
 ## Who enforces what
 
@@ -59,7 +59,7 @@ The future authenticated client follows the official Node snippets for `createAu
 - `keyId` from `KEY_ID`
 - `privateKey` from `PRIVATE_KEY_PATH` (a path or key contents)
 
-Those names are in `.env.example`. No credentials are filled in. The private key file must stay out of git.
+Those names are in `backend/.env.example`. No credentials are filled in. The private key file must stay out of git and must not be exposed to the frontend.
 
 ## Metadata
 

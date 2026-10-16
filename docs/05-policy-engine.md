@@ -1,6 +1,6 @@
 # Policy engine
 
-The policy engine does not exist yet. This document is the order a later evaluator must follow. The step names are `POLICY_EVALUATION_ORDER` in `src/compas/policy/evaluation-order.ts`.
+The policy engine does not exist yet. This document is the order a later evaluator must follow. The step names are `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts`.
 
 ```text
 payment intent

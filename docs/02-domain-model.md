@@ -1,6 +1,6 @@
 # Domain model
 
-Types live in `src/compas/domain/`. They describe the model. They do not persist it or move money.
+Types live in `backend/src/domain/`. They describe the model. They do not persist it or move money.
 
 ## Terms
 
@@ -46,7 +46,7 @@ A category claim has a trust level:
 - `PROVIDER_VERIFIED` — the wallet provider or acquiring surface attested the category.
 - `EXTERNAL_VERIFIED` — an independent source attested it.
 
-No verifier is implemented. Demo merchants in `src/demo/scenarios/` are `SELF_DECLARED` and labeled `demo/test data`.
+No verifier is implemented. Demo merchants in `data/fixtures/demo/` are `SELF_DECLARED` and labeled `demo/test data`.
 
 A later mixed basket can mark lines independently. Acetaminophen and losartan can be `MEDICATION` while shampoo is `PERSONAL_CARE`. A future rule could fund only the eligible subtotal. Split tender is not implemented.
 

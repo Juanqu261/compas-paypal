@@ -10,7 +10,7 @@ Pedro lives abroad and holds a USD wallet. He wants up to USD 40 available for m
 
 ## The idea
 
-Pedro creates a mandate: Andrea may initiate payments, up to USD 40, for purpose `MEDICATION`, until the mandate expires. Andrea does not receive the funds. When she pays a pharmacy, COMPAS checks the mandate. If the decision is allow, Open Payments moves money from Pedro's wallet to the merchant. If she tries to buy alcohol, COMPAS denies the intent before any outgoing payment exists.
+Pedro creates a mandate: Andrea may initiate payments, up to USD 40, for purpose `MEDICATION`, until the mandate expires. Andrea does not receive the funds. When she pays a pharmacy, the backend checks the mandate. If the decision is allow, Open Payments moves money from Pedro's wallet to the merchant. If she tries to buy alcohol, COMPAS denies the intent before any outgoing payment exists.
 
 The same mandate can later express a business, NGO, or government allocation. The hackathon MVP implements the family story only. COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail.
 
@@ -27,50 +27,62 @@ COMPAS is not a wallet, not a bank, and not a custodian of funds. It is not anot
 | `/nequi` | Andrea, delegate |
 | `/nequi-negocios` | Pharmacy, merchant |
 
-`/demo` is the pitch surface. The other routes render the same components. ARQ, Nequi, and Nequi Negocios here are simulations of embedding, not live integrations.
+These routes belong to the frontend. `/demo` is the pitch surface. ARQ, Nequi, and Nequi Negocios are simulations of embedding, not live integrations.
 
-## Architecture
+## Repository
 
-One Next.js application. Domain types and ports do not depend on the UI, the Open Payments SDK, or an AI vendor. Adapters in `src/integrations/` currently throw rather than invent a payment. Details and diagrams: [docs/03-architecture.md](docs/03-architecture.md).
+```text
+frontend/     Next.js demo and wallet simulations
+backend/      COMPAS runtime, policy, and Open Payments boundary
+data/         Demo fixtures and future schemas
+contracts/    Future API and event contracts
+infra/        Future deployment material
+docs/         Product, architecture, and research
+prompts/      Exact AI coding prompts
+.AGENTS/      Shared instructions for coding agents
+```
+
+Details and diagrams: [docs/03-architecture.md](docs/03-architecture.md).
 
 ## Open Payments
 
 Open Payments is the payment layer: wallet addresses, grants, incoming payments, quotes, and outgoing payments. COMPAS is the purpose layer: mandate, delegate, beneficiary, merchant evidence, and the allow or deny decision. An outgoing-payment grant can exist before the pharmacy is known, which is what lets Pedro authorize a budget first. No Open Payments call is implemented yet. Mapping: [docs/04-open-payments-mapping.md](docs/04-open-payments-mapping.md).
 
-## Repository structure
+## Development
 
-```text
-src/app/                  routes
-src/features/             ARQ, Nequi, Nequi Negocios, demo
-src/compas/domain/        types
-src/compas/policy/        evaluation order and allow-gate
-src/compas/ports/         gateway, repositories, classifier
-src/integrations/         throwing adapters
-src/demo/scenarios/       labeled demo fixtures
-docs/                     product, architecture, prior art
-prompts/                  exact AI prompts
-```
+There is no install or dev command at the repository root.
 
-## Getting started
+Frontend:
 
 ```bash
+cd frontend
 npm install
 npm run dev
 npm run lint
 npm run typecheck
-npm test
 npm run build
 ```
 
-`npm run dev` serves the app at [http://localhost:3000](http://localhost:3000).
+Backend:
+
+```bash
+cd backend
+npm install
+npm run dev
+npm run typecheck
+npm test
+npm start
+```
+
+`npm run dev` in `frontend/` serves the demo at [http://localhost:3000](http://localhost:3000). `npm run dev` in `backend/` serves `GET /health` on port 4000.
 
 ## Environment variables
 
-Copy `.env.example` when a later task configures Open Payments. The names match the official Node client snippets. Leave them empty until then. Do not commit a private key.
+Open Payments client settings belong in `backend/.env.example`. Leave them empty until a later task. Do not commit a private key, and do not expose those values to the frontend.
 
 ## AI usage
 
-Cursor generated the architecture, scaffold, docs, domain types, and this README. Disclosure: [AI_USAGE.md](AI_USAGE.md). Prompts: [prompts/](prompts/).
+Disclosure: [AI_USAGE.md](AI_USAGE.md). Prompts: [prompts/](prompts/). Shared agent context: [AGENTS.md](AGENTS.md) and [.AGENTS/](.AGENTS/).
 
 ## Research and prior art
 

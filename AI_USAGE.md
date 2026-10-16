@@ -35,6 +35,19 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/002-agent-skills.md](prompts/002-agent-skills.md)
 - Human review: Pending team review. The CIIU codes in `.skills/compas-context/REFERENCE.md` are unverified and marked as such.
 
+### 2026-10-16 — Cursor — monorepo restructure
+
+- Tool: Cursor
+- Role:
+  - repository restructuring
+  - monorepo architecture
+  - separation of frontend, backend, and data
+  - migration of existing code
+  - documentation path updates
+  - agent-instruction restructuring
+- Prompt log: [prompts/002-monorepo-restructure.md](prompts/002-monorepo-restructure.md)
+- Human review: Pending team review. This entry does not mark any file as human-written.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
