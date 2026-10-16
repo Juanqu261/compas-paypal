@@ -32,7 +32,7 @@ function DemoPhones() {
         <PhoneFrame title="Phone 1 · ARQ" edgeToEdge>
           <ArqExperience />
         </PhoneFrame>
-        <PhoneFrame title="Phone 2 · Nequi">
+        <PhoneFrame title="Phone 2 · Nequi" edgeToEdge>
           <NequiExperience />
         </PhoneFrame>
         <PhoneFrame title="Phone 3 · Nequi Negocios" edgeToEdge>

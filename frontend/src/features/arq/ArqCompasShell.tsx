@@ -24,8 +24,11 @@ export function ArqCompasShell({
       onKeyDown={(event) => {
         if (event.key === "Escape") onBack();
       }}
-      className={`absolute inset-0 z-20 flex flex-col bg-white shadow-[-8px_0_24px_rgba(0,0,0,0.12)] transition-[transform,visibility] duration-300 ease-out motion-reduce:transition-none ${
-        open ? "visible translate-x-0" : "invisible translate-x-full"
+      className={`absolute inset-0 z-20 flex flex-col bg-white shadow-[-8px_0_24px_rgba(0,0,0,0.12)] duration-300 ease-out motion-reduce:transition-none ${
+        // Visibility flips at once on open so focus can land; it waits on close.
+        open
+          ? "visible translate-x-0 transition-transform"
+          : "invisible translate-x-full transition-[transform,visibility]"
       }`}
     >
       <ArqStatusBar tone="dark" />
