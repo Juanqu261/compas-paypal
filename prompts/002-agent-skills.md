@@ -65,3 +65,15 @@ the implementation plan is no needed as we will build as it goes, the recommende
 ```text
 i pull the last scaffold changes in @compas\ lets add a folder .skills/ adding these 2 skills we created and that my own teammate agents can load
 ```
+
+## 11
+
+```text
+i already commit the changes, now my claude sessions does already have these skills?
+```
+
+## 12
+
+```text
+yes do the move, ensure my future claude uses the skills, dont change the uploaded .skills as they serve for general usage and each agent implement it as we are doing now
+```

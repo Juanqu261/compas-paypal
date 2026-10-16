@@ -15,13 +15,14 @@ COMPAS is an entry for the Interledger Open Payments Hackathon 2026 in Medellín
 ## What this scaffold already satisfies
 
 - `AI_USAGE.md` exists and can take later entries for Cursor, ChatGPT, Claude, Gemini, or another tool.
-- `prompts/001-repository-foundation.md` is the prompt for this foundation.
+- `prompts/001-repository-foundation.md` is the prompt for the original foundation.
+- `prompts/002-monorepo-restructure.md` is the prompt for the monorepo restructure.
 - The architecture keeps a real Open Payments gateway possible without pretending it already works.
 - The denied-payment invariant is tested so a later integration cannot "succeed" a rejected purchase by calling `createOutgoingPayment`.
 
 ## What is still required for eligibility
 
-- A real Open Payments client, using the variable names in `.env.example`.
+- A real Open Payments client, using the variable names in `backend/.env.example`.
 - A visible flow on `/demo`: request, authorization, execution, completion.
 - The medication path completing a payment from Pedro's wallet to the merchant wallet.
 - The alcohol path stopping with no outgoing payment.

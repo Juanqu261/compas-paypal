@@ -1,6 +1,6 @@
 # Demo story
 
-This is the only scenario the MVP needs to prove. Names and amounts below are the product story. Runnable demo data lives in `src/demo/scenarios/` and is labeled `demo/test data`.
+This is the only scenario the MVP needs to prove. Names and amounts below are the product story. Runnable demo data lives in `data/fixtures/demo/` and is labeled `demo/test data`.
 
 ARQ, Nequi, and Nequi Negocios are simulated wallet surfaces. They show how COMPAS could be embedded in existing apps. They are not production integrations with those companies.
 

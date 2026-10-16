@@ -1,24 +1,16 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
+node_modules/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+dist/
+build/
+
+# testing
+coverage/
 
 # misc
 .DS_Store
@@ -44,3 +36,7 @@ private.key
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local AI tool configuration
+.cursor/
+.claude/

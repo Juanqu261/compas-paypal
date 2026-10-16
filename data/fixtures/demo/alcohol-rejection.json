@@ -1,0 +1,85 @@
+{
+  "dataLabel": "demo/test data",
+  "id": "alcohol-rejection",
+  "title": "Liquor-store rejection",
+  "merchantSurface": "Nequi Negocios simulation",
+  "notes": [
+    "The same medication mandate must not pay for alcohol.",
+    "Expected future result: DENY / PURPOSE_MISMATCH, with no outgoing payment."
+  ],
+  "mandate": {
+    "id": "demo-mandate-medication",
+    "payer": {
+      "id": "demo-payer-pedro",
+      "displayName": "Pedro",
+      "role": "PAYER"
+    },
+    "delegate": {
+      "id": "demo-delegate-andrea",
+      "displayName": "Andrea",
+      "role": "DELEGATE"
+    },
+    "beneficiary": {
+      "id": "demo-beneficiary-gladys",
+      "displayName": "Gladys",
+      "role": "BENEFICIARY"
+    },
+    "budget": {
+      "value": "4000",
+      "assetCode": "USD",
+      "assetScale": 2
+    },
+    "remainingAuthorizedAmount": {
+      "value": "4000",
+      "assetCode": "USD",
+      "assetScale": 2
+    },
+    "purposePolicy": {
+      "id": "demo-policy-medication",
+      "allowedPurposes": ["MEDICATION"],
+      "eligibleCategories": ["MEDICATION"]
+    },
+    "status": "ACTIVE",
+    "validFrom": "2026-10-16T00:00:00Z",
+    "expiresAt": "2026-12-31T23:59:59Z",
+    "createdAt": "2026-10-16T12:00:00Z"
+  },
+  "purchaseIntent": {
+    "id": "demo-intent-liquor",
+    "mandateId": "demo-mandate-medication",
+    "delegateId": "demo-delegate-andrea",
+    "merchant": {
+      "id": "demo-merchant-example-liquor",
+      "displayName": "Example liquor store",
+      "categoryClaims": [
+        {
+          "category": "ALCOHOL",
+          "trustLevel": "SELF_DECLARED",
+          "evidenceRef": "demo-claim-only"
+        }
+      ]
+    },
+    "lineItems": [
+      {
+        "id": "demo-line-alcohol",
+        "description": "Alcohol",
+        "category": "ALCOHOL",
+        "amount": {
+          "value": "1500",
+          "assetCode": "USD",
+          "assetScale": 2
+        }
+      }
+    ],
+    "amount": {
+      "value": "1500",
+      "assetCode": "USD",
+      "assetScale": 2
+    },
+    "createdAt": "2026-10-16T16:00:00Z"
+  },
+  "expectedPolicyResult": {
+    "outcome": "DENY",
+    "reason": "PURPOSE_MISMATCH"
+  }
+}

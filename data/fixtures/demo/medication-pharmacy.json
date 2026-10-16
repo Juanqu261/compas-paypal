@@ -1,0 +1,85 @@
+{
+  "dataLabel": "demo/test data",
+  "id": "medication-pharmacy",
+  "title": "Pharmacy medication purchase",
+  "merchantSurface": "Nequi Negocios simulation",
+  "notes": [
+    "Expected ALLOW is the story outcome once eligible evidence exists. It is not a decision this scaffold computed.",
+    "The category claim is SELF_DECLARED demo data and is not verification.",
+    "Droguería Central is simulated. No wallet address or quote is included."
+  ],
+  "mandate": {
+    "id": "demo-mandate-medication",
+    "payer": {
+      "id": "demo-payer-pedro",
+      "displayName": "Pedro",
+      "role": "PAYER"
+    },
+    "delegate": {
+      "id": "demo-delegate-andrea",
+      "displayName": "Andrea",
+      "role": "DELEGATE"
+    },
+    "beneficiary": {
+      "id": "demo-beneficiary-gladys",
+      "displayName": "Gladys",
+      "role": "BENEFICIARY"
+    },
+    "budget": {
+      "value": "4000",
+      "assetCode": "USD",
+      "assetScale": 2
+    },
+    "remainingAuthorizedAmount": {
+      "value": "4000",
+      "assetCode": "USD",
+      "assetScale": 2
+    },
+    "purposePolicy": {
+      "id": "demo-policy-medication",
+      "allowedPurposes": ["MEDICATION"],
+      "eligibleCategories": ["MEDICATION"]
+    },
+    "status": "ACTIVE",
+    "validFrom": "2026-10-16T00:00:00Z",
+    "expiresAt": "2026-12-31T23:59:59Z",
+    "createdAt": "2026-10-16T12:00:00Z"
+  },
+  "purchaseIntent": {
+    "id": "demo-intent-pharmacy",
+    "mandateId": "demo-mandate-medication",
+    "delegateId": "demo-delegate-andrea",
+    "merchant": {
+      "id": "demo-merchant-drogueria-central",
+      "displayName": "Droguería Central",
+      "categoryClaims": [
+        {
+          "category": "MEDICATION",
+          "trustLevel": "SELF_DECLARED",
+          "evidenceRef": "demo-claim-only"
+        }
+      ]
+    },
+    "lineItems": [
+      {
+        "id": "demo-line-acetaminophen",
+        "description": "Acetaminophen",
+        "category": "MEDICATION",
+        "amount": {
+          "value": "4000",
+          "assetCode": "USD",
+          "assetScale": 2
+        }
+      }
+    ],
+    "amount": {
+      "value": "4000",
+      "assetCode": "USD",
+      "assetScale": 2
+    },
+    "createdAt": "2026-10-16T15:00:00Z"
+  },
+  "expectedPolicyResult": {
+    "outcome": "ALLOW"
+  }
+}

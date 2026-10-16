@@ -1,48 +1,59 @@
 # Architecture
 
-COMPAS is one Next.js application. It is not a monorepo and not three apps. Domain code does not import Next.js, the Open Payments SDK, an AI vendor SDK, or a database client.
+COMPAS is a product repository. The root is not an application. `frontend/`, `backend/`, and `data/` are separate. There is no npm workspace at the root. See [adr/0004-general-monorepo-architecture.md](adr/0004-general-monorepo-architecture.md).
+
+The three wallet simulations remain one Next.js app inside `frontend/`. Domain code does not import Next.js, the Open Payments SDK, an AI vendor SDK, or a database client.
 
 ## System context
 
 ```mermaid
-flowchart LR
-  payerSurface["ARQ simulation<br/>Pedro, payer"]
-  delegateSurface["Nequi simulation<br/>Andrea, delegate"]
-  merchantSurface["Nequi Negocios simulation<br/>pharmacy"]
-  compas["COMPAS<br/>mandate and policy"]
-  openPayments["Open Payments"]
-  payerWallet["Payer wallet"]
-  merchantWallet["Merchant wallet"]
+flowchart TB
+  subgraph frontendApp ["frontend"]
+    arq["ARQ simulation"]
+    nequi["Nequi simulation"]
+    business["Nequi Negocios simulation"]
+  end
 
-  payerSurface --> compas
-  delegateSurface --> compas
-  merchantSurface --> compas
-  compas -->|"only after ALLOW"| openPayments
-  payerWallet --> openPayments
-  openPayments --> merchantWallet
+  backendApp["backend"]
+  domain["COMPAS domain"]
+  policy["Policy engine"]
+  gateway["Open Payments gateway"]
+  registry["Merchant registry"]
+  classifier["AI classifier"]
+  audit["Audit"]
+  dataStore["Data / persistence"]
+  openPayments["Open Payments"]
+
+  frontendApp -->|"HTTP / API"| backendApp
+  backendApp --> domain
+  backendApp --> policy
+  backendApp --> gateway
+  backendApp --> registry
+  backendApp --> classifier
+  backendApp --> audit
+  backendApp --> dataStore
+  gateway -->|"only after ALLOW"| openPayments
 ```
 
-The three surfaces are UX simulations. Open Payments is the payment layer. COMPAS never sits in the path as a custodian.
+ARQ, Nequi, and Nequi Negocios are UX simulations inside the frontend. Open Payments is the payment layer. COMPAS never sits in the path as a custodian.
 
-## Components
+## Backend components
 
 ```mermaid
 flowchart TB
-  routes["src/app routes"]
-  features["src/features experiences"]
-  application["src/compas/application"]
-  policy["src/compas/policy"]
-  domain["src/compas/domain"]
-  ports["src/compas/ports"]
-  openPaymentsAdapter["src/integrations/open-payments"]
-  merchantAdapter["src/integrations/merchant-registry"]
-  classifierAdapter["src/integrations/ai-classifier"]
+  api["backend/src/api"]
+  application["backend/src/application"]
+  policyNode["backend/src/policy"]
+  domainNode["backend/src/domain"]
+  ports["backend/src/ports"]
+  openPaymentsAdapter["backend/src/integrations/open-payments"]
+  merchantAdapter["backend/src/integrations/merchant-registry"]
+  classifierAdapter["backend/src/integrations/ai-classifier"]
 
-  routes --> features
-  features --> application
-  application --> policy
-  application --> domain
-  policy --> domain
+  api --> application
+  application --> policyNode
+  application --> domainNode
+  policyNode --> domainNode
   application --> ports
   openPaymentsAdapter -.-> ports
   merchantAdapter -.-> ports
@@ -57,11 +68,13 @@ Ports:
 - `PurposeClassifier`
 - `AuditRepository`
 
-Current adapters throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `src/compas/ports/unimplemented-repositories.ts` because there is no storage integration yet.
+Current adapters throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
 
-`createOutgoingPaymentIfAllowed` in `src/compas/application/create-outgoing-payment-if-allowed.ts` is the only payment-related behavior in the scaffold: `DENY` and `REVIEW` return before the gateway is called.
+`createOutgoingPaymentIfAllowed` in `backend/src/application/create-outgoing-payment-if-allowed.ts` is the only payment-related behavior in the scaffold: `DENY` and `REVIEW` return before the gateway is called.
 
-## Three surfaces, one demo
+The frontend does not import these modules. It will call the backend over HTTP. `GET /health` is the only route implemented today.
+
+## Three surfaces, one frontend
 
 ```mermaid
 flowchart TB
@@ -84,35 +97,39 @@ flowchart TB
 
 `/demo` renders the three experiences inside `PhoneFrame` under one `DemoSessionProvider`, so a scenario change is visible on every phone. The standalone routes use the same components with their own provider. There are no iframes and no second implementation of a surface.
 
-Shared presentation for the identity card is `src/features/shared/ExperienceCard.tsx`. Each feature component still owns its surface, person, and role.
+Shared presentation for the identity card is `frontend/src/features/shared/ExperienceCard.tsx`. Each feature component still owns its surface, person, and role. Scenario content is read from `data/fixtures/demo/`.
 
 ## Policy, then payment
 
 ```mermaid
 sequenceDiagram
   participant Delegate
-  participant Compas
+  participant Frontend
+  participant Backend
   participant Policy
   participant Gateway as OpenPaymentsGateway
 
-  Delegate->>Compas: Purchase intent
-  Compas->>Policy: Evaluate mandate and evidence
+  Delegate->>Frontend: Purchase intent
+  Frontend->>Backend: Evaluate request
+  Backend->>Policy: Evaluate mandate and evidence
   alt DENY or REVIEW
-    Policy-->>Compas: Decision
-    Compas-->>Delegate: Stop
+    Policy-->>Backend: Decision
+    Backend-->>Frontend: Stop
   else ALLOW
-    Policy-->>Compas: ALLOW
-    Compas->>Gateway: Quote and outgoing payment
-    Gateway-->>Compas: Payment result
+    Policy-->>Backend: ALLOW
+    Backend->>Gateway: Quote and outgoing payment
+    Gateway-->>Backend: Payment result
   end
 ```
 
-The gateway call in that diagram is future behavior. The unimplemented gateway rejects every call today.
+The gateway call in that diagram is future behavior. The unimplemented gateway rejects every call today. A decision rendered by the frontend is not authoritative.
 
-Evaluation order is the constant `POLICY_EVALUATION_ORDER` in `src/compas/policy/evaluation-order.ts` and is explained in [05-policy-engine.md](05-policy-engine.md).
+Evaluation order is the constant `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts` and is explained in [05-policy-engine.md](05-policy-engine.md).
 
 ## Runtime
 
-The app is Next.js 16.4 App Router, TypeScript, Tailwind CSS, and ESLint, as generated for the current stable `create-next-app` empty template. `cacheComponents` and `partialPrefetching` stay on because that template requires them together. No extra UI or data libraries were added.
+The frontend is Next.js 16.4 App Router, TypeScript, Tailwind CSS, and ESLint. `cacheComponents` and `partialPrefetching` stay on because that template requires them together.
 
-Deployment to Vercel is possible later and is not part of this scaffold.
+The backend is a Node.js TypeScript process with a small `node:http` server. It has no web framework yet.
+
+No database is selected. Persistence, when it exists, belongs under `data/` and behind backend repositories.

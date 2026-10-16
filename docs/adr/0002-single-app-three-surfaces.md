@@ -17,3 +17,5 @@ Person, business, NGO, and government cases reuse the mandate. They do not becom
 ## Consequences
 
 Shared demo state has to live in this app. A visual redesign of a surface happens in one feature component and shows up on both its route and `/demo`.
+
+The application described here now lives in `frontend/`. ADR 0004 separates that frontend from the backend and from repository-level data. It does not split the three surfaces into separate apps.

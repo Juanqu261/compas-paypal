@@ -2,7 +2,7 @@
 
 AI is a fallback classifier. It is not the decision maker, and it never authorizes money.
 
-No vendor is selected. `PurposeClassifier` in `src/compas/ports/purpose-classifier.ts` is provider-agnostic. `UnimplementedPurposeClassifier` rejects every call. It does not return a pretend category.
+No vendor is selected. `PurposeClassifier` in `backend/src/ports/purpose-classifier.ts` is provider-agnostic. `UnimplementedPurposeClassifier` rejects every call. It does not return a pretend category.
 
 ## Order
 
