@@ -46,9 +46,47 @@ export type PurchaseUnderMandateDeps = {
    * the quoted debit before it is recorded. Without it, the caller tracks capacity.
    */
   capacity?: Pick<MandateRepository, "reserveCapacity" | "releaseCapacity">;
+  /** With it, a PENDING payment is read again until the payer's wallet settles it. */
+  confirmation?: PaymentConfirmation;
   now?: () => Date;
   newId?: () => string;
 };
+
+/**
+ * A new outgoing payment is usually PENDING: the wallet has not sent it yet.
+ * The flow reads it again, up to `attempts` times, so the answer can say
+ * COMPLETED once the wallet does. A failed read keeps the last known state:
+ * the payment exists either way, so the purchase never fails here.
+ */
+export type PaymentConfirmation = {
+  read: OpenPaymentsGateway["readOutgoingPayment"];
+  attempts: number;
+  intervalMs: number;
+  sleep?: (ms: number) => Promise<void>;
+  logWarning?: (message: string) => void;
+};
+
+async function confirmPayment(
+  grantKey: string,
+  payment: OutgoingPaymentRef,
+  confirmation: PaymentConfirmation,
+): Promise<OutgoingPaymentRef> {
+  const sleep = confirmation.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  let current = payment;
+  for (let attempt = 0; attempt < confirmation.attempts && current.state === "PENDING"; attempt += 1) {
+    await sleep(confirmation.intervalMs);
+    try {
+      current = await confirmation.read({ grantKey, outgoingPaymentUrl: payment.url });
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      confirmation.logWarning?.(
+        `Reading outgoing payment for ${grantKey} failed: ${typeof code === "string" ? code : "error"}. Keeping ${current.state}.`,
+      );
+      break;
+    }
+  }
+  return current;
+}
 
 export type PurchaseUnderMandateResult = {
   decision: PolicyDecision;
@@ -185,6 +223,7 @@ export async function purchaseUnderMandate(
     throw error;
   }
   if (!payment) return { decision, record };
+  if (deps.confirmation) payment = await confirmPayment(mandate.id, payment, deps.confirmation);
 
   const paidRecord = await deps.spending.recordPayment(record.id, {
     outgoingPaymentUrl: payment.url,

@@ -247,3 +247,91 @@ test("if creating the outgoing payment throws, the reservation is given back", a
   );
   assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "4000");
 });
+
+test("a PENDING payment is read again until the wallet completes it, and the record says COMPLETED", async () => {
+  const { spending, deps } = setup();
+  const reads: string[] = [];
+  const result = await purchaseUnderMandate(
+    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+    {
+      ...deps,
+      confirmation: {
+        attempts: 5,
+        intervalMs: 1000,
+        sleep: async () => {},
+        read: async ({ grantKey, outgoingPaymentUrl }) => {
+          reads.push(`${grantKey} ${outgoingPaymentUrl}`);
+          const payment = (await spending.listByMandate("demo-mandate-medication"))[0];
+          assert.equal(payment.openPayments.outgoingPaymentUrl, undefined, "the record waits for the confirmed state");
+          return { ...confirmedPayment(), state: reads.length < 2 ? "PENDING" : "COMPLETED" };
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(reads, [
+    `demo-mandate-medication ${PAYER_WALLET}/outgoing-payments/1`,
+    `demo-mandate-medication ${PAYER_WALLET}/outgoing-payments/1`,
+  ]);
+  assert.equal(result.payment?.state, "COMPLETED");
+  assert.equal(result.record.openPayments.state, "COMPLETED");
+});
+
+test("a failed read keeps the payment PENDING and the purchase stands", async () => {
+  const { deps } = setup();
+  const warnings: string[] = [];
+  const result = await purchaseUnderMandate(
+    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+    {
+      ...deps,
+      confirmation: {
+        attempts: 5,
+        intervalMs: 1000,
+        sleep: async () => {},
+        read: async () => {
+          throw Object.assign(new Error("down"), { code: "UPSTREAM" });
+        },
+        logWarning: (message) => warnings.push(message),
+      },
+    },
+  );
+
+  assert.equal(result.decision.outcome, "ALLOW");
+  assert.equal(result.record.openPayments.state, "PENDING");
+  assert.equal(result.record.openPayments.outgoingPaymentUrl, `${PAYER_WALLET}/outgoing-payments/1`);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /UPSTREAM/);
+});
+
+test("a denied purchase is never read: there is no payment to confirm", async () => {
+  const { deps } = setup();
+  let reads = 0;
+  const result = await purchaseUnderMandate(
+    { mandate: mandate("ENFORCED"), intent: intent(LIQUOR_WALLET, "ALCOHOL"), payerWalletAddressUrl: PAYER_WALLET },
+    {
+      ...deps,
+      confirmation: {
+        attempts: 5,
+        intervalMs: 1000,
+        sleep: async () => {},
+        read: async () => {
+          reads += 1;
+          throw new Error("unreachable");
+        },
+      },
+    },
+  );
+  assert.equal(result.decision.outcome, "DENY");
+  assert.equal(reads, 0);
+});
+
+function confirmedPayment() {
+  return {
+    url: `${PAYER_WALLET}/outgoing-payments/1`,
+    receiverUrl: `${PHARMACY_WALLET}/incoming-payments/1`,
+    debitAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
+    receiveAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
+    sentAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
+    createdAt: NOW.toISOString(),
+  };
+}

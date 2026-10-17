@@ -106,7 +106,7 @@ function DemoGuide() {
     (index === 3 && charge !== null) || ((index === 4 || index === 5) && result !== undefined) || (index === 6 && finished);
 
   return (
-    <details open className="group mt-6 rounded-lg border border-ink/15 bg-paper/70 [&_summary::-webkit-details-marker]:hidden">
+    <details className="group mt-6 rounded-lg border border-ink/15 bg-paper/70 [&_summary::-webkit-details-marker]:hidden">
       <summary className="cursor-pointer px-4 py-3 font-semibold text-ink">Presenter guide</summary>
       <ol className="grid gap-x-6 gap-y-2 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-4">
         {GUIDE.map((step, index) => (
@@ -168,12 +168,12 @@ export function DemoStage({
 }) {
   return (
     <DemoSessionProvider scenarios={scenarios}>
-      <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-8">
+      <div className="border-b border-ink/15 bg-shoal/45 pt-8">
+        <DemoPhones />
+      </div>
+      <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
         <ScenarioPicker />
         <DemoGuide />
-      </div>
-      <div className="border-y border-ink/15 bg-shoal/45 pt-8">
-        <DemoPhones />
       </div>
     </DemoSessionProvider>
   );

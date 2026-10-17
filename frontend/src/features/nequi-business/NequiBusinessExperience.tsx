@@ -17,6 +17,7 @@ import { NequiBusinessCompas } from "./NequiBusinessCompas";
 import { NequiBusinessHome } from "./NequiBusinessHome";
 import { NequiBusinessLinkPayments } from "./NequiBusinessLinkPayments";
 import { NequiBusinessMore } from "./NequiBusinessMore";
+import { NequiBusinessPaymentNotice } from "./NequiBusinessPaymentNotice";
 import { NequiBusinessSalesSummary } from "./NequiBusinessSalesSummary";
 
 /** Nequi Negocios simulation palette, scoped to this surface. */
@@ -137,6 +138,7 @@ export function NequiBusinessExperience() {
         />
       ) : null}
       {overlay === "qr" ? <NequiBusinessQrSheet onClose={backToBase} /> : null}
+      <NequiBusinessPaymentNotice />
     </div>
   );
 }

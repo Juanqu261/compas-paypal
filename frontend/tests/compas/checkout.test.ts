@@ -5,7 +5,7 @@ import { DEMO_MERCHANTS } from "../../src/features/compas/demo-identities.ts";
 import { errorText, purchaseStatusLabel } from "../../src/features/compas/lib/labels.ts";
 import { merchantCompasCategories } from "../../src/features/nequi-business/nequi-business-compas-demo.ts";
 import { COMPAS_CATEGORIES } from "../../src/features/compas/api/contracts.ts";
-import { buildCharge, merchantChargeStatus, scenarioLines } from "../../src/features/demo/demo-charge.ts";
+import { buildCharge, chargePaymentCompleted, merchantChargeStatus, scenarioLines } from "../../src/features/demo/demo-charge.ts";
 
 const USD = (value: string) => ({ value, assetCode: "USD", assetScale: 2 });
 
@@ -116,4 +116,17 @@ test("the merchant's category options are COMPAS categories", () => {
   for (const option of merchantCompasCategories) {
     assert.ok((COMPAS_CATEGORIES as readonly string[]).includes(option.id), option.id);
   }
+});
+
+test("the merchant announces a payment only when COMPAS allowed it and the wallet completed it", () => {
+  const purchase = (outcome: "ALLOW" | "DENY", payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: "PENDING" | "COMPLETED" | "FAILED" }) => ({
+    result: { kind: "PURCHASE" as const, purchase: { outcome, payment } as never },
+  });
+  assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "COMPLETED" })), true);
+  assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "PENDING" })), false, "PENDING is not received money");
+  assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "FAILED" })), false);
+  assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "NOT_CREATED" })), false);
+  assert.equal(chargePaymentCompleted(purchase("DENY", { status: "NOT_CREATED" })), false);
+  assert.equal(chargePaymentCompleted({ result: undefined }), false);
+  assert.equal(chargePaymentCompleted(null), false);
 });

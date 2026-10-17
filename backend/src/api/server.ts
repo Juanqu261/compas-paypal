@@ -133,6 +133,13 @@ const purchases = new DelegatePurchaseService({
   payments: openPayments.gateway,
   spending,
   capacity: mandateRepository,
+  // The test network usually sends a payment within a few seconds. Up to ~10 s, then PENDING stands.
+  confirmation: {
+    read: (input) => openPayments.gateway.readOutgoingPayment(input),
+    attempts: 10,
+    intervalMs: 1000,
+    logWarning: (message) => console.warn(message),
+  },
   execution: !openPayments.configured
     ? { allowed: false, code: "OPEN_PAYMENTS_NOT_CONFIGURED", reason: "Open Payments is not configured in this environment." }
     : purchasesMode.enabled

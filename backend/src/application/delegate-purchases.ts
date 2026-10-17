@@ -23,7 +23,7 @@ import {
   type PayerGrantStateReader,
 } from "./mandates.ts";
 import { loadMerchantHistory, type MerchantHistoryDeps } from "./merchant-history.ts";
-import { purchaseUnderMandate } from "./purchase-under-mandate.ts";
+import { type PaymentConfirmation, purchaseUnderMandate } from "./purchase-under-mandate.ts";
 
 // ---------------------------------------------------------------------------
 // Request
@@ -244,6 +244,8 @@ export type DelegatePurchaseDeps = {
   spending: SpendingLog;
   /** Where the mandate's remaining capacity lives: an ALLOW reserves the quoted debit there. */
   capacity: Pick<MandateRepository, "reserveCapacity" | "releaseCapacity">;
+  /** Reads a new PENDING payment again until the payer's wallet settles it. */
+  confirmation?: PaymentConfirmation;
   /**
    * Whether this caller may spend a payer's grant. Anyone can start a demo
    * session as Andrea, so the server keeps it off unless the operator opted in.
@@ -464,6 +466,7 @@ export class DelegatePurchaseService {
           spending: this.#deps.spending,
           history: this.#deps.history,
           capacity: this.#deps.capacity,
+          ...(this.#deps.confirmation ? { confirmation: this.#deps.confirmation } : {}),
           now: () => now,
           ...(this.#deps.newId ? { newId: this.#deps.newId } : {}),
         },

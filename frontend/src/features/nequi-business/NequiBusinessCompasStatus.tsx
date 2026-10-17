@@ -17,8 +17,12 @@ import type { MerchantCompasCategory } from "./nequi-business-compas-demo";
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-blue)";
 
-/** The merchant's charges are in the demo story's asset. demo/test data: there is no wallet lookup here. */
-const CHARGE_ASSET = { assetCode: "USD", assetScale: 2 } as const;
+/**
+ * The shop charges in COP, the asset of its test-network wallet. A charge in
+ * another asset can't become an incoming payment there. demo/test data: there
+ * is no wallet lookup here.
+ */
+const CHARGE_ASSET = { assetCode: "COP", assetScale: 2 } as const;
 
 function Chip({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "ok" | "sim" }) {
   const look = {

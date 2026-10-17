@@ -99,3 +99,17 @@ export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { titl
   if (status.tone === "stop" && result.purchase.outcome === "ALLOW") return { title: "No se pudo completar", tone: "stop" };
   return { title: status.title, tone: status.tone };
 }
+
+/**
+ * Whether the merchant's phone may announce the payment: COMPAS allowed it and
+ * the payer's wallet reports it COMPLETED. PENDING is not received money.
+ */
+export function chargePaymentCompleted(charge: Pick<DemoCharge, "result"> | null): boolean {
+  const result = charge?.result;
+  return (
+    result?.kind === "PURCHASE" &&
+    result.purchase.outcome === "ALLOW" &&
+    result.purchase.payment.status === "CREATED" &&
+    result.purchase.payment.state === "COMPLETED"
+  );
+}
