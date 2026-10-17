@@ -4,6 +4,8 @@
 
 Accepted, 2026-10-16. Amends [ADR 0005](0005-merchant-category-attestations.md).
 
+An interactive explainer in Spanish, with a simulator of the matrix, is in [docs/trust-matrix.html](../trust-matrix.html). Open it in a browser.
+
 ## Context
 
 ADR 0005 resolves a merchant's categories from attestations and lets a mandate accept trust levels. Two things were missing:

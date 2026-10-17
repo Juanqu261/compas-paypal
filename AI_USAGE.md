@@ -348,6 +348,16 @@ The dated running log below is the detailed record: which tool, which files or c
 - Prompt log: [prompts/020-official-logo.md](prompts/020-official-logo.md)
 - Human review: Pending team review. The logo artwork is the team's.
 
+### 2026-10-17 — Claude Code — trust matrix explainer page
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - copied the team's `COMPAS Trust Matrix.html` into `docs/trust-matrix.html` without changes, after reading it and checking its matrix version, thresholds and cells against `data/seeds/trust-matrix/trust-matrix.json`
+  - linked it from `docs/adr/0007-merchant-confidence-matrix.md` and `docs/plans/trust-matrix.md`
+  - committed and pushed these files to `main` at the team's request
+- Prompt log: not added to `prompts/`, at the team's request
+- Human review: Pending team review. The page was probably generated with Claude outside this repository, and its generating prompt is not logged. Its simulator mirrors the backend logic by hand and is not tested against it.
+
 ## What We Did Ourselves
 
 - The product idea, the design-session answers, and the scope decisions came from the team. See the verbatim prompts in `prompts/002-agent-skills.md` and later prompt files.

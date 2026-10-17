@@ -1,6 +1,6 @@
 # Plan — Merchant trust matrix
 
-Status: implemented on branch `trust-matrix`, 2026-10-16, except the items left open below. Decision record: [ADR 0007](../adr/0007-merchant-confidence-matrix.md). Owner: backend.
+Status: implemented on branch `trust-matrix`, 2026-10-16, except the items left open below. Decision record: [ADR 0007](../adr/0007-merchant-confidence-matrix.md). Interactive explainer: [docs/trust-matrix.html](../trust-matrix.html). Owner: backend.
 
 A shop **declares its own categories** when it registers. COMPAS gives each declared category a **confidence**: `CONTESTED`, `LOW`, `MEDIUM` or `HIGH`. A deterministic **trust matrix** produces it from two inputs: what the Cámara de Comercio and other independent sources say, and what the shop's payment history shows. A mandate sets the minimum confidence it accepts.
 
