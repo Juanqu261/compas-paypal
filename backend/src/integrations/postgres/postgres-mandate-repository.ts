@@ -119,6 +119,50 @@ export class PostgresMandateRepository implements MandateRepository {
       update compas.mandates set remaining_value = least(budget_value, remaining_value + ${amount.value}::numeric)
       where id = ${mandateId} and asset_code = ${amount.assetCode} and asset_scale = ${amount.assetScale}`;
   }
+
+  /**
+   * One conditional UPDATE of the status alone. remaining_value is never in
+   * the statement, so a reservation made since the caller read the mandate
+   * is kept. Two callers racing on the same transition: one wins.
+   */
+  async transitionStatus(
+    mandateId: string,
+    from: readonly MandateStatus[],
+    to: MandateStatus,
+  ): Promise<Mandate | undefined> {
+    const rows = await this.#sql`
+      update compas.mandates set status = ${to}, updated_at = now()
+      where id = ${mandateId} and status = any(${this.#sql.array([...from])}::text[])
+      returning id`;
+    return rows.length === 1 ? this.getById(mandateId) : undefined;
+  }
+
+  /** Only mandates whose payer_id is the party. The seeded demo food mandates have their own payers. */
+  async listByPayer(payerId: string): Promise<readonly Mandate[]> {
+    const rows = await this.#sql<MandateRow[]>`
+      select m.*, m.eligible_categories::text[] as eligible_categories, m.enforcement::text as enforcement,
+             p.display_name as payer_name, d.display_name as delegate_name, b.display_name as beneficiary_name
+      from compas.mandates m
+      join compas.parties p on p.id = m.payer_id
+      join compas.parties d on d.id = m.delegate_id
+      join compas.parties b on b.id = m.beneficiary_id
+      where m.payer_id = ${payerId}
+      order by m.created_at desc, m.id`;
+    return rows.map(fromRow);
+  }
+
+  async listByDelegate(delegateId: string): Promise<readonly Mandate[]> {
+    const rows = await this.#sql<MandateRow[]>`
+      select m.*, m.eligible_categories::text[] as eligible_categories, m.enforcement::text as enforcement,
+             p.display_name as payer_name, d.display_name as delegate_name, b.display_name as beneficiary_name
+      from compas.mandates m
+      join compas.parties p on p.id = m.payer_id
+      join compas.parties d on d.id = m.delegate_id
+      join compas.parties b on b.id = m.beneficiary_id
+      where m.delegate_id = ${delegateId}
+      order by m.created_at desc, m.id`;
+    return rows.map(fromRow);
+  }
 }
 
 function sameAsset(a: MoneyAmount, b: MoneyAmount): boolean {

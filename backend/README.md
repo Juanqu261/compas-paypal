@@ -17,12 +17,16 @@ src/policy/          Evaluation order, merchant category step
 src/ports/           Gateway, repositories, classifier, merchant category service
 src/integrations/    Open Payments adapter (real), merchant category service, Postgres adapters (postgres/), in-memory fallbacks
 src/audit/           Future audit writer
-src/api/             HTTP boundary. GET /health, GET /open-payments/finish, merchant category routes
+src/api/             HTTP boundary. GET /health, GET /open-payments/finish, merchant category routes, demo sessions, mandate routes
 scripts/op-smoke.ts  End-to-end Open Payments run on the test network
 scripts/fetch-rues-registry.ts, load-rues-registry.ts  Cámara de Comercio extract: fetch it, load it into Postgres
 ```
 
 Future resources are listed in `src/api/README.md`. They are not implemented.
+
+## Mandates
+
+`MandateService` (`src/application/mandates.ts`) creates, authorizes, reads and revokes mandates for the ARQ and Nequi screens. Access depends on the actor's relation in each mandate. The actor comes from a DEMO session token (`src/api/demo-identity.ts`): COMPAS has no user authentication yet. A mandate becomes `ACTIVE` only from a stored `ACTIVE` grant, which only a verified Open Payments finish writes. Consent and cancellation state are derived from that grant and the mandate's audit events. Status changes never rewrite the remaining capacity. A demo session can't ask a wallet for a grant unless `COMPAS_DEMO_PAYER_GRANTS=enabled` on the test network. Mandates are in Postgres with `DATABASE_URL` (`persistence: "POSTGRES"`) and in memory without it (`"IN_MEMORY_DEMO"`). Contract: `contracts/mandates/README.md`. Design and limits: `docs/plans/compas-experience.md`.
 
 ## Environment
 
@@ -39,13 +43,13 @@ npm test
 npm start
 ```
 
-`npm run dev` and `npm start` listen on port 4000. They load `backend/.env` when it exists. `GET /health` returns `{ "status": "ok", "openPayments": "configured" | "not_configured", "storage": "postgres" | "memory" }`.
+`npm run dev` and `npm start` listen on port 4000. They load `backend/.env` when it exists. `GET /health` returns `{ "status": "ok", "openPayments": "configured" | "not_configured", "storage": "postgres" | "memory", "identity": "demo" | "disabled", "persistence": "POSTGRES" | "IN_MEMORY_DEMO", "payerGrants": "enabled" | "disabled_for_demo" | "not_configured" }`.
 
 ## Storage
 
 Without `DATABASE_URL` every log is in memory, as before. With it, the backend uses Supabase Postgres through `src/integrations/postgres/`. Schema and rules: `data/schema/README.md`.
 
-- The server stores the payer grants and the trust log there. `npm run compas:smoke` also stores the mandate, the spending log and the observation log, and reserves the mandate's capacity there. Its two category trust logs stay in memory, because one wallet plays both shops.
+- The server stores the payer grants, the trust log, and the COMPAS mandates with their spending records and audit events there. The Open Payments gateway and `MandateService` share one grant store. `npm run compas:smoke` also stores the mandate, the spending log and the observation log, and reserves the mandate's capacity there. Its two category trust logs stay in memory, because one wallet plays both shops.
 - `MERCHANT_SUBJECT_HMAC_KEY` is then required, and must never change once data is stored.
 - The demo seeds are idempotent: a second start keeps the first start's entries, and completes a seed that stopped halfway. In Postgres, the demo tienda's history also writes the 12 food mandates and spending records behind it (`demo-food-mandate-N`, `demo-tienda-purchase-N`). The server seeds it at startup.
 - `DATABASE_ADMIN_URL=… npm run registry:load` loads the 1,900 Cámara de Comercio shops into `compas.registry_*`.

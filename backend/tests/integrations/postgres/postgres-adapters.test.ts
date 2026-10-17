@@ -24,6 +24,9 @@ import { PostgresObservationLog } from "../../../src/integrations/postgres/postg
 import { PostgresSpendingLog } from "../../../src/integrations/postgres/postgres-spending-log.ts";
 import { PostgresTrustLog } from "../../../src/integrations/postgres/postgres-trust-log.ts";
 import { gradeMerchantHistory } from "../../../src/policy/merchant-history.ts";
+import { MANDATE_EVENTS } from "../../../src/application/mandates.ts";
+import { StaticPartyDirectory } from "../../../src/integrations/mandates/demo-party-directory.ts";
+import { fakeGateway, medicationRequest, PAYER_WALLET, serviceKit } from "../../application/mandate-test-kit.ts";
 import { mandate as fixtureMandate } from "../../application/purchase-test-kit.ts";
 
 const database = connectDatabase({ DATABASE_URL: process.env.TEST_DATABASE_URL });
@@ -76,6 +79,25 @@ test("mandates: save and read back, then reserve and release capacity atomically
 
   await mandates.releaseCapacity(mandate.id, { ...debit, value: "9999" });
   assert.equal((await mandates.getById(mandate.id))?.remainingAuthorizedAmount.value, "4000", "never above the budget");
+});
+
+test("mandates: a status change keeps a reservation, and lists filter by payer and delegate", { skip }, async () => {
+  const mandates = new PostgresMandateRepository(database!);
+  const mandate = freshMandate();
+  await mandates.save(mandate);
+  assert.ok(await mandates.reserveCapacity(mandate.id, { value: "1120", assetCode: "USD", assetScale: 2 }));
+
+  const revoked = await mandates.transitionStatus(mandate.id, ["ACTIVE"], "REVOKED");
+  assert.equal(revoked?.status, "REVOKED");
+  assert.equal(revoked?.remainingAuthorizedAmount.value, "2880", "the reservation is kept");
+  assert.equal(await mandates.transitionStatus(mandate.id, ["ACTIVE"], "EXPIRED"), undefined, "wrong from-status");
+  assert.equal(await mandates.reserveCapacity(mandate.id, { value: "1", assetCode: "USD", assetScale: 2 }), false);
+
+  const other = freshMandate();
+  await mandates.save(other);
+  assert.deepEqual((await mandates.listByPayer(mandate.payer.id)).map((m) => m.id), [mandate.id]);
+  assert.deepEqual((await mandates.listByDelegate(other.delegate.id)).map((m) => m.id), [other.id]);
+  assert.deepEqual(await mandates.listByPayer("pg-nobody"), []);
 });
 
 test("spending log: append, record the payment once, list by mandate", { skip }, async () => {
@@ -268,6 +290,52 @@ test("category service on Postgres: a second start finds the demo seed already t
   const { resolvedAt: _first, ...beforeRestart } = await first.registry.resolve(wallet);
   assert.deepEqual(afterRestart, beforeRestart);
   assert.ok(beforeRestart.declarations.some((declared) => declared.category === "MEDICATION"));
+});
+
+test("mandate service on Postgres: activation from the shared grant store, revocation keeps the reservation", { skip }, async () => {
+  const run = randomUUID().slice(0, 8);
+  let n = 0;
+  // Fresh parties, so a shared test database never shows these mandates to the demo's Pedro.
+  const payer = { partyId: `pg-payer-${run}` };
+  const kit = serviceKit({
+    parties: new StaticPartyDirectory([
+      { id: payer.partyId, displayName: "Pedro", walletAddressUrl: PAYER_WALLET },
+      { id: `pg-delegate-${run}`, displayName: "Andrea" },
+      { id: `pg-beneficiary-${run}`, displayName: "Gladys" },
+    ]),
+    gateway: fakeGateway({ grants: new PostgresGrantStore(database!) }),
+    storage: {
+      mandates: new PostgresMandateRepository(database!),
+      audit: new PostgresAuditRepository(database!),
+      spending: new PostgresSpendingLog(database!),
+    },
+    newId: () => `pg-${run}-${++n}`,
+  });
+  const created = await kit.service.create(payer, medicationRequest({ delegateId: `pg-delegate-${run}`, beneficiaryId: `pg-beneficiary-${run}` }));
+  assert.ok(created.ok);
+  const id = created.mandate.id;
+  assert.ok((await kit.service.startAuthorization(payer, id)).ok);
+  assert.equal(await kit.service.completeAuthorization(id), "IGNORED", "a PENDING grant is not consent");
+  await kit.gateway.finishGrant(id);
+  assert.equal(await kit.service.completeAuthorization(id), "ACTIVATED");
+
+  assert.ok(await kit.mandates.reserveCapacity(id, { value: "1120", assetCode: "USD", assetScale: 2 }));
+  const revoked = await kit.service.revoke(payer, id);
+  assert.ok(revoked.ok);
+  assert.equal(revoked.mandate.status, "REVOKED");
+  assert.equal(revoked.mandate.remainingAuthorizedAmount.value, "2880");
+  assert.equal(revoked.mandate.authorization?.grantCancellation, "DONE");
+  assert.equal(await kit.gateway.grants.get(id), undefined);
+
+  const types = (await kit.audit.listByMandate(id)).map((event) => event.type);
+  assert.deepEqual(types, [
+    MANDATE_EVENTS.created,
+    MANDATE_EVENTS.authorizationStarted,
+    MANDATE_EVENTS.activated,
+    MANDATE_EVENTS.revoked,
+    MANDATE_EVENTS.grantCancelled,
+  ]);
+  assert.deepEqual((await kit.service.list(payer, "PAYER")).map((m) => m.id), [id], "the tienda's demo mandates are not this payer's");
 });
 
 test("with a database, a missing HMAC key stops startup", { skip }, async () => {

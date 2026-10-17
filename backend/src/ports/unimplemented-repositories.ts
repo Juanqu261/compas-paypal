@@ -24,6 +24,18 @@ export class UnimplementedMandateRepository implements MandateRepository {
   releaseCapacity(): Promise<void> {
     return notImplemented("MandateRepository.releaseCapacity");
   }
+
+  transitionStatus(): Promise<Mandate | undefined> {
+    return notImplemented("MandateRepository.transitionStatus");
+  }
+
+  listByPayer(): Promise<readonly Mandate[]> {
+    return notImplemented("MandateRepository.listByPayer");
+  }
+
+  listByDelegate(): Promise<readonly Mandate[]> {
+    return notImplemented("MandateRepository.listByDelegate");
+  }
 }
 
 export class UnimplementedAuditRepository implements AuditRepository {

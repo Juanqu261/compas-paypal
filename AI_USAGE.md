@@ -251,6 +251,37 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/014-postgres-adapters.md](prompts/014-postgres-adapters.md)
 - Human review: Pending team review. The server was started once against Supabase, and the registry was loaded there. The adapter tests ran only on the local container. Dropping the observation→spending foreign key is left to the team.
 
+### 2026-10-16 — Claude Code — COMPAS experience: mandates and authorizations
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - created branch `feature/compas-experience` from `origin/open-payments` (`8a1aa24`) in a separate git worktree, so uncommitted work on another branch stayed untouched
+  - backend: `MandateService` (`backend/src/application/mandates.ts`) for creating, authorizing, reading and revoking mandates, and `buildMandateActivity` (`backend/src/application/mandate-activity.ts`), which never counts a pending payment as paid
+  - backend: HTTP routes in `backend/src/api/mandates.ts`, demo sessions in `backend/src/api/demo-identity.ts`, wiring in `backend/src/api/server.ts`, including the `onPayerGrantFinished` hook that activates a mandate after a verified consent
+  - backend: ports `party-directory.ts` and `mandate-authorization-store.ts`, `listByPayer`/`listByDelegate` on `MandateRepository`, and in-memory adapters in `backend/src/integrations/mandates/`. No Postgres adapter: there was no `DATABASE_URL`
+  - frontend: `frontend/src/features/compas/` (typed client and hooks, Spanish labels, amount and date input, wizard checks, shared components, payer and delegate modules, host themes), the ARQ and Nequi COMPAS shells, consent-return handling in `ArqExperience.tsx`, the `/compas-api` rewrite in `next.config.ts`, `allowImportingTsExtensions` in `tsconfig.json`, and an `npm test` script
+  - tests: `backend/tests/application/mandates.test.ts`, `mandate-activity.test.ts`, `backend/tests/api/mandates.test.ts`, `frontend/tests/compas/lib.test.ts`
+  - docs: `contracts/mandates/README.md`, `docs/plans/compas-experience.md`, and updates to `contracts/README.md`, `docs/03-architecture.md`, `backend/README.md`, `backend/src/api/README.md`, `backend/.env.example` and `frontend/README.md`
+  - verification: drove ARQ, Nequi and `/demo` in headless Chrome. Active, revoked and activity screens were checked against a harness outside the repository that ran the real handlers with a fake provider and seeded spending records. That harness is not a payment test.
+  - not changed: the Open Payments gateway, the policy engine, the trust matrix, the merchant registry and `frontend/src/features/nequi-business/`
+- Prompt log: [prompts/015-compas-experience.md](prompts/015-compas-experience.md) (numbered 014 on the feature branch)
+- Human review: Pending team review. No end-to-end run with a real wallet consent happened: no Open Payments credentials were available. Demo sessions let any caller act as any demo party, which is acceptable only on the test network.
+
+### 2026-10-17 — Claude Code — integrating the COMPAS experience with main
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - committed the feature work on `feature/compas-experience` and merged it into a new branch, `integration/compas-experience`, from `origin/main` in a separate git worktree. Each conflict was resolved by hand. The log is in `docs/plans/compas-experience-integration.md`
+  - backend: one `MandateRepository` with main's `reserveCapacity`/`releaseCapacity` plus `transitionStatus`, `listByPayer` and `listByDelegate`, on both the in-memory and the Postgres adapter. Status changes no longer rewrite the remaining capacity
+  - backend: one grant store shared by the Open Payments gateway and `MandateService`. A mandate becomes ACTIVE only from a stored ACTIVE grant, and consent and cancellation state come from that store and the audit log. The feature's `MandateAuthorizationStore` and in-memory mandate store were removed
+  - backend: `MandateService` uses the Postgres mandates, spending and audit adapters when `DATABASE_URL` is set. Demo sessions can't ask a wallet for a grant unless `COMPAS_DEMO_PAYER_GRANTS=enabled` on the test network, and never in production
+  - frontend: the COMPAS contract types, a Spanish message for the new error code, and the demo note for Postgres storage
+  - tests: `backend/tests/application/mandate-integration.test.ts` (concurrent reservations, status changes that keep a reservation, consent from the grant store, the demo grant policy), and updates to the mandate test kit and tests
+  - renumbered the feature's prompt from 014 to 015, because main already had a prompt 014
+  - not changed: the Open Payments gateway, the policy engine, the Supabase schema and `frontend/src/features/nequi-business/`. No migration was run and no payment was made
+- Prompt log: [prompts/016-compas-integration.md](prompts/016-compas-integration.md)
+- Human review: Pending team review. The Postgres adapter tests skip without `TEST_DATABASE_URL`, and no end-to-end run with a real wallet consent happened.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
