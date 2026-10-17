@@ -11,6 +11,8 @@ import {
   DEMO_DROGUERIA_WALLET,
   DEMO_LIQUOR_WALLET,
   DEMO_TIENDA_WALLET,
+  generateDemoSigningKey,
+  seedDemoMerchantCategories,
 } from "../../src/integrations/merchant-registry/demo-category-seed.ts";
 import {
   categoriesNeedingHistory,
@@ -98,6 +100,27 @@ test("the configured test-network merchant wallet gets Droguería Central's evid
   assert.equal(service.demoSubmissions, 7);
   const resolution = await service.registry.resolve("https://ilp.interledger-test.dev/compas-merchant");
   assert.ok(resolution.categories.some((resolved) => resolved.category === "MEDICATION"));
+});
+
+test("a persistent trust log seeded for one test-network wallet still seeds the next one", async () => {
+  // Like Postgres: the first body under a submission id stands, a different body is refused.
+  const stored = new Map<string, string>();
+  const ingest = async ({ body }: { body: Uint8Array }) => {
+    const text = new TextDecoder().decode(body);
+    const { submissionId, subject } = JSON.parse(text) as { submissionId: string; subject: { walletAddressUrl: string } };
+    const first = stored.get(submissionId);
+    if (first !== undefined && JSON.parse(first).subject.walletAddressUrl !== subject.walletAddressUrl) {
+      return { ok: false as const, code: "SUBMISSION_ID_REUSED" as const, message: "reused" };
+    }
+    stored.set(submissionId, first ?? text);
+    return { ok: true as const, entryId: submissionId, duplicate: first !== undefined };
+  };
+  const key = generateDemoSigningKey();
+  await seedDemoMerchantCategories({ ingest, key, testNetworkMerchantWallet: "https://ilp.interledger-test.dev/tiendita" });
+  const added = await seedDemoMerchantCategories({ ingest, key, testNetworkMerchantWallet: "https://ilp.interledger-test.dev/test-merchant" });
+  assert.equal(added, 2);
+  const wallets = [...stored.values()].map((text) => JSON.parse(text).subject.walletAddressUrl);
+  assert.equal(wallets.filter((wallet) => wallet === "https://ilp.interledger-test.dev/test-merchant").length, 2);
 });
 
 test("the configured test-network liquor wallet gets the liquor store's evidence", async () => {

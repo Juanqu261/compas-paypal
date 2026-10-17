@@ -1,4 +1,4 @@
-import { generateKeyPairSync, type JsonWebKey, type KeyObject, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, type JsonWebKey, type KeyObject, sign } from "node:crypto";
 import type {
   IngestCategoryClaimInput,
   IngestionResult,
@@ -25,6 +25,15 @@ export function generateDemoSigningKey(): DemoSigningKey {
 
 /** A tienda de barrio: self-declared only, no registry, no KYB. Its history is in demo-history-seed.ts. */
 export const DEMO_TIENDA_WALLET = "https://wallet.example/demo-tienda-dona-gloria";
+
+/**
+ * A configured wallet can change between starts. A persistent trust log keeps
+ * the first body under a submission id, so the slug names the wallet: a new
+ * wallet gets its own submissions instead of being refused as a reused id.
+ */
+function testNetworkSlug(prefix: string, walletAddressUrl: string): string {
+  return `${prefix}-${createHash("sha256").update(walletAddressUrl).digest("hex").slice(0, 12)}`;
+}
 
 type DemoMerchant = {
   slug: string;
@@ -56,7 +65,7 @@ export async function seedDemoMerchantCategories(options: {
   ];
   if (options.testNetworkMerchantWallet) {
     merchants.push({
-      slug: "test-network-merchant",
+      slug: testNetworkSlug("test-network-merchant", options.testNetworkMerchantWallet),
       walletAddressUrl: options.testNetworkMerchantWallet,
       declared: "MEDICATION",
       ciiu: "4773",
@@ -64,7 +73,7 @@ export async function seedDemoMerchantCategories(options: {
   }
   if (options.testNetworkLiquorWallet) {
     merchants.push({
-      slug: "test-network-liquor",
+      slug: testNetworkSlug("test-network-liquor", options.testNetworkLiquorWallet),
       walletAddressUrl: options.testNetworkLiquorWallet,
       declared: "ALCOHOL",
       ciiu: "4724",

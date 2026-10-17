@@ -6,7 +6,8 @@
   "notes": [
     "Expected ALLOW is the story outcome once eligible evidence exists. It is not a decision this scaffold computed.",
     "The intent carries no category evidence. COMPAS resolves it from the merchant's wallet address. The backend seeds a simulated Nequi Negocios self-declaration and KYB attestation (CIIU 4773) for this wallet.",
-    "Droguería Central is simulated. Its wallet address uses the reserved example domain and is not a real wallet. No quote is included."
+    "Droguería Central is simulated. Its wallet address uses the reserved example domain and is not a real wallet. No quote is included.",
+    "The charge is in COP, the asset of the test-network merchant wallet. The payer debit in the payer wallet asset comes from the Open Payments quote, never from a hardcoded rate."
   ],
   "mandate": {
     "id": "demo-mandate-medication",
@@ -65,15 +66,15 @@
         "description": "Acetaminophen",
         "category": "MEDICATION",
         "amount": {
-          "value": "4000",
-          "assetCode": "USD",
+          "value": "8000000",
+          "assetCode": "COP",
           "assetScale": 2
         }
       }
     ],
     "amount": {
-      "value": "4000",
-      "assetCode": "USD",
+      "value": "8000000",
+      "assetCode": "COP",
       "assetScale": 2
     },
     "createdAt": "2026-10-16T15:00:00Z"
