@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CompasMark } from "@/features/brand/CompasLogo";
 import { chargePaymentCompleted } from "@/features/demo/demo-charge";
 import { useDemoSession } from "@/features/demo/DemoSession";
 import { formatMoneyAmount } from "@/lib/format-money";
-import { CloseIcon, CompassIcon } from "./NequiBusinessIcons";
+import { CloseIcon } from "./NequiBusinessIcons";
 
 const VISIBLE_MS = 8000;
 
@@ -33,8 +34,8 @@ export function NequiBusinessPaymentNotice() {
         role="status"
         className="pointer-events-auto flex items-start gap-3 rounded-2xl bg-white/95 p-3 shadow-[0_8px_24px_rgb(43_0_43/0.22)] ring-1 ring-(--nb-line) backdrop-blur transition-[translate,opacity] duration-300 ease-out starting:-translate-y-4 starting:opacity-0 motion-reduce:transition-none"
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-(--nb-mint) text-(--nb-green)">
-          <CompassIcon className="size-5" />
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white ring-1 ring-(--nb-line)">
+          <CompasMark className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-bold">Pago recibido</p>

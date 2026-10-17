@@ -1,9 +1,10 @@
 import { useId, type ReactNode } from "react";
+import { CompasMark } from "@/features/brand/CompasLogo";
 import {
   merchantCompasCategoryLabels,
   type MerchantCompasConfig,
 } from "./nequi-business-compas-demo";
-import { ChevronRightIcon, CompassIcon, LinkIcon } from "./NequiBusinessIcons";
+import { ChevronRightIcon, LinkIcon } from "./NequiBusinessIcons";
 import { NequiBusinessStatusBar } from "./NequiBusinessStatusBar";
 
 function ServiceRow({
@@ -95,7 +96,7 @@ export function NequiBusinessMore({
             onClick={onOpenLinkPayments}
           />
           <ServiceRow
-            icon={<CompassIcon className="size-7" />}
+            icon={<CompasMark className="size-9" />}
             title="COMPAS"
             subtitle="Recibe pagos con propósito"
             status={<CompasStatus config={compasConfig} />}

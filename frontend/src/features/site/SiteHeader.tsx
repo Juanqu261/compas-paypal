@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { ViewTransition } from "react";
-import { CompassMark } from "@/features/site/CompassMark";
+import { CompasMark, CompasWordmark } from "@/features/brand/CompasLogo";
 import { StoryLink } from "@/features/site/StoryLink";
 import { surfaces } from "@/features/site/story";
 
@@ -25,8 +25,8 @@ export function SiteHeader() {
           className="flex items-center gap-2.5 text-ink"
           aria-label="COMPAS home"
         >
-          <CompassMark className="size-7" />
-          <span className="font-display text-xl tracking-[0.04em]">COMPAS</span>
+          <CompasMark className="size-8" priority />
+          <CompasWordmark className="w-[6.5rem]" priority />
         </StoryLink>
         <nav aria-label="Pages" className="-mx-2 flex flex-wrap">
           {links.map((link) => {

@@ -338,6 +338,16 @@ The dated running log below is the detailed record: which tool, which files or c
 - Prompt log: [prompts/019-compas-ux-redesign.md](prompts/019-compas-ux-redesign.md)
 - Human review: Pending team review. The payment screens were exercised only against the fake provider; the charge between phones is a browser simulation.
 
+### 2026-10-17 — Claude Code — official COMPAS logo
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - the team supplied the official logo (`frontend/public/compas_logo.jpg` and a traced `compas_logo.svg`). Claude Code cut transparent PNGs from the JPG into `frontend/public/brand/` (the mark, the wordmark and the full logo) with a color-to-alpha pass in headless Edge, because the traced SVG paints letter counters in white and can't sit on colored buttons
+  - `frontend/src/features/brand/CompasLogo.tsx` (`CompasMark`, `CompasWordmark`), used in the site header, the COMPAS entry points of ARQ, Nequi and Nequi Negocios, the merchant's COMPAS header, "Cobrar con COMPAS", the payment notice, and the COMPAS loading and empty states. The mark is also the favicon (`frontend/src/app/icon.png`). The old site mark `features/site/CompassMark.tsx` was removed
+  - verification: typecheck, lint, tests and build; screenshots in headless Edge of the header and the three phones
+- Prompt log: [prompts/020-official-logo.md](prompts/020-official-logo.md)
+- Human review: Pending team review. The logo artwork is the team's.
+
 ## What We Did Ourselves
 
 - The product idea, the design-session answers, and the scope decisions came from the team. See the verbatim prompts in `prompts/002-agent-skills.md` and later prompt files.
@@ -371,6 +381,7 @@ Verbatim prompts for each AI coding session are in `/prompts/`, numbered in orde
 - [prompts/017-nequi-negocios-compas.md](prompts/017-nequi-negocios-compas.md)
 - [prompts/018-compas-frontend-backend-integration.md](prompts/018-compas-frontend-backend-integration.md)
 - [prompts/019-compas-ux-redesign.md](prompts/019-compas-ux-redesign.md)
+- [prompts/020-official-logo.md](prompts/020-official-logo.md)
 
 ## Entry template
 

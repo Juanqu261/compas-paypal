@@ -1,7 +1,7 @@
 import { useId, type ReactNode, type RefObject } from "react";
+import { CompasMark } from "@/features/brand/CompasLogo";
 import { nequiDemoPromos } from "./nequi-demo-content";
 import {
-  CompassIcon,
   EditIcon,
   GridIcon,
   HeartIcon,
@@ -124,13 +124,9 @@ function TileRow({
   );
 }
 
-/** COMPAS mark for the Nequi tile. Our own glyph, not a Nequi asset. */
-function CompasMark() {
-  return (
-    <span className="grid size-12 rotate-[-12deg] place-items-center rounded-[45%_8%_45%_8%] bg-(--nequi-compas) text-white">
-      <CompassIcon className="size-7 rotate-12" />
-    </span>
-  );
+/** The official COMPAS mark for the Nequi tile. Our own logo, not a Nequi asset. */
+function CompasTileMark() {
+  return <CompasMark className="size-13" />;
 }
 
 export function NequiHomeSections({
@@ -155,7 +151,7 @@ export function NequiHomeSections({
         />
         <Tile
           label="Compas"
-          icon={<CompasMark />}
+          icon={<CompasTileMark />}
           onClick={onOpenCompas}
           buttonRef={compasTileRef}
         />

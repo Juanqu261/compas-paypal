@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
+import { CompasMark } from "@/features/brand/CompasLogo";
 import { useDemoSession } from "@/features/demo/DemoSession";
 import { nequiBusinessDemo } from "./nequi-business-demo-content";
 import {
@@ -8,7 +9,7 @@ import {
   type MerchantCompasConfig,
 } from "./nequi-business-compas-demo";
 import { MerchantCategoryChip, MerchantChargeCard, MerchantChargeForm, MerchantCompasEvidence } from "./NequiBusinessCompasStatus";
-import { BackIcon, ChevronDownIcon, CompassIcon, InfoIcon, StoreIcon } from "./NequiBusinessIcons";
+import { BackIcon, ChevronDownIcon, InfoIcon, StoreIcon } from "./NequiBusinessIcons";
 import { NequiBusinessScreen } from "./NequiBusinessScreen";
 import { NequiBusinessStatusBar } from "./NequiBusinessStatusBar";
 
@@ -89,8 +90,8 @@ export function NequiBusinessCompas({
             <BackIcon className="size-7" />
           </button>
           <div className="mt-2 flex items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-(--nb-sky)">
-              <CompassIcon className="size-7" />
+            <span className="grid size-11 shrink-0 place-items-center rounded-md bg-white">
+              <CompasMark className="size-8" />
             </span>
             <div className="min-w-0 flex-1">
               <h2 id={titleId} className="text-[24px] leading-tight font-bold tracking-tight">
@@ -141,7 +142,7 @@ export function NequiBusinessCompas({
                   onClick={() => setCharging(true)}
                   className={`flex h-14 w-full items-center justify-center gap-2 rounded-md bg-(--nb-plum) text-[17px] font-semibold text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 ${focusRing}`}
                 >
-                  <CompassIcon className="size-6" />
+                  <CompasMark className="size-7" />
                   Cobrar con COMPAS
                 </button>
               )}

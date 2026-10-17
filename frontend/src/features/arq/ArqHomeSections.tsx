@@ -1,4 +1,5 @@
 import { useId, type ReactNode, type RefObject } from "react";
+import { CompasMark } from "@/features/brand/CompasLogo";
 import {
   arqDemoCards,
   arqDemoRate,
@@ -11,7 +12,6 @@ import {
   CardIcon,
   ChevronRightIcon,
   CoFlag,
-  CompassIcon,
   PlusIcon,
   ReceiptIcon,
   UsFlag,
@@ -236,7 +236,7 @@ function OtherPaymentsSection({
           subtitle="Servicios, impuestos y más"
         />
         <PaymentRow
-          icon={<CompassIcon className="size-5" />}
+          icon={<CompasMark className="size-7" />}
           title="COMPAS"
           subtitle="Destina dinero con un propósito"
           onClick={onOpenCompas}

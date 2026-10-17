@@ -4,7 +4,8 @@ import { useEffect, useId, useRef, type ComponentProps, type ReactNode } from "r
 import type { MandateStatus } from "../api/contracts";
 import { errorCode } from "../api/client";
 import { errorText, statusTone } from "../lib/labels";
-import { AlertIcon, CompassMark, InfoIcon } from "./icons";
+import { CompasMark } from "@/features/brand/CompasLogo";
+import { AlertIcon, InfoIcon } from "./icons";
 
 /**
  * Building blocks for COMPAS screens inside a host app. Colors come from the
@@ -119,7 +120,7 @@ export function Facts({ rows }: { rows: readonly { label: string; value: ReactNo
 export function LoadingState({ label = "Cargando" }: { label?: string }) {
   return (
     <div role="status" className="flex items-center gap-3 py-8 text-[14px] text-(--cx-muted)">
-      <CompassMark className="size-5 animate-spin [animation-duration:2.4s] motion-reduce:animate-none" />
+      <CompasMark className="size-6 animate-spin [animation-duration:2.4s] motion-reduce:animate-none" />
       {label}…
     </div>
   );
@@ -150,7 +151,7 @@ export function StaleDataNotice({ error }: { error: unknown }) {
 export function EmptyState({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
     <div className="rounded-(--cx-radius) border border-dashed border-(--cx-line-strong) px-4 py-6 text-center">
-      <CompassMark className="mx-auto size-7 text-(--cx-route)" />
+      <CompasMark className="mx-auto size-10" />
       <p className="mt-3 text-[15px] font-semibold text-(--cx-ink)">{title}</p>
       <div className="mt-1 text-[13px] leading-snug text-(--cx-muted)">{children}</div>
       {action ? <div className="mt-4">{action}</div> : null}
