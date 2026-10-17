@@ -48,6 +48,8 @@ erDiagram
 | `audit_events` | `/demo` | Decision timeline | not yet |
 | `registry_*` | Nequi Negocios onboarding | The Cámara de Comercio record of a shop (1,900 real Medellín shops) | not yet |
 
+The database also holds 12 fabricated food mandates (`demo-food-mandate-N`) with their spending records. They give the demo tienda (Tienda Doña Gloria) the payment history that lifts it to `MEDIUM` confidence. Don't list them as Pedro's. Filter mandates by payer.
+
 Routes marked "not yet" are listed in [`backend/src/api/README.md`](../../backend/src/api/README.md). Ask the backend team before you depend on one. Never read the table instead.
 
 ## Formats

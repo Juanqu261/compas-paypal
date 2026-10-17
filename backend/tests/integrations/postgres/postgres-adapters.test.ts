@@ -10,7 +10,10 @@ import type { Mandate } from "../../../src/domain/mandate.ts";
 import type { TrustLogEntry } from "../../../src/domain/merchant-category.ts";
 import type { MerchantObservation } from "../../../src/domain/merchant-history.ts";
 import type { SpendingRecord } from "../../../src/domain/spending.ts";
+import { loadMerchantHistory } from "../../../src/application/merchant-history.ts";
 import { JsonBusinessRegistryLookup } from "../../../src/integrations/category-sources/json-business-registry-lookup.ts";
+import { createMerchantHistoryService } from "../../../src/integrations/merchant-history/create-merchant-history-service.ts";
+import { DEMO_TIENDA_WALLET } from "../../../src/integrations/merchant-registry/demo-category-seed.ts";
 import { createMerchantCategoryService } from "../../../src/integrations/merchant-registry/create-merchant-category-service.ts";
 import { connectDatabase } from "../../../src/integrations/postgres/database.ts";
 import { PostgresAuditRepository } from "../../../src/integrations/postgres/postgres-audit-repository.ts";
@@ -20,6 +23,7 @@ import { PostgresMandateRepository } from "../../../src/integrations/postgres/po
 import { PostgresObservationLog } from "../../../src/integrations/postgres/postgres-observation-log.ts";
 import { PostgresSpendingLog } from "../../../src/integrations/postgres/postgres-spending-log.ts";
 import { PostgresTrustLog } from "../../../src/integrations/postgres/postgres-trust-log.ts";
+import { gradeMerchantHistory } from "../../../src/policy/merchant-history.ts";
 import { mandate as fixtureMandate } from "../../application/purchase-test-kit.ts";
 
 const database = connectDatabase({ DATABASE_URL: process.env.TEST_DATABASE_URL });
@@ -271,4 +275,21 @@ test("with a database, a missing HMAC key stops startup", { skip }, async () => 
     createMerchantCategoryService({ env: {}, database: database! }),
     /MERCHANT_SUBJECT_HMAC_KEY is required/,
   );
+});
+
+test("demo tienda history on Postgres: spending records and mandates behind every observation, seeded once", { skip }, async () => {
+  const env = { MERCHANT_SUBJECT_HMAC_KEY: "test-hmac-key-test-hmac-key-test-hmac-key" };
+  const first = await createMerchantHistoryService({ env, database: database! });
+  const second = await createMerchantHistoryService({ env, database: database! });
+  assert.equal(second.demoObservations, 0, "a second start keeps the first start's history");
+  assert.ok(first.demoObservations === 24 || first.demoObservations === 0, "24 on an empty database");
+
+  const [record] = await new PostgresSpendingLog(database!).listByMandate("demo-food-mandate-1");
+  assert.equal(record.id, "demo-tienda-purchase-1");
+  assert.equal(record.openPayments.state, "COMPLETED");
+
+  const history = await loadMerchantHistory(DEMO_TIENDA_WALLET, ["FOOD"], new Date(), second);
+  const [summary] = history.summaries;
+  assert.equal(summary.confirmingPayers, 12);
+  assert.equal(gradeMerchantHistory(summary, second.matrix), "ESTABLISHED");
 });

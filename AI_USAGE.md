@@ -247,6 +247,7 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
   - wrote `tests/integrations/postgres/postgres-adapters.test.ts` and reservation tests in `tests/application/purchase-under-mandate.test.ts`, and updated `backend/README.md`, `backend/.env.example` and `data/schema/README.md`
   - checked everything on a local Postgres 17 container. Nothing new was applied to Supabase.
   - fixed the database user in the local `backend/.env`, generated its HMAC key, loaded the Cámara de Comercio registry into Supabase, and wrote `contracts/data-model/README.md` for the frontend team
+  - made the demo tienda's history seed also write its 12 food mandates and spending records in Postgres, made it resume after a partial start, seeded it at server startup, and ran it against Supabase
 - Prompt log: [prompts/014-postgres-adapters.md](prompts/014-postgres-adapters.md)
 - Human review: Pending team review. The server was started once against Supabase, and the registry was loaded there. The adapter tests ran only on the local container. Dropping the observation→spending foreign key is left to the team.
 

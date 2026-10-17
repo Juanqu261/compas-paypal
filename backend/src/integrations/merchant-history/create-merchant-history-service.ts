@@ -2,7 +2,9 @@ import type { MerchantHistoryDeps } from "../../application/merchant-history.ts"
 import type { MerchantObservationLog } from "../../ports/merchant-observation-log.ts";
 import { subjectRefKey } from "../merchant-registry/subject-ref.ts";
 import type { Database } from "../postgres/database.ts";
+import { PostgresMandateRepository } from "../postgres/postgres-mandate-repository.ts";
 import { PostgresObservationLog } from "../postgres/postgres-observation-log.ts";
+import { PostgresSpendingLog } from "../postgres/postgres-spending-log.ts";
 import { seedDemoMerchantHistory } from "./demo-history-seed.ts";
 import { InMemoryObservationLog } from "./in-memory-observation-log.ts";
 import { loadTrustMatrix } from "./json-trust-matrix.ts";
@@ -34,12 +36,18 @@ export async function createMerchantHistoryService(
     ? new PostgresObservationLog(options.database)
     : new InMemoryObservationLog();
 
-  // The seeded purchases have no spending record, and compas.merchant_observations
-  // requires one. Until the team decides how to seed history in Postgres, it is memory only.
-  const demoSeedEnabled =
-    !options.database && env.MERCHANT_CATEGORY_DEMO_SEED?.trim().toLowerCase() !== "false";
+  const demoSeedEnabled = env.MERCHANT_CATEGORY_DEMO_SEED?.trim().toLowerCase() !== "false";
+  // In Postgres every observation needs its spending record and mandate, so the seed writes them too.
+  const purchases = options.database
+    ? { mandates: new PostgresMandateRepository(options.database), spending: new PostgresSpendingLog(options.database) }
+    : undefined;
   const demoObservations = demoSeedEnabled
-    ? await seedDemoMerchantHistory({ observations, partyRef, ...(options.now ? { now: options.now() } : {}) })
+    ? await seedDemoMerchantHistory({
+        observations,
+        partyRef,
+        ...(purchases ? { purchases } : {}),
+        ...(options.now ? { now: options.now() } : {}),
+      })
     : 0;
 
   return { observations, matrix, partyRef, demoObservations };

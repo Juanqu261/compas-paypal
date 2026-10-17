@@ -33,3 +33,17 @@ la contraseña es <redacted>
 ```text
 documenta el esquema para que lo pueda ver el equipo de frontend y haz commit y push
 ```
+
+## 6
+
+```text
+explicame historial de demo de la tienda
+```
+
+## 7
+
+The user chose option B of three: drop the foreign key, seed matching spending records, or leave it.
+
+```text
+opcion B
+```

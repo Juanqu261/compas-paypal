@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createMerchantHistoryService } from "../integrations/merchant-history/create-merchant-history-service.ts";
 import { createMerchantCategoryService } from "../integrations/merchant-registry/create-merchant-category-service.ts";
 import { createOpenPaymentsGateway } from "../integrations/open-payments/create-open-payments-gateway.ts";
 import { connectDatabase } from "../integrations/postgres/database.ts";
@@ -45,6 +46,15 @@ const merchantCategories = await createMerchantCategoryService({
 if (merchantCategories.demoSubmissions > 0) {
   console.log(
     `Merchant categories: seeded ${merchantCategories.demoSubmissions} simulated Nequi Negocios submissions (demo/test data).`,
+  );
+}
+
+// Not read by a route yet: the purchase and confirmation routes will. Started
+// here so the demo tienda's history is seeded with the rest of the demo data.
+const merchantHistory = await createMerchantHistoryService(database ? { database } : {});
+if (merchantHistory.demoObservations > 0) {
+  console.log(
+    `Merchant history: seeded ${merchantHistory.demoObservations} observations for the demo tienda (demo/test data).`,
   );
 }
 

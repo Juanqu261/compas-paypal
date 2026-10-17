@@ -59,12 +59,12 @@ Done on 2026-10-16. Each item was checked against a local Postgres 17 with this 
 - **HMAC key.** With a database, a missing `MERCHANT_SUBJECT_HMAC_KEY` stops startup.
 - **Idempotent demo seed.** A second start keeps the first start's entries.
 - **Budget reservation.** With a mandate repository, `purchaseUnderMandate` reserves the quoted debit with one conditional `UPDATE` before recording an `ALLOW`. If the reservation fails, the decision becomes `DENY BUDGET_EXCEEDED`. If creating the payment throws, the reservation is released.
+- **Demo tienda history.** Every observation must point at a spending record, which must point at a mandate. So in Postgres the history seed also writes 12 food mandates (`demo-food-mandate-N`), their parties and their spending records (`demo-tienda-purchase-N`), all `demo/test data`. A start that stops halfway is completed by the next one.
 - **Registry load.** `DATABASE_ADMIN_URL=… npm run registry:load` loads 290 companies and 1,900 establishments.
 
 Still open:
 
 1. **The login role.** Create it in the Supabase SQL editor, never in git: `create role compas_api login password '…' in role compas_backend;`. Then set `DATABASE_URL` in `backend/.env`.
-2. **Demo history in Postgres.** `merchant_observations.spending_record_id` references `spending_records`. The demo tienda's seeded purchases have no spending record, so that seed runs only in memory. Either drop that foreign key or seed matching spending records. This is a team decision, because it changes the shared schema.
-3. **`purchase_intents`** has no domain type or route yet. Clear line descriptions once a charge is decided.
-4. **Grant tokens** are stored in plain text inside the closed schema. Move them to Supabase Vault after the hackathon.
-5. **An ADR.** No ADR records Supabase Postgres as the persistence choice yet.
+2. **`purchase_intents`** has no domain type or route yet. Clear line descriptions once a charge is decided.
+3. **Grant tokens** are stored in plain text inside the closed schema. Move them to Supabase Vault after the hackathon.
+4. **An ADR.** No ADR records Supabase Postgres as the persistence choice yet.
