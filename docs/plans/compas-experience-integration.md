@@ -74,6 +74,19 @@ Main already had `prompts/014-postgres-adapters.md`. The feature's `014-compas-e
 
 The contract types gained `persistence: "POSTGRES"` and `payerGrants`, `errorText` has a Spanish message for `PAYER_GRANTS_DISABLED_FOR_DEMO`, and the demo-mode note covers Postgres storage. `frontend/src/features/nequi-business/` was not changed.
 
+## Local main
+
+Local `main` had two commits that `origin/main` did not: `cb30773` (COMPAS merchant settings in Nequi Negocios) and `72faff3` (its merge with the site redesign). They were merged into the integration branch after the commit above, so that `main` could move forward without losing them.
+
+| File | Local main | Integration | Decision |
+| --- | --- | --- | --- |
+| `AI_USAGE.md` | Moved the entries under the sections `ai_rules.py check` requires, and added the Nequi Negocios COMPAS entry | Added the Postgres, COMPAS experience and integration entries | Main's structure with every entry from both sides. The prompt list under "Prompt Log" now names every file in `prompts/`. The "What We Did Ourselves" note that Open Payments was not integrated was out of date and now names the real adapter |
+| `prompts/009-nequi-negocios-compas.md` | Prompt 009 | `origin/main` already had `009-compas-smoke.md` | Renamed `017-nequi-negocios-compas.md`. The entry says so |
+
+`frontend/src/features/nequi-business/` merged without conflicts. The COMPAS module doesn't import it, and it doesn't import the COMPAS module.
+
+Three entries link prompt files that are not in the repository: `005-open-payments-integration.md` and `007-merchant-category-service.md` never existed, and `010-merge-main.md` was deleted in `9b491bd`. That was already the case on `origin/main` and is left to the team.
+
 ## Verification
 
 | Check | Result |
@@ -85,4 +98,4 @@ The contract types gained `persistence: "POSTGRES"` and `payerGrants`, `errorTex
 
 Not checked: a real wallet consent end to end, and the Postgres tests against the team's Supabase project. No migration was run, nothing was written to Supabase and no payment was made.
 
-`ai_rules.py check` reports four missing sections in `AI_USAGE.md`. It reported the same on `origin/main` before this merge. The restructure on local `main` (`cb30773`) adds them.
+`ai_rules.py check` failed on `origin/main` before this merge: four sections were missing from `AI_USAGE.md`. After the merge with local `main` it passes.

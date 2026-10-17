@@ -10,7 +10,14 @@ This log does not claim that any file was written without AI assistance. The tea
 
 Copy the template, fill it in, and link the prompt file under `prompts/`.
 
-## Entries
+## Tools Used
+
+- Cursor (repository foundation and monorepo restructure)
+- Claude Code (Claude Opus 5.5) (agent skills, Claude integration, the Open Payments integration, the merchant category service and trust matrix, the Supabase schema and Postgres adapters, the ARQ, Nequi, and Nequi Negocios simulated surfaces, the site redesign with the third-party `frontend-design` skill, the COMPAS mandate experience, and its integration with `main`)
+
+## Where and How We Used AI
+
+The dated running log below is the detailed record: which tool, which files or components, and the review status of each session.
 
 ### 2026-10-16 — Cursor
 
@@ -278,9 +285,56 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
   - frontend: the COMPAS contract types, a Spanish message for the new error code, and the demo note for Postgres storage
   - tests: `backend/tests/application/mandate-integration.test.ts` (concurrent reservations, status changes that keep a reservation, consent from the grant store, the demo grant policy), and updates to the mandate test kit and tests
   - renumbered the feature's prompt from 014 to 015, because main already had a prompt 014
+  - then merged local `main` (`cb30773`, `72faff3`: the Nequi Negocios COMPAS settings) into the integration branch, kept its restructure of this file and its entry, and renumbered its prompt from 009 to 017, because `origin/main` already had a prompt 009
   - not changed: the Open Payments gateway, the policy engine, the Supabase schema and `frontend/src/features/nequi-business/`. No migration was run and no payment was made
 - Prompt log: [prompts/016-compas-integration.md](prompts/016-compas-integration.md)
 - Human review: Pending team review. The Postgres adapter tests skip without `TEST_DATABASE_URL`, and no end-to-end run with a real wallet consent happened.
+
+### 2026-10-16 — Claude Code — Nequi Negocios COMPAS merchant configuration
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - merchant-side COMPAS UX inside the simulated Nequi Negocios app (`frontend/src/features/nequi-business/`)
+  - Nequi Negocios `Conoce más` implementation: a services screen (`NequiBusinessMore.tsx`) reached from the bottom nav, which now shows the active tab (`NequiBusinessBottomNav.tsx`)
+  - COMPAS merchant configuration UI (`NequiBusinessCompas.tsx`): an on/off switch, the establishment (Droguería Central), category checkboxes, a "how it works" section, and `Guardar configuración`
+  - local frontend configuration state held in `NequiBusinessExperience.tsx`, with labels and defaults in `nequi-business-compas-demo.ts`. Saving updates component state only. It is not a backend enrollment, not a merchant-registry write, and not a real Nequi merchant verification.
+  - no backend integration, no Open Payments integration, and no ALLOW/DENY/REVIEW decision in the browser
+  - restructured this file under the section headings that `.skills/hackathon-ai-rules/scripts/ai_rules.py check` requires. Every earlier entry is kept word for word.
+  - Claude Code also made commits `2f8635b` (the Nequi Negocios UI) and `c20646a` (the merge of `cf28a86`) at the team's request. It renumbered the Nequi Negocios prompt log to 006 and kept both new entries in this file. It later made `cb30773` (this entry's work) and the merge of `8da1554`: it renumbered this prompt log from 007 to 009 because 007 and 008 were taken, and moved the 007 and 008 entries, unchanged, from below the entry template into this log. Both requests were git instructions and are not in `prompts/`.
+- Prompt log: [prompts/017-nequi-negocios-compas.md](prompts/017-nequi-negocios-compas.md) (numbered 009 on local `main`, renumbered 017 when it was merged with `origin/main`, which already had a prompt 009)
+- Human review: Pending team review. The categories and the enabled state are local `demo/test data`.
+
+## What We Did Ourselves
+
+- The product idea, the design-session answers, and the scope decisions came from the team. See the verbatim prompts in `prompts/002-agent-skills.md` and later prompt files.
+- The team supplied the reference screenshots for ARQ, Nequi, and Nequi Negocios. The assistants did not collect them.
+- The team made the commits and merges recorded in git history, except where an entry above says an assistant did the work.
+- Human review of AI-generated code is pending for every entry above. This file does not mark any file as written without AI.
+- Open Payments is integrated behind `OpenPaymentsGateway` (`backend/src/ports/open-payments-gateway.ts`). The real adapter is `backend/src/integrations/open-payments/interledger-open-payments-gateway.ts`, written with Claude Code (see the Open Payments integration entry). `unimplemented-open-payments-gateway.ts` is the fallback when the client env is not set.
+
+## Prompt Log
+
+Verbatim prompts for each AI coding session are in `/prompts/`, numbered in order. Some numbers repeat because branches were numbered separately before they merged. A few entries above link prompt files that are not in the repository (see each entry):
+
+- [prompts/001-repository-foundation.md](prompts/001-repository-foundation.md)
+- [prompts/002-agent-skills.md](prompts/002-agent-skills.md)
+- [prompts/003-monorepo-restructure.md](prompts/003-monorepo-restructure.md)
+- [prompts/004-arq-ui.md](prompts/004-arq-ui.md)
+- [prompts/004-open-payments-integration-plan.md](prompts/004-open-payments-integration-plan.md)
+- [prompts/005-nequi-ui.md](prompts/005-nequi-ui.md)
+- [prompts/006-merchant-category-service-plan.md](prompts/006-merchant-category-service-plan.md)
+- [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
+- [prompts/007-frontend-design-skill.md](prompts/007-frontend-design-skill.md)
+- [prompts/008-monitored-budgets.md](prompts/008-monitored-budgets.md)
+- [prompts/008-site-redesign.md](prompts/008-site-redesign.md)
+- [prompts/009-compas-smoke.md](prompts/009-compas-smoke.md)
+- [prompts/011-trust-matrix.md](prompts/011-trust-matrix.md)
+- [prompts/012-rues-merchant-registry.md](prompts/012-rues-merchant-registry.md)
+- [prompts/013-supabase-schema.md](prompts/013-supabase-schema.md)
+- [prompts/014-postgres-adapters.md](prompts/014-postgres-adapters.md)
+- [prompts/015-compas-experience.md](prompts/015-compas-experience.md)
+- [prompts/016-compas-integration.md](prompts/016-compas-integration.md)
+- [prompts/017-nequi-negocios-compas.md](prompts/017-nequi-negocios-compas.md)
 
 ## Entry template
 
