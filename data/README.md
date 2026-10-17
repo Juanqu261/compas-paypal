@@ -1,6 +1,6 @@
 # Data
 
-This directory is the home for COMPAS data assets. It is not a database, and no persistence technology has been selected.
+This directory is the home for COMPAS data assets. It is not a database. The backend's schema lives in `migrations/` and is applied to the team's Supabase Postgres project. The backend does not use it yet. See `schema/README.md`.
 
 - `fixtures/demo/` — labeled demo/test scenarios. The medication purchase is the allowed story. The alcohol purchase is the rejected story.
 - `schema/` — future database or document schemas.

@@ -224,6 +224,17 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/012-rues-merchant-registry.md](prompts/012-rues-merchant-registry.md)
 - Human review: Pending team review. The name-keyword figures in the seed README are a heuristic, not evidence. The CIIU titles in the mapping table are still unverified.
 
+### 2026-10-16 — Claude Code — Supabase schema proposal
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - read the backend's ports and domain types, and listed the empty Supabase project's tables, migrations and extensions (read-only)
+  - wrote the migration `data/migrations/20261017032839_compas_core.sql`, `data/schema/README.md` and `data/migrations/README.md`, and updated `data/README.md`
+  - checked the migration on a throwaway Postgres 17 container with dummy rows
+  - applied it to the team's Supabase project on the user's request (migration `20261017032839`), then checked RLS, grants and the security advisors
+- Prompt log: [prompts/013-supabase-schema.md](prompts/013-supabase-schema.md)
+- Human review: Pending team review. The schema is applied but empty. The backend has no database adapter yet.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
