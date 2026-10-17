@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-16
+Accepted, 2026-10-16. Amended by [ADR 0007](0007-merchant-confidence-matrix.md): a merchant's declared categories get a confidence from the trust matrix, history counts only through distinct confirming payers, and history alone never reaches `HIGH`. Trust levels below are unchanged.
 
 ## Context
 
@@ -20,7 +20,7 @@ Several approaches look tempting:
 - The **trust level comes from the source registry**, never from the claim. The order is `SELF_DECLARED` (the merchant), then `PROVIDER_VERIFIED` (the wallet's KYB), then `EXTERNAL_VERIFIED` (RUES, a health authority, a program operator).
 - External evidence (CIIU Rev. 4 A.C. codes, sector licenses) is translated to COMPAS categories through versioned mapping tables. Unmapped evidence gives no category.
 - Registry evidence keyed by NIT joins a wallet only through an identity binding. A self-declared binding caps it at `SELF_DECLARED`.
-- **Volume never raises trust, and behavior only lowers it.** Flags and contradictions lead to `REVIEW`.
+- **Volume never raises trust, and behavior only lowers it.** Flags and contradictions lead to `REVIEW`. (Amended by ADR 0007: confirmed history from distinct payers can raise a declared category's *confidence*, never its trust level, and never to `HIGH`.)
 - The policy engine resolves categories at decision time and calls `evaluateMerchantCategoryEvidence`. That function returns PASS, `REVIEW` or `DENY`. It never returns `ALLOW`.
 - Open Payments metadata stays limited to `compasMandateId`, `compasDecisionId` and `externalReference`. The purchase intent carries only `merchantWalletAddressUrl`.
 

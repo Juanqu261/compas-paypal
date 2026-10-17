@@ -8,7 +8,10 @@ import type {
   PurposeCheck,
 } from "../domain/policy-decision.ts";
 import type { PurchaseIntent } from "../domain/purchase.ts";
-import { evaluateMerchantCategoryEvidence } from "./merchant-category-evidence.ts";
+import {
+  evaluateMerchantCategoryEvidence,
+  type MerchantHistoryInput,
+} from "./merchant-category-evidence.ts";
 
 /**
  * Deterministic purchase policy. No AI and no I/O.
@@ -66,20 +69,22 @@ function worst(a: PolicyOutcome, b: PolicyOutcome): PolicyOutcome {
 }
 
 /**
- * Merchant category evidence, then line items. Line-item categories come from
- * the merchant's point of sale and are weaker than merchant evidence. A line
- * without a category needs the classifier, which is not wired, so it holds.
+ * Merchant category evidence through the trust matrix, then line items.
+ * Line-item categories come from the merchant's point of sale and are weaker
+ * than merchant evidence. A line without a category needs the classifier,
+ * which is not wired, so it holds.
  */
 export function evaluatePurposeCheck(
   mandate: Mandate,
   intent: PurchaseIntent,
   merchantResolution: MerchantCategoryResolution,
+  merchantHistory: MerchantHistoryInput,
 ): PurposeCheck {
   const policy = mandate.purposePolicy;
   const reasons: PolicyReason[] = [];
   let outcome: PolicyOutcome = "ALLOW";
 
-  const merchantStep = evaluateMerchantCategoryEvidence(merchantResolution, policy);
+  const merchantStep = evaluateMerchantCategoryEvidence(merchantResolution, policy, merchantHistory);
   if (merchantStep.result !== "PASS") {
     outcome = worst(outcome, merchantStep.result);
     reasons.push(merchantStep.reason);
@@ -99,7 +104,42 @@ export function evaluatePurposeCheck(
     outcome,
     reasons,
     matchedCategories: merchantStep.result === "PASS" ? merchantStep.matchedCategories : [],
+    ...(merchantStep.result !== "DENY" && merchantStep.confidence
+      ? { merchantConfidence: merchantStep.confidence }
+      : {}),
     enforced: policy.enforcement === "ENFORCED",
+  };
+}
+
+/**
+ * The mandate's optional per-purchase cap for a merchant that passed below
+ * HIGH confidence. It reads the quoted debit, like the budget, because only
+ * the quote knows the debit in the payer's asset. A different asset fails
+ * closed. It is a purpose check, so MONITORED records it without blocking.
+ */
+export function applyConfidenceCap(
+  mandate: Mandate,
+  check: PurposeCheck,
+  debitAmount: MoneyAmount,
+): PurposeCheck {
+  const cap = mandate.purposePolicy.merchantConfidence.maxDebitBelowHigh;
+  const passedBelowHigh = check.matchedCategories.length > 0 && check.merchantConfidence?.confidence !== "HIGH";
+  if (!cap || !passedBelowHigh) return check;
+
+  const sameAsset = debitAmount.assetCode === cap.assetCode && debitAmount.assetScale === cap.assetScale;
+  if (sameAsset && BigInt(debitAmount.value) <= BigInt(cap.value)) return check;
+  return {
+    ...check,
+    outcome: worst(check.outcome, "REVIEW"),
+    reasons: [
+      ...check.reasons,
+      {
+        code: "MERCHANT_CONFIDENCE_LIMIT_EXCEEDED",
+        message: sameAsset
+          ? `The merchant has ${check.merchantConfidence?.confidence} confidence, and the debit exceeds this mandate's cap for such merchants.`
+          : `The debit is in ${debitAmount.assetCode}/${debitAmount.assetScale}, the cap in ${cap.assetCode}/${cap.assetScale}. COMPAS does not convert.`,
+      },
+    ],
   };
 }
 
@@ -157,6 +197,7 @@ export function evaluatePurchase(input: {
   /** From the Open Payments quote, in the payer wallet's asset. */
   debitAmount: MoneyAmount;
   merchantResolution: MerchantCategoryResolution;
+  merchantHistory: MerchantHistoryInput;
   now: Date;
 }): PolicyDecision {
   const hardReasons = [
@@ -169,7 +210,13 @@ export function evaluatePurchase(input: {
     intent: input.intent,
     hardReasons,
     ...(hardReasons.length === 0
-      ? { purposeCheck: evaluatePurposeCheck(input.mandate, input.intent, input.merchantResolution) }
+      ? {
+          purposeCheck: applyConfidenceCap(
+            input.mandate,
+            evaluatePurposeCheck(input.mandate, input.intent, input.merchantResolution, input.merchantHistory),
+            input.debitAmount,
+          ),
+        }
       : {}),
     evaluatedAt: input.now,
   });

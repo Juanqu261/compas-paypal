@@ -83,6 +83,12 @@ export class InMemoryTrustLog implements MerchantTrustLog {
     return this.#entries.filter((entry) => concernsSubject(entry, subjectRef));
   }
 
+  async listBindingsBySubjectRef(subjectRef: string): Promise<readonly TrustLogEntry[]> {
+    return this.#entries.filter(
+      (entry) => entry.type === "IDENTITY_BINDING" && entry.subject.subjectRef === subjectRef,
+    );
+  }
+
   async listRevocationsFor(entryIds: readonly string[]): Promise<readonly TrustLogEntry[]> {
     const targets = new Set(entryIds);
     return this.#entries.filter(

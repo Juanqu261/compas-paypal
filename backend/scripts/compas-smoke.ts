@@ -32,6 +32,7 @@ import { buildSpendingReport } from "../src/application/spending-report.ts";
 import type { Mandate, PurposeEnforcement } from "../src/domain/mandate.ts";
 import type { MoneyAmount } from "../src/domain/money.ts";
 import type { PurchaseIntent } from "../src/domain/purchase.ts";
+import { createMerchantHistoryService } from "../src/integrations/merchant-history/create-merchant-history-service.ts";
 import { createMerchantCategoryService } from "../src/integrations/merchant-registry/create-merchant-category-service.ts";
 import { createOpenPaymentsGateway } from "../src/integrations/open-payments/create-open-payments-gateway.ts";
 import { OpenPaymentsGatewayError } from "../src/integrations/open-payments/errors.ts";
@@ -220,7 +221,7 @@ async function main(): Promise<void> {
   };
   console.log(`mandate     ${mandate.id}`);
   console.log(`delegate    ${mandate.delegate.displayName}, payer ${mandate.payer.displayName}`);
-  console.log(`purpose     ${mandate.purposePolicy.eligibleCategories.join(", ")}, accepted evidence ${mandate.purposePolicy.acceptedTrustLevels.join(" | ")}`);
+  console.log(`purpose     ${mandate.purposePolicy.eligibleCategories.join(", ")}, minimum merchant confidence ${mandate.purposePolicy.merchantConfidence.minimum}`);
   console.log(`enforcement ${enforcement}${enforcement === "MONITORED" ? '  (the payer ticked "allow even if not fully approved")' : ""}`);
   console.log(`budget      ${money(budget)}`);
 
@@ -248,6 +249,7 @@ async function main(): Promise<void> {
   console.log("grant ACTIVE. Open Payments now caps every debit at the budget.");
 
   const spending = new InMemorySpendingLog();
+  const history = await createMerchantHistoryService();
   const failures: string[] = [];
 
   try {
@@ -274,6 +276,7 @@ async function main(): Promise<void> {
             merchants: loggingRegistry(scenario.registry),
             payments: loggingPayments(gateway),
             spending,
+            history,
           },
         );
       } catch (error) {
@@ -290,6 +293,10 @@ async function main(): Promise<void> {
       if (check) {
         console.log(`  [compas] purpose check: ${check.outcome}${check.enforced ? "" : " (not enforced: MONITORED)"}`);
         console.log(`           matched categories: ${check.matchedCategories.join(", ") || "none"}`);
+        const confidence = check.merchantConfidence;
+        if (confidence) {
+          console.log(`           trust matrix ${confidence.matrixVersion}: ${confidence.category} ${confidence.corroboration} x ${confidence.historyGrade} = ${confidence.confidence}`);
+        }
       }
       console.log(`  [compas] decision ${decision.outcome}`);
       for (const reason of decision.reasons) console.log(`           ${reason.code}: ${reason.message}`);

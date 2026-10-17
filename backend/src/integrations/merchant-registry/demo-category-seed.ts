@@ -23,11 +23,15 @@ export function generateDemoSigningKey(): DemoSigningKey {
   return { publicKeyJwk: publicKey.export({ format: "jwk" }), privateKey };
 }
 
+/** A tienda de barrio: self-declared only, no registry, no KYB. Its history is in demo-history-seed.ts. */
+export const DEMO_TIENDA_WALLET = "https://wallet.example/demo-tienda-dona-gloria";
+
 type DemoMerchant = {
   slug: string;
   walletAddressUrl: string;
   declared: string;
-  ciiu: string;
+  /** Absent: the wallet attests nothing. */
+  ciiu?: string;
 };
 
 /**
@@ -48,6 +52,7 @@ export async function seedDemoMerchantCategories(options: {
   const merchants: DemoMerchant[] = [
     { slug: "drogueria-central", walletAddressUrl: DEMO_DROGUERIA_WALLET, declared: "MEDICATION", ciiu: "4773" },
     { slug: "example-liquor", walletAddressUrl: DEMO_LIQUOR_WALLET, declared: "ALCOHOL", ciiu: "4724" },
+    { slug: "tienda-dona-gloria", walletAddressUrl: DEMO_TIENDA_WALLET, declared: "FOOD" },
   ];
   if (options.testNetworkMerchantWallet) {
     merchants.push({
@@ -76,16 +81,18 @@ export async function seedDemoMerchantCategories(options: {
       declaredCategories: [merchant.declared],
       observedAt,
     },
-    {
-      schemaVersion: "1",
-      sourceId: KYB_SOURCE,
-      submissionId: `demo-kyb-${merchant.slug}`,
-      type: "CATEGORY_CLAIM",
-      subject: { kind: "WALLET_ADDRESS", walletAddressUrl: merchant.walletAddressUrl },
-      codes: [{ system: "CIIU_REV4_AC", code: merchant.ciiu, role: "PRIMARY" }],
-      observedAt,
-      evidenceRef: "demo-kyb-rut",
-    },
+    ...(merchant.ciiu
+      ? [{
+          schemaVersion: "1",
+          sourceId: KYB_SOURCE,
+          submissionId: `demo-kyb-${merchant.slug}`,
+          type: "CATEGORY_CLAIM",
+          subject: { kind: "WALLET_ADDRESS", walletAddressUrl: merchant.walletAddressUrl },
+          codes: [{ system: "CIIU_REV4_AC", code: merchant.ciiu, role: "PRIMARY" }],
+          observedAt,
+          evidenceRef: "demo-kyb-rut",
+        }]
+      : []),
   ]);
 
   for (const submission of submissions) {

@@ -1,7 +1,7 @@
 import type { Beneficiary, Delegate, Payer } from "./party";
 import type { MoneyAmount } from "./money";
-import type { MerchantTrustLevel } from "./merchant";
 import type { CompasCategory } from "./merchant-category";
+import type { AcceptableConfidence } from "./trust-matrix";
 
 export const MANDATE_STATUSES = [
   "DRAFT",
@@ -25,16 +25,27 @@ export const PURPOSE_ENFORCEMENT_MODES = ["ENFORCED", "MONITORED"] as const;
 
 export type PurposeEnforcement = (typeof PURPOSE_ENFORCEMENT_MODES)[number];
 
+/** Which merchants this mandate trusts, by the trust matrix's confidence. */
+export type MerchantConfidencePolicy = {
+  /**
+   * Lowest confidence that passes the merchant step. HIGH needs an independent
+   * attester (wallet KYB, or a registry through a verified binding). LOW or
+   * MEDIUM also lets in shops backed by their own declaration and history.
+   */
+  minimum: AcceptableConfidence;
+  /**
+   * Optional per-purchase cap on the quoted debit, in the payer wallet's asset,
+   * for a merchant that passed below HIGH. Over it, or in another asset: REVIEW.
+   */
+  maxDebitBelowHigh?: MoneyAmount;
+};
+
 /** COMPAS purpose policy. MEDICATION is not an Open Payments scope. */
 export type PurposePolicy = {
   id: string;
   allowedPurposes: readonly string[];
   eligibleCategories: readonly CompasCategory[];
-  /**
-   * Merchant evidence levels this mandate accepts, for example
-   * PROVIDER_VERIFIED and EXTERNAL_VERIFIED. Weaker evidence leads to REVIEW.
-   */
-  acceptedTrustLevels: readonly MerchantTrustLevel[];
+  merchantConfidence: MerchantConfidencePolicy;
   /** Set by the payer when the mandate is created. */
   enforcement: PurposeEnforcement;
 };

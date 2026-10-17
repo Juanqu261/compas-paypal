@@ -1,4 +1,5 @@
 import type { CompasCategory } from "./merchant-category.ts";
+import type { MerchantConfidenceRecord } from "./trust-matrix.ts";
 
 export const POLICY_OUTCOMES = ["ALLOW", "DENY", "REVIEW"] as const;
 
@@ -13,6 +14,8 @@ export const POLICY_REASON_CODES = [
   "CLASSIFICATION_UNCERTAIN",
   "MERCHANT_EVIDENCE_INSUFFICIENT",
   "MERCHANT_EVIDENCE_CONFLICT",
+  "MERCHANT_HISTORY_CONTRADICTS",
+  "MERCHANT_CONFIDENCE_LIMIT_EXCEEDED",
   "DELEGATE_NOT_AUTHORIZED",
   "PAYER_MONITORED_EXCEPTION",
 ] as const;
@@ -32,8 +35,10 @@ export type PolicyReason = {
 export type PurposeCheck = {
   outcome: PolicyOutcome;
   reasons: readonly PolicyReason[];
-  /** Eligible categories the merchant resolved to at an accepted trust level. */
+  /** Eligible categories the merchant declared and holds at the mandate's minimum confidence or above. */
   matchedCategories: readonly CompasCategory[];
+  /** The best eligible declared category's confidence. Absent when the merchant declared none. */
+  merchantConfidence?: MerchantConfidenceRecord;
   /** False when the payer chose MONITORED and the result did not decide the payment. */
   enforced: boolean;
 };

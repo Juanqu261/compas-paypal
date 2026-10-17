@@ -201,6 +201,17 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/010-merge-main.md](prompts/010-merge-main.md)
 - Human review: Pending team review. Prompt numbers 004, 006 and 008 now exist twice, once per branch.
 
+### 2026-10-16 — Claude Code — merchant trust matrix
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - wrote the plan `docs/plans/trust-matrix.md`, then, after the team changed the framing, `docs/adr/0007-merchant-confidence-matrix.md` and the amendment note in ADR 0005
+  - backend: declared-category corroboration and the NIT-bound-twice conflict in the resolver, the observation log, history grading, the trust matrix and its invariant checks, the revised merchant step and the per-purchase confidence cap, payer confirmations, and the Cámara de Comercio registry adapter against a provisional contract
+  - replaced `acceptedTrustLevels` with `merchantConfidence` in the domain and the demo fixtures, added the demo tienda, and wrote the tests (122 → 173)
+  - contracts `merchant-history/` and `merchant-registry/` (provisional), and updates to `docs/02`, `docs/05`, the READMEs and `.env.example`
+- Prompt log: [prompts/011-trust-matrix.md](prompts/011-trust-matrix.md)
+- Human review: Pending team review. The matrix cells and thresholds are untuned team choices. The registry contract is an assumption about another branch's database. The renewal deadline (31 March) is unverified. Payer confirmations have no authentication yet.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name

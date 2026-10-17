@@ -22,6 +22,8 @@ export interface MerchantTrustLog {
   listByWalletAddress(walletAddressUrl: string): Promise<readonly TrustLogEntry[]>;
   /** Claims about a TAX_ID subject. */
   listBySubjectRef(subjectRef: string): Promise<readonly TrustLogEntry[]>;
+  /** Bindings of a TAX_ID subject to any wallet. Shows a NIT claimed by more than one wallet. */
+  listBindingsBySubjectRef(subjectRef: string): Promise<readonly TrustLogEntry[]>;
   /** REVOCATION entries that target any of the given entry ids. */
   listRevocationsFor(entryIds: readonly string[]): Promise<readonly TrustLogEntry[]>;
 }

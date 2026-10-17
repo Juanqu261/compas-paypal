@@ -166,3 +166,100 @@ test("evidence from a source that is no longer registered is ignored", async () 
   });
   assert.deepEqual(resolution.categories, []);
 });
+
+const declare = (submissionId: string, categories: string[], wallet = PHARMACY) => ({
+  sourceId: "merchant",
+  submissionId,
+  type: "CATEGORY_CLAIM",
+  subject: walletSubject(wallet),
+  declaredCategories: categories,
+  observedAt: "2026-10-16T12:00:00Z",
+});
+
+function corroborationOf(resolution: Awaited<ReturnType<typeof resolve>>, category: string) {
+  return resolution.declarations.find((declared) => declared.category === category)?.corroboration;
+}
+
+test("declarations: a tienda with only its own declaration is UNCORROBORATED", async () => {
+  const bench = createBench();
+  await bench.submitOk(declare("d1", ["FOOD"]));
+  const resolution = await resolve(bench);
+  assert.deepEqual(resolution.declarations.map((d) => [d.category, d.corroboration]), [["FOOD", "UNCORROBORATED"]]);
+});
+
+test("declarations: KYB that includes the declared category corroborates it, even as a secondary activity", async () => {
+  const bench = createBench();
+  await bench.submitOk(declare("d1", ["MEDICATION"]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }, { code: "4773", role: "SECONDARY" }]));
+  assert.equal(corroborationOf(await resolve(bench), "MEDICATION"), "PROVIDER_VERIFIED");
+});
+
+test("declarations: the merchant's own CIIU code is not corroboration", async () => {
+  const bench = createBench();
+  await bench.submitOk({ ...declare("d1", ["MEDICATION"]), codes: [{ system: "CIIU_REV4_AC", code: "4773", role: "PRIMARY" }] });
+  assert.equal(corroborationOf(await resolve(bench), "MEDICATION"), "UNCORROBORATED");
+});
+
+test("declarations: a Cámara claim through a self-typed NIT is REGISTRY_UNBOUND; a KYB binding lifts it to the binding's level", async () => {
+  const bench = createBench();
+  await bench.submitOk(declare("d1", ["MEDICATION"]));
+  await bench.submitOk(ciiuClaim("registry", "r1", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4773", role: "PRIMARY" }]));
+  await bench.submitOk(binding("merchant", "b1"));
+  assert.equal(corroborationOf(await resolve(bench), "MEDICATION"), "REGISTRY_UNBOUND");
+
+  // The binding caps the registry claim, so EXTERNAL_VERIFIED evidence through a KYB binding counts as PROVIDER_VERIFIED.
+  await bench.submitOk(binding("wallet", "b2"));
+  assert.equal(corroborationOf(await resolve(bench), "MEDICATION"), "PROVIDER_VERIFIED");
+});
+
+test("declarations: KYB placing the shop elsewhere contradicts a bare declaration", async () => {
+  const bench = createBench();
+  await bench.submitOk(declare("d1", ["MEDICATION"], LIQUOR));
+  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
+  const declared = (await resolve(bench, LIQUOR)).declarations[0];
+  assert.equal(declared.corroboration, "CONTRADICTED");
+  assert.equal(declared.contradictingEntryIds.length, 1);
+});
+
+test("declarations: a stronger contradiction outranks a weaker registry match", async () => {
+  const bench = createBench();
+  // The liquor store types a pharmacy's NIT, but its own wallet's KYB says liquor.
+  await bench.submitOk(declare("d1", ["MEDICATION"], LIQUOR));
+  await bench.submitOk(ciiuClaim("registry", "r1", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4773", role: "PRIMARY" }]));
+  await bench.submitOk(binding("merchant", "b1", LIQUOR));
+  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
+  assert.equal(corroborationOf(await resolve(bench, LIQUOR), "MEDICATION"), "CONTRADICTED");
+});
+
+test("declarations: an unmapped registry activity neither supports nor contradicts", async () => {
+  const bench = createBench();
+  await bench.submitOk(declare("d1", ["FOOD"]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "9609", role: "PRIMARY" }]));
+  assert.equal(corroborationOf(await resolve(bench), "FOOD"), "UNCORROBORATED");
+});
+
+test("one NIT bound as strongly to two wallets is a conflict on both; a weaker binding elsewhere touches only itself", async () => {
+  const bench = createBench();
+  await bench.submitOk(ciiuClaim("registry", "r1", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4773", role: "PRIMARY" }]));
+  await bench.submitOk(binding("merchant", "b1", PHARMACY));
+  await bench.submitOk(binding("merchant", "b2", LIQUOR));
+
+  for (const wallet of [PHARMACY, LIQUOR]) {
+    const { conflicts } = await resolve(bench, wallet);
+    assert.deepEqual(conflicts.map((conflict) => conflict.categories), [["MEDICATION", "PERSONAL_CARE"]], wallet);
+  }
+
+  // The pharmacy's wallet provider binds the NIT after KYB. A self-typed copy elsewhere no longer touches it.
+  await bench.submitOk(binding("wallet", "b3", PHARMACY));
+  assert.deepEqual((await resolve(bench, PHARMACY)).conflicts, []);
+  assert.equal((await resolve(bench, LIQUOR)).conflicts.length, 2, "the liquor store's binding is still contested");
+});
+
+test("a revoked binding elsewhere no longer contests the NIT", async () => {
+  const bench = createBench();
+  await bench.submitOk(ciiuClaim("registry", "r1", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4773", role: "PRIMARY" }]));
+  await bench.submitOk(binding("merchant", "b1", PHARMACY));
+  await bench.submitOk(binding("merchant", "b2", LIQUOR));
+  await bench.submitOk({ sourceId: "merchant", submissionId: "r2", type: "REVOCATION", revokesSubmissionId: "b2", reason: "typo" });
+  assert.deepEqual((await resolve(bench, PHARMACY)).conflicts, []);
+});

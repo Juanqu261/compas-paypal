@@ -155,9 +155,44 @@ export type CategoryFlag = {
   category: CompasCategory;
 };
 
+/**
+ * How well independent evidence backs a category the merchant declared.
+ * After CONTRADICTED, ordered weakest to strongest.
+ *
+ * - CONTRADICTED: the strongest independent evidence places the shop elsewhere.
+ * - UNCORROBORATED: only the merchant says so, for example a tienda de barrio.
+ * - REGISTRY_UNBOUND: a registry (or another verified source) agrees, but it is
+ *   joined to the wallet only through a NIT the merchant typed itself.
+ * - PROVIDER_VERIFIED / EXTERNAL_VERIFIED: an independent source agrees.
+ */
+export const CORROBORATION_TIERS = [
+  "CONTRADICTED",
+  "UNCORROBORATED",
+  "REGISTRY_UNBOUND",
+  "PROVIDER_VERIFIED",
+  "EXTERNAL_VERIFIED",
+] as const;
+export type CorroborationTier = (typeof CORROBORATION_TIERS)[number];
+
+/** A category the merchant declared at registration, and how independent evidence bears on it. */
+export type DeclaredCategory = {
+  category: CompasCategory;
+  corroboration: CorroborationTier;
+  declarationEntryIds: readonly string[];
+  /** Independent claims that include the category. */
+  supportingEntryIds: readonly string[];
+  /** Independent claims whose main activity leaves it out. */
+  contradictingEntryIds: readonly string[];
+};
+
 export type MerchantCategoryResolution = {
   walletAddressUrl: string;
   categories: readonly ResolvedCategory[];
+  /**
+   * The merchant's own declarations. Only these can make a shop eligible.
+   * Evidence for a category the merchant never declared does not.
+   */
+  declarations: readonly DeclaredCategory[];
   conflicts: readonly CategoryConflict[];
   flags: readonly CategoryFlag[];
   /** Evidence with no mapping, for example "CIIU_REV4_AC:9609". Not a category. */

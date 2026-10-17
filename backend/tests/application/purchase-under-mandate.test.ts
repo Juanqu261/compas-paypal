@@ -13,6 +13,7 @@ import {
   PAYER_CONSENT,
 } from "../integrations/open-payments/fake-sdk.ts";
 import {
+  historyDeps,
   intent,
   LIQUOR_WALLET,
   mandate,
@@ -32,6 +33,7 @@ function setup(debitValue?: string) {
     merchants: stubRegistry(),
     payments: op.payments,
     spending,
+    history: historyDeps(),
     now: () => NOW,
     newId: () => `decision-${++ids}`,
   };
@@ -186,6 +188,7 @@ test("with the real adapter: ENFORCED liquor never reaches outgoingPayment.creat
         merchants: stubRegistry({ [MERCHANT.id]: liquorAtMerchant }),
         payments: gateway,
         spending: new InMemorySpendingLog(),
+        history: historyDeps(),
         now: () => NOW,
       },
     );

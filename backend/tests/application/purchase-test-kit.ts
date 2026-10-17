@@ -1,11 +1,19 @@
+import type { MerchantHistoryDeps } from "../../src/application/merchant-history.ts";
 import type { Mandate, PurposeEnforcement } from "../../src/domain/mandate.ts";
 import type {
   CompasCategory,
+  CorroborationTier,
   MerchantCategoryResolution,
 } from "../../src/domain/merchant-category.ts";
+import type { MerchantHistorySummary } from "../../src/domain/merchant-history.ts";
 import type { MerchantTrustLevel } from "../../src/domain/merchant.ts";
 import type { PurchaseIntent } from "../../src/domain/purchase.ts";
+import { InMemoryObservationLog } from "../../src/integrations/merchant-history/in-memory-observation-log.ts";
+import { loadTrustMatrix } from "../../src/integrations/merchant-history/json-trust-matrix.ts";
+import { createPartyRefFn } from "../../src/integrations/merchant-history/party-ref.ts";
 import type { MerchantRegistry } from "../../src/ports/merchant-registry.ts";
+import type { MerchantHistoryInput } from "../../src/policy/merchant-category-evidence.ts";
+import { summarizeMerchantHistory } from "../../src/policy/merchant-history.ts";
 import type {
   CreateIncomingPaymentInput,
   CreateOutgoingPaymentInput,
@@ -32,7 +40,7 @@ export function mandate(
       id: "demo-policy-medication",
       allowedPurposes: ["MEDICATION"],
       eligibleCategories: ["MEDICATION"],
-      acceptedTrustLevels: ["PROVIDER_VERIFIED", "EXTERNAL_VERIFIED"],
+      merchantConfidence: { minimum: "HIGH" },
       enforcement,
     },
     status: "ACTIVE",
@@ -64,9 +72,20 @@ export function intent(
   };
 }
 
+const CORROBORATION_BY_LEVEL: Record<MerchantTrustLevel, CorroborationTier> = {
+  SELF_DECLARED: "UNCORROBORATED",
+  PROVIDER_VERIFIED: "PROVIDER_VERIFIED",
+  EXTERNAL_VERIFIED: "EXTERNAL_VERIFIED",
+};
+
+/**
+ * Every listed category is declared by the merchant and corroborated at its
+ * level: SELF_DECLARED means only the merchant says so.
+ */
 export function resolution(
   walletAddressUrl: string,
   categories: readonly [CompasCategory, MerchantTrustLevel][],
+  declarations?: readonly [CompasCategory, CorroborationTier][],
 ): MerchantCategoryResolution {
   return {
     walletAddressUrl,
@@ -76,6 +95,15 @@ export function resolution(
       supportingEntryIds: ["entry"],
       sourceIds: ["source"],
     })),
+    declarations: (declarations ?? categories.map(([category, level]) => [category, CORROBORATION_BY_LEVEL[level]] as const)).map(
+      ([category, corroboration]) => ({
+        category,
+        corroboration,
+        declarationEntryIds: ["declaration"],
+        supportingEntryIds: corroboration === "UNCORROBORATED" ? [] : ["entry"],
+        contradictingEntryIds: corroboration === "CONTRADICTED" ? ["contradiction"] : [],
+      }),
+    ),
     conflicts: [],
     flags: [],
     unmappedEvidence: [],
@@ -95,6 +123,34 @@ export function stubRegistry(
     async resolve(walletAddressUrl) {
       return byWallet[walletAddressUrl] ?? resolution(walletAddressUrl, []);
     },
+  };
+}
+
+export const TRUST_MATRIX = loadTrustMatrix();
+export const partyRef = createPartyRefFn("test-party-key-test-party-key-test-party-key");
+
+/** An empty observation log, the seeded trust matrix and a fixed party HMAC key. */
+export function historyDeps(): MerchantHistoryDeps & { observations: InMemoryObservationLog } {
+  return { observations: new InMemoryObservationLog(), matrix: TRUST_MATRIX, partyRef };
+}
+
+/** A history summary with the given counts. Everything else is empty. */
+export function summary(
+  walletAddressUrl: string,
+  category: CompasCategory,
+  counts: Partial<Omit<MerchantHistorySummary, "walletAddressUrl" | "category">> = {},
+): MerchantHistorySummary {
+  return {
+    ...summarizeMerchantHistory({ observations: [], walletAddressUrl, category, asOf: NOW, matrix: TRUST_MATRIX }),
+    ...counts,
+  };
+}
+
+/** No history for any declared category: the decision rests on corroboration alone. */
+export function noHistory(merchant: MerchantCategoryResolution): MerchantHistoryInput {
+  return {
+    matrix: TRUST_MATRIX,
+    summaries: merchant.declarations.map((declared) => summary(merchant.walletAddressUrl, declared.category)),
   };
 }
 

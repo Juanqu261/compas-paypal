@@ -61,7 +61,11 @@ The merchant category service tells the policy engine what a merchant is and how
 - The trust log is in memory. A restart loses it.
 - At startup the backend generates a throwaway Ed25519 key, registers the two simulated Nequi Negocios sources from `data/seeds/category-sources/demo-sources.json` and seeds the demo merchants. Droguería Central resolves to `MEDICATION` at `PROVIDER_VERIFIED`. The liquor store resolves to `ALCOHOL`/`TOBACCO`. When `DEMO_MERCHANT_WALLET_ADDRESS` is set, that test-network wallet gets Droguería Central's evidence too. `MERCHANT_CATEGORY_DEMO_SEED=false` turns the seed off.
 - `MERCHANT_SUBJECT_HMAC_KEY` (32+ characters) keys the HMAC that replaces NITs. Without it a random key is used for the process.
-- The RUES and health-registry feeds throw `NotImplementedError`.
+- The Cámara de Comercio registry lookup and the health-registry feed throw `NotImplementedError`. `RegistryDbFeed` is ready for the registry database, against a provisional contract.
+
+### Trust matrix
+
+Each category the merchant declared gets a confidence (`CONTESTED`, `LOW`, `MEDIUM`, `HIGH`) from corroboration × payment history, through `data/seeds/trust-matrix/trust-matrix.json`. The loader refuses a matrix that lets history alone reach `HIGH`. A mandate sets `purposePolicy.merchantConfidence.minimum`. Paid purchases and payer verdicts go to an in-memory observation log. The demo seeds Tienda Doña Gloria (`https://wallet.example/demo-tienda-dona-gloria`): self-declared `FOOD` and 12 confirming payers, which gives `MEDIUM`. Design: `docs/plans/trust-matrix.md` and `docs/adr/0007-merchant-confidence-matrix.md`.
 
 ```bash
 curl "http://localhost:4000/merchants/categories?walletAddress=https://wallet.example/demo-drogueria-central"
@@ -72,9 +76,9 @@ curl "http://localhost:4000/merchants/categories?walletAddress=https://wallet.ex
 `purchaseUnderMandate` (`src/application/purchase-under-mandate.ts`) is COMPAS on top of Open Payments for one purchase:
 
 1. Mandate rules.
-2. Merchant categories and the purpose check.
+2. Merchant categories, history and the trust matrix, then the purpose check.
 3. Incoming payment and quote.
-4. Budget against the quoted debit.
+4. Budget against the quoted debit, and the cap for a merchant below `HIGH` confidence.
 5. One decision. Only `ALLOW` reaches `createOutgoingPaymentIfAllowed`.
 
 `purposePolicy.enforcement` is the payer's tick. `ENFORCED` blocks a failed purpose check. `MONITORED` pays it and flags `PAYER_MONITORED_EXCEPTION`. Mandate rules and the grant cap apply in both modes. Every attempt goes to the spending log, and `buildSpendingReport` builds the payer's view. No HTTP route calls it yet, because mandates have no repository. See `docs/04-open-payments-mapping.md` and `docs/adr/0006-monitored-budgets.md`.

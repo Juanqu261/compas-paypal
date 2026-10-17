@@ -30,14 +30,17 @@ A merchant choosing "I sell medication" is a `SELF_DECLARED` claim. That claim i
 
 ### Merchant category step
 
-The merchant step is implemented as a pure function, `evaluateMerchantCategoryEvidence` in `backend/src/policy/merchant-category-evidence.ts`. The evaluator calls `MerchantRegistry.resolve(intent.merchantWalletAddressUrl)` at decision time, then passes the result and the mandate's purpose policy. Rows are checked top to bottom:
+The merchant step is implemented as a pure function, `evaluateMerchantCategoryEvidence` in `backend/src/policy/merchant-category-evidence.ts`. At decision time the evaluator calls `MerchantRegistry.resolve(intent.merchantWalletAddressUrl)`, loads a history summary for each eligible category the merchant declared, and passes both with the mandate's purpose policy. The trust matrix gives each declared category a confidence ([ADR 0007](adr/0007-merchant-confidence-matrix.md)). Rows are checked top to bottom:
 
 | Condition | Result |
 | --- | --- |
 | A conflict or flag touches an eligible category | `REVIEW`, `MERCHANT_EVIDENCE_CONFLICT` |
-| An eligible category at an accepted trust level | PASS: go on to line items |
-| An eligible category, but only below `acceptedTrustLevels` | `REVIEW`, `MERCHANT_EVIDENCE_INSUFFICIENT` |
-| No eligible category | `DENY`, `MERCHANT_NOT_ELIGIBLE` |
+| The merchant declared no eligible category | `DENY`, `MERCHANT_NOT_ELIGIBLE` |
+| The best declared category is `CONTESTED` | `REVIEW`, `MERCHANT_EVIDENCE_CONFLICT` (independent evidence contradicts it) or `MERCHANT_HISTORY_CONTRADICTS` (payers or the shop's own lines do) |
+| Confidence at or above `merchantConfidence.minimum` | PASS: go on to line items |
+| Otherwise | `REVIEW`, `MERCHANT_EVIDENCE_INSUFFICIENT` |
+
+After the quote, a merchant that passed below `HIGH` must also fit the mandate's optional `maxDebitBelowHigh`. Over it, or in another asset, gives `REVIEW` with `MERCHANT_CONFIDENCE_LIMIT_EXCEEDED`. The purpose check stores the confidence record (corroboration, history grade, matrix version and history summary), so a decision can be replayed.
 
 PASS is not `ALLOW`. Line items still decide. For the alcohol story the merchant step gives `MERCHANT_NOT_ELIGIBLE`, and the line items give `PURPOSE_MISMATCH`. A decision can carry both reasons.
 
@@ -48,7 +51,7 @@ Amount checks compare minor-unit strings for the same asset. They must not treat
 The rules above split into two groups:
 
 - **Mandate rules** (status, validity window, delegate, budget) always `DENY`.
-- **Purpose checks** (merchant category evidence and line items) decide the outcome only when `purposePolicy.enforcement` is `ENFORCED`.
+- **Purpose checks** (merchant category evidence, the confidence cap and line items) decide the outcome only when `purposePolicy.enforcement` is `ENFORCED`.
 
 In `MONITORED` mode, the payer's "allow even if not fully approved" tick, the purpose result is stored as `purposeCheck` with `enforced: false`. The outcome is then `ALLOW`, plus `PAYER_MONITORED_EXCEPTION` when the check failed. See [ADR 0006](adr/0006-monitored-budgets.md).
 

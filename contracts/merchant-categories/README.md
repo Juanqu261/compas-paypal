@@ -52,6 +52,9 @@ For the Nequi Negocios simulation and the demo screen. It returns COMPAS categor
     { "category": "MEDICATION", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/merchant", "nequi-negocios-sim/kyb"], "simulated": true },
     { "category": "PERSONAL_CARE", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/kyb"], "simulated": true }
   ],
+  "declarations": [
+    { "category": "MEDICATION", "corroboration": "PROVIDER_VERIFIED" }
+  ],
   "conflicts": [],
   "flaggedCategories": [],
   "unmappedEvidence": [],
@@ -59,6 +62,8 @@ For the Nequi Negocios simulation and the demo screen. It returns COMPAS categor
   "resolvedAt": "2026-10-16T15:00:00.000Z"
 }
 ```
+
+`declarations` lists the categories the merchant declared itself and how independent evidence bears on each (`CONTRADICTED`, `UNCORROBORATED`, `REGISTRY_UNBOUND`, `PROVIDER_VERIFIED`, `EXTERNAL_VERIFIED`). Only a declared category can make a merchant eligible. The confidence also depends on purchase history, so it is computed at decision time and not shown here. See `docs/adr/0007-merchant-confidence-matrix.md`.
 
 `dataLabel` appears when any evidence comes from a simulated source. `simulated: true` marks a category backed by a simulated source. The UI must label it "simulated Nequi Negocios provider attestation", not a real Nequi signal.
 

@@ -54,7 +54,18 @@ External evidence is a CIIU Rev. 4 A.C. code or a license type such as `CO_PHARM
 
 Volume never raises trust. Contradicting verified claims and flags lead to `REVIEW`.
 
-Every source in the MVP is simulated. The backend seeds a Nequi Negocios simulation for the demo wallets in `data/fixtures/demo/`, labeled `demo/test data`. The RUES and health-registry feeds throw.
+### Declared categories and confidence
+
+The merchant declares its categories at registration. Only a declared category can make it eligible. COMPAS gives each declared category a **confidence**: `CONTESTED`, `LOW`, `MEDIUM` or `HIGH`. A versioned trust matrix over two axes produces it. See [ADR 0007](adr/0007-merchant-confidence-matrix.md) and `docs/plans/trust-matrix.md`.
+
+- **Corroboration**: how independent evidence bears on the declaration. `CONTRADICTED`, `UNCORROBORATED`, `REGISTRY_UNBOUND` (the Cámara agrees through a NIT the merchant typed), `PROVIDER_VERIFIED` or `EXTERNAL_VERIFIED`.
+- **History**: distinct payers who confirmed a paid purchase, or contradicted it. `CONTRADICTED`, `NONE`, `EMERGING` or `ESTABLISHED`. The merchant's own line labels can only contradict.
+
+History never changes a trust level, and it never lifts a category to `HIGH` on its own. A mandate sets `purposePolicy.merchantConfidence.minimum`, plus an optional per-purchase cap for merchants below `HIGH`.
+
+Observations of paid purchases and payer verdicts live in their own append-only log. They hold categories and HMAC refs only, never line descriptions, product names, amounts or party ids.
+
+Every source in the MVP is simulated. The backend seeds a Nequi Negocios simulation for the demo wallets in `data/fixtures/demo/`, labeled `demo/test data`, plus a *tienda* with fabricated confirmed history. The Cámara de Comercio registry lookup and the health-registry feed throw.
 
 A later mixed basket can mark lines independently. Acetaminophen and losartan can be `MEDICATION` while shampoo is `PERSONAL_CARE`. A future rule could fund only the eligible subtotal. Split tender is not implemented.
 

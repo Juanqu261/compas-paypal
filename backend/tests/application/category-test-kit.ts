@@ -46,13 +46,14 @@ export function source(
  * A test bench with three push sources sharing one key:
  * merchant (SELF_DECLARED), wallet (PROVIDER_VERIFIED) and registry (EXTERNAL_VERIFIED).
  */
-export function createBench() {
+export function createBench(extraSources: readonly CategorySource[] = []) {
   const key = newKey();
   const sourceList = [
     source("merchant", { key, kind: "MERCHANT", trustLevel: "SELF_DECLARED", allowedLicenses: [] }),
     source("wallet", { key }),
     source("registry", { key, kind: "BUSINESS_REGISTRY", trustLevel: "EXTERNAL_VERIFIED" }),
     source("health", { key, kind: "HEALTH_AUTHORITY", trustLevel: "EXTERNAL_VERIFIED" }),
+    ...extraSources,
   ];
   const sources = new StaticCategorySourceRegistry(sourceList);
   const trustLog = new InMemoryTrustLog();

@@ -13,12 +13,15 @@ import type {
 } from "../ports/open-payments-gateway.ts";
 import type { SpendingLog } from "../ports/spending-log.ts";
 import {
+  applyConfidenceCap,
   checkBudget,
   checkMandateRules,
   composeDecision,
   evaluatePurposeCheck,
 } from "../policy/evaluate-purchase.ts";
+import { categoriesNeedingHistory } from "../policy/merchant-category-evidence.ts";
 import { createOutgoingPaymentIfAllowed } from "./create-outgoing-payment-if-allowed.ts";
+import { loadMerchantHistory, type MerchantHistoryDeps, recordPaidPurchase } from "./merchant-history.ts";
 
 /** An unused incoming payment at the merchant expires on its own. No money moves. */
 const INCOMING_PAYMENT_TTL_MS = 10 * 60 * 1000;
@@ -34,6 +37,8 @@ export type PurchaseUnderMandateDeps = {
   merchants: MerchantRegistry;
   payments: Pick<OpenPaymentsGateway, "createIncomingPayment" | "createQuote" | "createOutgoingPayment">;
   spending: SpendingLog;
+  /** The observation log and the trust matrix. History is read at decision time and written after payment. */
+  history: MerchantHistoryDeps;
   now?: () => Date;
   newId?: () => string;
 };
@@ -49,14 +54,16 @@ export type PurchaseUnderMandateResult = {
  * COMPAS on top of Open Payments, one purchase:
  *
  * 1. Mandate rules (status, validity, delegate). A failure stops here, before any Open Payments call.
- * 2. Merchant categories from the trust log, then the purpose checks.
+ * 2. Merchant categories from the trust log and history from the observation log,
+ *    through the trust matrix, then the purpose checks.
  *    ENFORCED: a failure stops here too. MONITORED: the result is recorded and the flow goes on.
  * 3. Open Payments: an incoming payment on the merchant's wallet and a quote from the payer's wallet.
  *    Neither moves money.
- * 4. Budget against the quoted debit.
+ * 4. Budget against the quoted debit, and the mandate's cap for a merchant below HIGH confidence.
  * 5. One decision. Only ALLOW reaches createOutgoingPaymentIfAllowed, which spends the payer's grant.
  *
- * Every attempt is written to the spending log, allowed or not.
+ * Every attempt is written to the spending log, allowed or not. A paid one is
+ * also written to the observation log, so the payer can confirm it later.
  * Remaining capacity on the mandate is not updated here; that needs the mandate repository.
  */
 export async function purchaseUnderMandate(
@@ -113,7 +120,13 @@ export async function purchaseUnderMandate(
   if (mandateReasons.length > 0) return finish(mandateReasons, {});
 
   const resolution = await deps.merchants.resolve(intent.merchantWalletAddressUrl);
-  const purposeCheck = evaluatePurposeCheck(mandate, intent, resolution);
+  const merchantHistory = await loadMerchantHistory(
+    resolution.walletAddressUrl,
+    categoriesNeedingHistory(resolution, mandate.purposePolicy),
+    now,
+    deps.history,
+  );
+  const purposeCheck = evaluatePurposeCheck(mandate, intent, resolution, merchantHistory);
   if (purposeCheck.enforced && purposeCheck.outcome !== "ALLOW") {
     return finish([], { resolution, purposeCheck });
   }
@@ -131,7 +144,7 @@ export async function purchaseUnderMandate(
 
   const { decision, record } = await finish(checkBudget(mandate, quote.debitAmount), {
     resolution,
-    purposeCheck,
+    purposeCheck: applyConfidenceCap(mandate, purposeCheck, quote.debitAmount),
     incoming,
     quote,
   });
@@ -147,5 +160,16 @@ export async function purchaseUnderMandate(
     outgoingPaymentUrl: payment.url,
     state: payment.state,
   });
+  await recordPaidPurchase(
+    {
+      spendingRecordId: record.id,
+      mandate,
+      intent,
+      merchantWalletAddressUrl: resolution.walletAddressUrl,
+      paymentState: payment.state,
+      observedAt: now,
+    },
+    deps.history,
+  );
   return { decision, record: paidRecord, payment };
 }

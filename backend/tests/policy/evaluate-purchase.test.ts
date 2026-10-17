@@ -5,6 +5,7 @@ import {
   intent,
   LIQUOR_WALLET,
   mandate,
+  noHistory,
   NOW,
   PHARMACY_WALLET,
   resolution,
@@ -28,6 +29,7 @@ function evaluate(
     intent: intent(merchantResolution.walletAddressUrl, lineCategory ?? undefined, overrides.intent),
     debitAmount: overrides.debit ?? debit,
     merchantResolution,
+    merchantHistory: noHistory(merchantResolution),
     now: NOW,
   });
 }
@@ -38,12 +40,41 @@ test("ENFORCED: a verified pharmacy selling medication is ALLOW", () => {
   const decision = evaluate("ENFORCED");
   assert.equal(decision.outcome, "ALLOW");
   assert.deepEqual(decision.reasons, []);
-  assert.deepEqual(decision.purposeCheck, {
+  const { merchantConfidence, ...check } = decision.purposeCheck!;
+  assert.deepEqual(check, {
     outcome: "ALLOW",
     reasons: [],
     matchedCategories: ["MEDICATION"],
     enforced: true,
   });
+  assert.deepEqual(
+    [merchantConfidence?.corroboration, merchantConfidence?.historyGrade, merchantConfidence?.confidence],
+    ["PROVIDER_VERIFIED", "NONE", "HIGH"],
+  );
+});
+
+test("a merchant below HIGH confidence passes only within the mandate's per-purchase cap", () => {
+  const tienda = resolution(PHARMACY_WALLET, [["MEDICATION", "SELF_DECLARED"]]);
+  const lowCap = (value: string, assetCode = "USD", enforcement: "ENFORCED" | "MONITORED" = "ENFORCED") => ({
+    purposePolicy: {
+      ...mandate(enforcement).purposePolicy,
+      merchantConfidence: { minimum: "LOW" as const, maxDebitBelowHigh: { value, assetCode, assetScale: 2 } },
+    },
+  });
+
+  assert.equal(evaluate("ENFORCED", tienda, "MEDICATION", { mandate: lowCap("1120") }).outcome, "ALLOW");
+
+  const over = evaluate("ENFORCED", tienda, "MEDICATION", { mandate: lowCap("1119") });
+  assert.deepEqual([over.outcome, codes(over)], ["REVIEW", ["MERCHANT_CONFIDENCE_LIMIT_EXCEEDED"]]);
+
+  const otherAsset = evaluate("ENFORCED", tienda, "MEDICATION", { mandate: lowCap("999999", "EUR") });
+  assert.deepEqual(codes(otherAsset), ["MERCHANT_CONFIDENCE_LIMIT_EXCEEDED"], "another asset fails closed");
+
+  const monitored = evaluate("MONITORED", tienda, "MEDICATION", { mandate: lowCap("1119", "USD", "MONITORED") });
+  assert.deepEqual([monitored.outcome, codes(monitored)], ["ALLOW", ["MERCHANT_CONFIDENCE_LIMIT_EXCEEDED", "PAYER_MONITORED_EXCEPTION"]]);
+
+  // The cap does not apply to a HIGH-confidence merchant.
+  assert.equal(evaluate("ENFORCED", pharmacy, "MEDICATION", { mandate: lowCap("1") }).outcome, "ALLOW");
 });
 
 test("ENFORCED: alcohol at a liquor store is DENY for both the merchant and the line", () => {

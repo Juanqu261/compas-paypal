@@ -43,10 +43,9 @@
       "eligibleCategories": [
         "MEDICATION"
       ],
-      "acceptedTrustLevels": [
-        "PROVIDER_VERIFIED",
-        "EXTERNAL_VERIFIED"
-      ],
+      "merchantConfidence": {
+        "minimum": "HIGH"
+      },
       "enforcement": "ENFORCED"
     },
     "status": "ACTIVE",

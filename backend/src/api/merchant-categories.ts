@@ -96,6 +96,7 @@ export async function handleGetMerchantCategories(
       ...(simulatedSources.size > 0 ? { dataLabel: "demo/test data" } : {}),
       walletAddressUrl: resolution.walletAddressUrl,
       categories,
+      declarations: resolution.declarations.map(({ category, corroboration }) => ({ category, corroboration })),
       conflicts: resolution.conflicts.map((conflict) => ({ categories: conflict.categories })),
       flaggedCategories: [...new Set(resolution.flags.map((flag) => flag.category))],
       unmappedEvidence: resolution.unmappedEvidence,
