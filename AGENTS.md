@@ -13,6 +13,7 @@ Read these before a significant change:
 - COMPAS is non-custodial. It moves permission, not money.
 - Permission is delegated. Money is not transferred to the delegate.
 - Policy must return ALLOW before any outgoing payment.
+- A payer may choose a `MONITORED` budget. Purpose checks are then recorded, not enforced. Mandate rules (status, validity, delegate, budget) and the Open Payments grant cap always apply.
 - AI never authorizes payments.
 - Purpose categories belong to COMPAS. `MEDICATION` is not an Open Payments scope.
 - Open Payments must never be faked.

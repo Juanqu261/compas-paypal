@@ -1,0 +1,18 @@
+{
+  "system": "CIIU_REV4_AC",
+  "version": "2026-10-16.1",
+  "verification": "Partly checked. The 4773 title (pharmaceutical and medicinal products, cosmetics and toiletries) matches secondary sources such as dian-rut.com. Every other row is from memory and unverified. Check all rows against the annex of DIAN Res. 114/2020.",
+  "notes": [
+    "A CIIU code is registered activity, not proof of what a shop sells.",
+    "4773 also covers cosmetics and toiletries, so it cannot separate a pharmacy from a cosmetics shop. The CO_PHARMACY_ESTABLISHMENT license is the purpose-specific evidence for MEDICATION."
+  ],
+  "mappings": [
+    { "code": "4773", "label": "Retail sale of pharmaceutical and medicinal products, cosmetics and toiletries", "categories": ["MEDICATION", "PERSONAL_CARE"] },
+    { "code": "4724", "label": "Retail sale of beverages and tobacco", "categories": ["ALCOHOL", "TOBACCO"] },
+    { "code": "4711", "label": "Non-specialized retail, mainly food, beverages and tobacco", "categories": ["FOOD"] },
+    { "code": "4721", "label": "Retail sale of agricultural products for consumption", "categories": ["FOOD"] },
+    { "code": "4722", "label": "Retail sale of milk, dairy products and eggs", "categories": ["FOOD"] },
+    { "code": "4723", "label": "Retail sale of meat, meat products, fish and seafood", "categories": ["FOOD"] },
+    { "code": "4729", "label": "Retail sale of other food products n.e.c.", "categories": ["FOOD"] }
+  ]
+}

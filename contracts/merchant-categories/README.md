@@ -1,0 +1,65 @@
+# Merchant category contracts
+
+Payloads of the merchant category service. Design and rules: `docs/plans/merchant-category-service.md` and `docs/adr/0005-merchant-category-attestations.md`.
+
+A merchant's category belongs to its Open Payments wallet address. It is never carried in Open Payments metadata, and a purchase intent never supplies it.
+
+## Submit evidence
+
+`POST /merchant-category-claims`
+
+For push sources such as a wallet node. The body is one submission. Its shape is in [category-claim-submission.schema.json](category-claim-submission.schema.json). The `compas-signature` header carries an Ed25519 signature over the exact body bytes, encoded as base64url. The signature is the authentication. There is no session.
+
+A submission has no `trustLevel` field, and one that includes it is refused. The source registry decides the trust level from `sourceId`.
+
+```json
+{
+  "schemaVersion": "1",
+  "sourceId": "nequi-negocios-sim/kyb",
+  "submissionId": "demo-kyb-drogueria-central",
+  "type": "CATEGORY_CLAIM",
+  "subject": { "kind": "WALLET_ADDRESS", "walletAddressUrl": "https://wallet.example/demo-drogueria-central" },
+  "codes": [{ "system": "CIIU_REV4_AC", "code": "4773", "role": "PRIMARY" }],
+  "observedAt": "2026-10-16T15:00:00Z",
+  "evidenceRef": "demo-kyb-rut"
+}
+```
+
+Entry types: `CATEGORY_CLAIM`, `LICENSE_CLAIM`, `IDENTITY_BINDING` (wallet to NIT), `REVOCATION` (one of the same source's own submissions) and `FLAG`.
+
+| Status | Body | Meaning |
+| --- | --- | --- |
+| 202 | `{ "entryId": "…" }` | Recorded |
+| 200 | `{ "entryId": "…", "duplicate": true }` | Same `sourceId` + `submissionId` and the same body was already recorded |
+| 400 | `{ "error": "INVALID_SUBMISSION" \| "INVALID_CODE" \| "INVALID_IDENTIFIER", "message" }` | Shape, CIIU code or NIT is wrong |
+| 401 | `{ "error": "UNKNOWN_SOURCE" \| "BAD_SIGNATURE", "message" }` | Not a registered push source, or the signature fails |
+| 403 | `{ "error": "EVIDENCE_NOT_ALLOWED", "message" }` | The source may not assert this entry type, code system or license, or a non-merchant source self-declared |
+| 409 | `{ "error": "SUBMISSION_ID_REUSED", "message" }` | Same `submissionId` with a different body |
+| 413 | `{ "error": "BODY_TOO_LARGE" }` | Over 16 KiB |
+| 422 | `{ "error": "REVOCATION_TARGET_NOT_FOUND", "message" }` | The source has no such submission to revoke |
+
+## Read a merchant's categories
+
+`GET /merchants/categories?walletAddress=<wallet address URL or $pointer>`
+
+For the Nequi Negocios simulation and the demo screen. It returns COMPAS categories, trust levels and source ids. It never returns subject refs, NITs or trust-log entry ids. This is a view, not a policy decision.
+
+```json
+{
+  "dataLabel": "demo/test data",
+  "walletAddressUrl": "https://wallet.example/demo-drogueria-central",
+  "categories": [
+    { "category": "MEDICATION", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/merchant", "nequi-negocios-sim/kyb"], "simulated": true },
+    { "category": "PERSONAL_CARE", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/kyb"], "simulated": true }
+  ],
+  "conflicts": [],
+  "flaggedCategories": [],
+  "unmappedEvidence": [],
+  "mappingVersion": "CIIU_REV4_AC@2026-10-16.1;LICENSE@2026-10-16.1",
+  "resolvedAt": "2026-10-16T15:00:00.000Z"
+}
+```
+
+`dataLabel` appears when any evidence comes from a simulated source. `simulated: true` marks a category backed by a simulated source. The UI must label it "simulated Nequi Negocios provider attestation", not a real Nequi signal.
+
+A missing or malformed `walletAddress` returns `400 { "error": "INVALID_WALLET_ADDRESS" }`.

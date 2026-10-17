@@ -23,6 +23,61 @@ Open Payments moves value between wallet addresses. It speaks grants, access act
 
 Open Payments can already say "at most this much, over this interval." COMPAS adds "only for this purpose, by this delegate, for this beneficiary."
 
+## How COMPAS sits on top of Open Payments
+
+COMPAS is a decision layer in front of one Open Payments call. It never holds money. One purchase runs through `purchaseUnderMandate` in `backend/src/application/purchase-under-mandate.ts`:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant D as Delegate (Andrea)
+  participant C as COMPAS
+  participant R as Merchant registry (trust log)
+  participant OP as Open Payments
+  D->>C: purchase intent (mandate, merchant wallet, lines, amount)
+  C->>C: mandate rules: status, validity, delegate
+  Note over C: failure: DENY, no Open Payments call
+  C->>R: resolve(merchant wallet)
+  R-->>C: categories + trust levels
+  C->>C: purpose check: merchant category + line items
+  Note over C: ENFORCED and failed: DENY/REVIEW, no Open Payments call<br/>MONITORED: record the result, go on
+  C->>OP: incoming payment on the merchant wallet
+  C->>OP: quote from the payer wallet
+  OP-->>C: debitAmount
+  C->>C: budget: debitAmount within remaining capacity
+  C->>C: one PolicyDecision, written to the spending log
+  alt ALLOW
+    C->>OP: outgoing payment (payer grant, compasMandateId, compasDecisionId)
+    OP-->>C: payment ref
+  else DENY or REVIEW
+    Note over C,OP: createOutgoingPayment is never called
+  end
+```
+
+What each layer guarantees:
+
+| Layer | Guarantees | Can't do |
+| --- | --- | --- |
+| Open Payments grant | The payer consented once at their own wallet. Debits never exceed `limits.debitAmount`. | Know the purpose, the delegate or the merchant's category |
+| COMPAS mandate rules | Only the named delegate, while the mandate is active and in its window, within the remaining budget | Move money |
+| COMPAS purpose checks | The merchant's category (from the trust log) and the line items fit the purpose | Bypass the grant cap |
+| COMPAS spending log | The payer sees every attempt: merchant, categories, match, decision, payment | Change a past decision |
+
+### The payer's tick: ENFORCED or MONITORED
+
+When the payer sets up a budget, they pick `purposePolicy.enforcement` ([ADR 0006](adr/0006-monitored-budgets.md)):
+
+| Purpose check | `ENFORCED` | `MONITORED` (tick on) |
+| --- | --- | --- |
+| Passes | `ALLOW` | `ALLOW` |
+| Weak or conflicting evidence | `REVIEW`, not paid | `ALLOW`, flagged `PAYER_MONITORED_EXCEPTION` |
+| Merchant or line outside the purpose | `DENY`, not paid | `ALLOW`, flagged `PAYER_MONITORED_EXCEPTION` |
+| Mandate rule or budget fails | `DENY` | `DENY` |
+
+In both modes, policy returns `ALLOW` before any outgoing payment, and the Open Payments grant cap still applies. `MONITORED` changes what the purpose check decides, not who decides: the rule is the payer's, set in advance, and deterministic.
+
+`buildSpendingReport` (`backend/src/application/spending-report.ts`) gives the payer's view. It shows totals paid, paid outside the purpose, and monitored exceptions, plus every attempt with its merchant categories and Open Payments references. The payload is in `contracts/purchases/README.md`.
+
 ## Concept map
 
 | COMPAS | Open Payments |
@@ -65,7 +120,9 @@ Those names are in `backend/.env.example`. No credentials are filled in. The pri
 
 `CLIENT_WALLET_ADDRESS` is COMPAS's own wallet address. It identifies COMPAS as a client and is never debited. Pedro's wallet and the merchant's wallet are separate addresses.
 
-`npm run op:smoke` in `backend/` runs one real payment on the test network, from consent to completion. It uses `DEMO_PAYER_WALLET_ADDRESS` and `DEMO_MERCHANT_WALLET_ADDRESS`.
+`npm run op:smoke` in `backend/` runs one real payment on the test network, from consent to completion. It uses `DEMO_PAYER_WALLET_ADDRESS` and `DEMO_MERCHANT_WALLET_ADDRESS`. It runs no COMPAS policy.
+
+`npm run compas:smoke` runs the same network with COMPAS on top: merchant categories, the purchase policy in `ENFORCED` or `MONITORED` mode, the gated outgoing payment and the payer's spending report. See `backend/README.md`.
 
 ## Metadata
 

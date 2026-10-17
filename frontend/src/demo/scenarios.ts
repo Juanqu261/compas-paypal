@@ -19,9 +19,8 @@ export type DemoScenario = {
     budget: MoneyView;
   };
   purchaseIntent: {
-    merchant: {
-      displayName: string;
-    };
+    /** Display only. Category evidence is resolved by the backend from the wallet address. */
+    merchantDisplayName: string;
   };
 };
 
