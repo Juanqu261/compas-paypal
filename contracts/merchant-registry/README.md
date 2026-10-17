@@ -53,7 +53,13 @@ A registry claim reaches a wallet only through an identity binding. Through a NI
 
 ## Questions for the database branch
 
+Answers from the RUES open data extract (`data/seeds/merchant-registry/`, 2026-10-16) follow each question. The first adapter is `JsonBusinessRegistryLookup`, with provenance `datos-gov-co/nb3d-v3n7`.
+
 - Is primary vs secondary activity available for every row?
+  - Yes. Each establishment has one main CIIU and up to three secondary ones.
 - Which provenances will exist (official RUES lookups, bulk datasets, uploaded certificates), and how fresh is each?
+  - One so far: the Confecámaras extract on datos.gov.co, refreshed monthly. The committed seed is the 2026-10-02 version.
 - Can one NIT have several matrículas or establishments, and should each be its own record?
+  - Yes. A chain has dozens, and they can carry different CIIU codes. Each is its own record with its own matrícula.
 - Is the renewal deadline 31 March for every Cámara?
+  - Still unverified. The extract has the renewal year and date, not the deadline.

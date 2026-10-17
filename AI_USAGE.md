@@ -212,6 +212,18 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/011-trust-matrix.md](prompts/011-trust-matrix.md)
 - Human review: Pending team review. The matrix cells and thresholds are untuned team choices. The registry contract is an assumption about another branch's database. The renewal deadline (31 March) is unverified. Payer confirmations have no authentication yet.
 
+### 2026-10-16 — Claude Code — RUES merchant registry seed
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - web research: found the Confecámaras RUES open datasets on datos.gov.co (`nb3d-v3n7`, `c82u-588k`) and the open pharmacy-establishment lists of other departments
+  - wrote `backend/scripts/fetch-rues-registry.ts` and the `registry:fetch` script in `backend/package.json`
+  - generated `data/seeds/merchant-registry/rues-medellin.json` (1,900 establishments, CC BY-SA 4.0) and wrote its `README.md`
+  - updated `data/seeds/README.md`, `.skills/compas-context/REFERENCE.md` and `docs/plans/merchant-category-service.md`, where the research note said no bulk RUES feed existed
+  - after the trust-matrix merge (ADR 0007): wrote `backend/src/integrations/category-sources/json-business-registry-lookup.ts` and its test, added `MERCHANT_REGISTRY_FILE` to `data-paths.ts`, and answered the open questions in `contracts/merchant-registry/README.md`
+- Prompt log: [prompts/012-rues-merchant-registry.md](prompts/012-rues-merchant-registry.md)
+- Human review: Pending team review. The name-keyword figures in the seed README are a heuristic, not evidence. The CIIU titles in the mapping table are still unverified.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name

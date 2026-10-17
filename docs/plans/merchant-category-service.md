@@ -65,7 +65,7 @@ What's left, ordered by what each source proves:
 | --- | --- | --- | --- | --- |
 | Merchant self-declaration | What the merchant says it sells | Onboarding in the wallet's merchant surface, relayed by the wallet | `SELF_DECLARED` | Demo: Nequi Negocios simulation |
 | Wallet provider KYB | That the wallet belongs to a given NIT, and the CIIU on the RUT the merchant gave at signup | Signed attestation pushed by the wallet | `PROVIDER_VERIFIED` | Simulated. No Colombian wallet runs Open Payments yet |
-| RUES (Cámaras de Comercio) | Registered economic activity: one main and up to three secondary CIIU codes | Lookup by NIT | `EXTERNAL_VERIFIED` | No API or bulk feed found. Lookups go one NIT at a time |
+| RUES (Cámaras de Comercio) | Registered economic activity: one main and up to three secondary CIIU codes | Lookup by NIT, or the monthly Confecámaras extract on datos.gov.co | `EXTERNAL_VERIFIED` | Bulk open data exists (CC BY-SA 4.0). A Medellín sample is in `data/seeds/merchant-registry/`, not loaded yet |
 | Territorial health authority | That the shop is a registered pharmacy establishment (droguería), not only that it declared the activity | Registry lookup, or a certificate checked against its issuer | `EXTERNAL_VERIFIED` | Unverified. Likely varies by department |
 | Program operator (roadmap) | That a food-bonus program authorized the shop, such as Medellín Cero Hambre's "establecimientos autorizados" | Signed list from the program | `EXTERNAL_VERIFIED` | Roadmap |
 
@@ -367,6 +367,7 @@ Not part of this plan. Questions the population plan must answer first:
 
 - Wallet providers: what does a wallet collect at merchant KYB (NIT, RUT, Cámara certificate), and would it sign attestations? Wallets are the key partner, because without their identity binding registry evidence stays capped at `SELF_DECLARED`.
 - RUES: is there an API or a bulk feed, or only lookups one NIT at a time? Is primary-vs-secondary CIIU available? What do the terms of use say about automated lookups?
+  - Partly answered 2026-10-16. Confecámaras publishes monthly extracts on datos.gov.co under CC BY-SA 4.0, with a main CIIU and up to three secondary ones per establishment. See `data/seeds/merchant-registry/README.md`. Still open: shops owned by natural persons have no NIT in the seed, so they need a binding by registry key.
 - Health authorities: is pharmacy establishment registration public and queryable, and in which departments? Antioquia first, for the Medellín demo.
 - Uploaded documents: which Cámaras let a third party check a certificate's verification code?
 - How fresh does each source need to be, and what `validUntil` does each get?

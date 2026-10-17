@@ -8,6 +8,7 @@
     "start": "node --experimental-strip-types --env-file-if-exists=.env src/api/server.ts",
     "op:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/op-smoke.ts",
     "compas:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/compas-smoke.ts",
+    "registry:fetch": "node --experimental-strip-types scripts/fetch-rues-registry.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/**/*.test.ts"
   },
