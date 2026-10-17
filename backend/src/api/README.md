@@ -4,6 +4,8 @@ Implemented routes:
 
 - `GET /health`
 - `GET /open-payments/finish`: Pedro's wallet redirects here after consent. The route checks the finish hash, finishes the grant and redirects to `OPEN_PAYMENTS_RETURN_URL` with `payerAuthorization=granted|rejected|failed`. See `contracts/open-payments/README.md`.
+- `POST /merchant-category-claims`: signed category evidence from push sources such as a wallet node. See `contracts/merchant-categories/README.md`.
+- `GET /merchants/categories?walletAddress=…`: a merchant's resolved COMPAS categories and trust levels. A view, not a policy decision.
 
 The frontend must call this process later. It must not import `backend/src`.
 

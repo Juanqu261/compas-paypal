@@ -12,17 +12,21 @@
  * The application path always goes through createOutgoingPaymentIfAllowed.
  */
 import { randomUUID } from "node:crypto";
-import { createServer } from "node:http";
-import { createInterface } from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
-import { formatMoneyAmount, type MoneyAmount } from "../src/domain/money.ts";
+import type { MoneyAmount } from "../src/domain/money.ts";
 import { createOpenPaymentsGateway } from "../src/integrations/open-payments/create-open-payments-gateway.ts";
 import { OpenPaymentsGatewayError } from "../src/integrations/open-payments/errors.ts";
-import type {
-  IncomingPaymentRef,
-  OutgoingPaymentRef,
-} from "../src/ports/open-payments-gateway";
+import {
+  confirm as confirmPrompt,
+  isFinal,
+  listenForFinishRedirect,
+  money,
+  POLL_ATTEMPTS,
+  POLL_INTERVAL_MS,
+  requireEnv,
+  step,
+} from "./lib/smoke-io.ts";
 
 const { values: args } = parseArgs({
   options: {
@@ -34,71 +38,8 @@ const { values: args } = parseArgs({
   },
 });
 
-const CONSENT_TIMEOUT_MS = 5 * 60_000;
-const POLL_INTERVAL_MS = 2_000;
-const POLL_ATTEMPTS = 30;
-
-function step(title: string): void {
-  console.log(`\n== ${title}`);
-}
-
-function money(amount: MoneyAmount | undefined): string {
-  return amount ? formatMoneyAmount(amount) : "(none)";
-}
-
-function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`${name} is not set. See backend/.env.example.`);
-  }
-  return value;
-}
-
-/** Listens once on the finish URI and resolves with the redirect's query. */
-function listenForFinishRedirect(
-  port: number,
-  path: string,
-): { params: Promise<URLSearchParams>; close: () => void } {
-  let timer: NodeJS.Timeout | undefined;
-  const server = createServer();
-  const close = () => {
-    clearTimeout(timer);
-    server.close();
-  };
-
-  const params = new Promise<URLSearchParams>((resolve, reject) => {
-    server.on("request", (request, response) => {
-      const url = new URL(request.url ?? "/", `http://localhost:${port}`);
-      if (url.pathname !== path) {
-        response.writeHead(404).end();
-        return;
-      }
-      response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-      response.end("COMPAS smoke test: consent result received. Return to the terminal.");
-      close();
-      resolve(url.searchParams);
-    });
-    server.on("error", reject);
-    timer = setTimeout(() => {
-      close();
-      reject(new Error("Timed out waiting for the payer's consent redirect."));
-    }, CONSENT_TIMEOUT_MS);
-    server.listen(port);
-  });
-
-  return { params, close };
-}
-
-async function confirm(question: string): Promise<boolean> {
-  if (args.yes) return true;
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question(`${question} [y/N] `);
-  rl.close();
-  return answer.trim().toLowerCase() === "y";
-}
-
-function isFinal(outgoing: OutgoingPaymentRef, incoming: IncomingPaymentRef): boolean {
-  return outgoing.state !== "PENDING" || incoming.completed;
+function confirm(question: string): Promise<boolean> {
+  return confirmPrompt(question, args.yes);
 }
 
 async function main(): Promise<void> {
