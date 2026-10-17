@@ -23,13 +23,20 @@ export function NequiCompasShell({
   onBack: () => void;
   backButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const [route, setRoute] = useState<DelegateRoute>({ name: "list" });
+  // A stack, so the back arrow returns to where Andrea came from (list, detail, payment).
+  const [stack, setStack] = useState<readonly DelegateRoute[]>([{ name: "list" }]);
+  const route = stack[stack.length - 1];
   // A simulated charge from the merchant's phone, in the same browser. Not stored by the backend.
   const { charge, recordChargeResult } = useDemoSession();
   const [moves, setMoves] = useState(0);
 
   const go = (next: DelegateRoute) => {
-    setRoute(next);
+    setStack((current) => [...current, next]);
+    setMoves((n) => n + 1);
+  };
+  const back = () => {
+    if (stack.length === 1) return onBack();
+    setStack((current) => current.slice(0, -1));
     setMoves((n) => n + 1);
   };
 
@@ -37,13 +44,14 @@ export function NequiCompasShell({
     <NequiScreen
       open={open}
       title={DELEGATE_ROUTE_TITLE[route.name]}
-      onBack={() => (route.name === "detail" ? go({ name: "list" }) : onBack())}
+      onBack={back}
       backButtonRef={backButtonRef}
     >
       <div style={compasTheme("nequi")} className="px-2">
         <DelegateCompas
           route={route}
           onOpen={(id) => go({ name: "detail", id })}
+          onPay={(id) => go({ name: "pay", id })}
           active={open}
           openCount={0}
           focusOnMount={moves > 0}

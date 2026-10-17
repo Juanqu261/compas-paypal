@@ -6,7 +6,7 @@ import type { ActivityEntry, MandateView, Money } from "../api/contracts";
 import { useMandateList, useResource } from "../api/hooks";
 import { purposeTitle } from "../lib/labels";
 import { ActivityList } from "../ui/ActivityList";
-import { PlusIcon } from "../ui/icons";
+import { PlusIcon, WalletIcon } from "../ui/icons";
 import { MandateCard } from "../ui/MandateCard";
 import {
   Button,
@@ -88,42 +88,40 @@ export function PayerHome({
   return (
     <div className="space-y-6">
       <div>
-        <ScreenHeading focusOnMount={focusOnMount}>Tu dinero, tus reglas</ScreenHeading>
-        <p className="mt-2 text-[14px] leading-relaxed text-(--cx-muted)">
-          Autoriza a alguien de confianza a pagar compras con un propósito. El dinero se queda en tu billetera y
-          sale directo al comercio solo si la compra cumple tus reglas.
-        </p>
-        <div className="mt-4">
-          <Button onClick={onCreate}>
-            <PlusIcon className="size-5" />
-            Crear presupuesto
-          </Button>
-        </div>
+        <ScreenHeading focusOnMount={focusOnMount}>Presupuestos</ScreenHeading>
+        <p className="mt-1 text-[14px] text-(--cx-muted)">Autoriza pagos sin enviar tu dinero.</p>
       </div>
 
       {activeCount > 0 ? (
-        <div className="rounded-(--cx-radius) bg-(--cx-card) p-4">
-          <p className="text-[13px] text-(--cx-muted)">
-            {activeCount === 1 ? "1 presupuesto activo" : `${activeCount} presupuestos activos`}
+        <div className="rounded-(--cx-radius) bg-(--cx-accent) p-4 text-(--cx-on-accent)">
+          <p className="flex items-center gap-2 text-[13px] opacity-80">
+            <WalletIcon className="size-4" />
+            Disponible para pagar
           </p>
           {capacity.map((amount) => (
-            <p key={amount.assetCode} className="text-[20px] font-semibold text-(--cx-ink) tabular-nums">
+            <p key={amount.assetCode} className="mt-1 text-[28px] leading-tight font-semibold tracking-tight tabular-nums">
               {formatMoneyAmount(amount)}
-              <span className="ml-1.5 text-[13px] font-normal text-(--cx-muted)">de capacidad autorizada</span>
             </p>
           ))}
+          <p className="mt-1 text-[12px] opacity-80">
+            {activeCount === 1 ? "En 1 presupuesto activo" : `En ${activeCount} presupuestos activos`}. Sigue en tu billetera.
+          </p>
         </div>
       ) : null}
 
+      <Button onClick={onCreate}>
+        <PlusIcon className="size-5" />
+        Crear presupuesto
+      </Button>
+
       <section aria-labelledby="payer-budgets" className="space-y-3">
-        <SectionTitle id="payer-budgets">Mis presupuestos</SectionTitle>
+        <SectionTitle id="payer-budgets">Tus presupuestos</SectionTitle>
         {refreshError ? <StaleDataNotice error={refreshError} /> : null}
         {resource.status === "loading" ? <LoadingState label="Cargando tus presupuestos" /> : null}
         {resource.status === "error" ? <ErrorState error={resource.error} onRetry={reload} /> : null}
         {mandates && mandates.length === 0 ? (
           <EmptyState title="Aún no tienes presupuestos">
-            Crea uno para que alguien de confianza pague compras de un propósito, como medicamentos, sin recibir tu
-            dinero.
+            Crea uno para que alguien de confianza pague compras como medicamentos, sin recibir tu dinero.
           </EmptyState>
         ) : null}
         {mandates?.map((mandate) => (
@@ -133,7 +131,7 @@ export function PayerHome({
 
       {recent.resource.status === "ready" && recent.resource.data.length > 0 ? (
         <section aria-labelledby="payer-recent" className="space-y-1">
-          <SectionTitle id="payer-recent">Actividad reciente</SectionTitle>
+          <SectionTitle id="payer-recent">Movimientos recientes</SectionTitle>
           <ActivityList entries={recent.resource.data.map((item) => item.entry)} />
         </section>
       ) : null}

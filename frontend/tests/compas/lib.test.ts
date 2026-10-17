@@ -14,7 +14,7 @@ import {
   reasonText,
   REASON_TEXT,
 } from "../../src/features/compas/lib/labels.ts";
-import { initialDraft, stepForField, stepIssues, toCreateBody } from "../../src/features/compas/lib/wizard.ts";
+import { initialDraft, searchContacts, stepForField, stepIssues, toCreateBody } from "../../src/features/compas/lib/wizard.ts";
 
 const USD = { assetCode: "USD", assetScale: 2 };
 const TODAY = new Date(2026, 9, 16, 10, 0, 0);
@@ -66,29 +66,57 @@ test("the budget window starts at the start of the first day and ends at the end
 });
 
 function draft(overrides = {}) {
-  return { ...initialDraft({ delegateId: "a", beneficiaryId: "g", startDate: "2026-10-16", endDate: "2026-11-15" }), ...overrides };
+  return {
+    ...initialDraft({ startDate: "2026-10-16", endDate: "2026-11-15" }),
+    contactId: "demo-delegate-andrea",
+    categories: ["MEDICATION" as const],
+    ...overrides,
+  };
 }
 
-test("the wizard defaults to MEDICATION, ENFORCED and HIGH confidence", () => {
-  const value = draft();
-  assert.deepEqual(value.categories, ["MEDICATION"]);
+test("the wizard chooses nobody and no category, and starts with the safest rules", () => {
+  const value = initialDraft({ startDate: "2026-10-16", endDate: "2026-11-15" });
+  assert.equal(value.contactId, "", "no contact is preselected");
+  assert.deepEqual(value.categories, []);
   assert.equal(value.enforcement, "ENFORCED");
   assert.equal(value.confidence, "HIGH");
   assert.equal(value.monitoredAcknowledged, false);
 });
 
 test("each step stops when it is incomplete", () => {
-  assert.equal(stepIssues("participants", draft({ delegateId: "" }), USD, TODAY)[0].field, "delegateId");
-  assert.equal(stepIssues("purpose", draft({ categories: [] }), USD, TODAY)[0].field, "categories");
+  assert.equal(stepIssues("contact", draft({ contactId: "" }), USD, TODAY)[0].field, "contactId");
+  assert.deepEqual(stepIssues("contact", draft(), USD, TODAY), []);
+  assert.equal(stepIssues("budget", draft({ amount: "40", categories: [] }), USD, TODAY)[0].field, "categories");
   assert.equal(stepIssues("budget", draft({ amount: "" }), USD, TODAY)[0].field, "amount");
   assert.equal(stepIssues("budget", draft({ amount: "10001" }), USD, TODAY)[0].field, "amount");
   assert.deepEqual(stepIssues("budget", draft({ amount: "40" }), USD, TODAY), []);
-  assert.equal(stepIssues("rules", draft({ enforcement: "MONITORED" }), USD, TODAY)[0].field, "monitoredAcknowledged");
-  assert.deepEqual(stepIssues("rules", draft({ enforcement: "MONITORED", monitoredAcknowledged: true }), USD, TODAY), []);
   assert.equal(
-    stepIssues("rules", draft({ amount: "40", confidence: "MEDIUM", capAmount: "50" }), USD, TODAY)[0].field,
+    stepIssues("budget", draft({ amount: "40", enforcement: "MONITORED" }), USD, TODAY)[0].field,
+    "monitoredAcknowledged",
+  );
+  assert.deepEqual(
+    stepIssues("budget", draft({ amount: "40", enforcement: "MONITORED", monitoredAcknowledged: true }), USD, TODAY),
+    [],
+  );
+  assert.equal(
+    stepIssues("budget", draft({ amount: "40", confidence: "MEDIUM", capAmount: "50" }), USD, TODAY)[0].field,
     "capAmount",
   );
+});
+
+test("the one chosen contact is sent as both delegate and beneficiary, and nobody else", () => {
+  const body = toCreateBody(draft({ contactId: "demo-contact-camila", amount: "40" }), USD);
+  assert.equal(body?.delegateId, "demo-contact-camila");
+  assert.equal(body?.beneficiaryId, "demo-contact-camila");
+  assert.equal(toCreateBody(draft({ contactId: "", amount: "40" }), USD), undefined, "no contact, no request");
+});
+
+test("contacts are found by any word of the name, ignoring case and accents", () => {
+  const people = [{ displayName: "Lucía Herrera" }, { displayName: "Andrea" }, { displayName: "Mateo Gómez" }];
+  assert.deepEqual(searchContacts(people, "lucia").map((p) => p.displayName), ["Lucía Herrera"]);
+  assert.deepEqual(searchContacts(people, "GOMEZ ma").map((p) => p.displayName), ["Mateo Gómez"]);
+  assert.equal(searchContacts(people, "").length, 3);
+  assert.equal(searchContacts(people, "zz").length, 0);
 });
 
 test("the request body never names the payer and maps the choices to the contract", () => {
@@ -110,12 +138,14 @@ test("the request body never names the payer and maps the choices to the contrac
 });
 
 test("backend field errors send the person to the right step", () => {
-  assert.equal(stepForField("delegateId"), "participants");
-  assert.equal(stepForField("categories"), "purpose");
+  assert.equal(stepForField("delegateId"), "contact");
+  assert.equal(stepForField("beneficiaryId"), "contact");
+  assert.equal(stepForField("categories"), "budget");
   assert.equal(stepForField("budget.value"), "budget");
   assert.equal(stepForField("expiresAt"), "budget");
-  assert.equal(stepForField("merchantConfidence.maxDebitBelowHigh"), "rules");
-  assert.equal(stepForField("monitoredAcknowledged"), "rules");
+  assert.equal(stepForField("merchantConfidence.maxDebitBelowHigh"), "budget");
+  assert.equal(stepForField("monitoredAcknowledged"), "budget");
+  assert.equal(stepForField(""), "confirm");
 });
 
 test("every policy reason code has plain Spanish, and unknown codes don't crash", () => {
@@ -130,8 +160,9 @@ test("every policy reason code has plain Spanish, and unknown codes don't crash"
 
 test("activity labels never call a pending payment paid", () => {
   assert.equal(activityLabel("PENDING", false), "Pago en proceso");
-  assert.equal(activityLabel("COMPLETED", false), "Pagada");
-  assert.equal(activityLabel("COMPLETED", true), "Pagada bajo supervisión");
+  assert.equal(activityLabel("COMPLETED", false), "Pago realizado");
+  assert.equal(activityLabel("COMPLETED", true), "Pago realizado, con aviso");
+  assert.equal(activityLabel("DENIED", false), "Compra no permitida");
   assert.equal(activityLabel("FAILED", false), "Pago fallido");
   assert.equal(activityLabel("REVIEW", false), "Retenida para revisión");
   assert.equal(
@@ -145,7 +176,7 @@ test("activity labels never call a pending payment paid", () => {
 test("a revoked budget whose wallet cancellation is pending says so", () => {
   assert.equal(payerStatusLabel({ status: "REVOKED", authorization: { consent: "GRANTED", grantCancellation: "PENDING", canAuthorize: false, canRevoke: true } }), "Revocado, falta confirmar en tu billetera");
   assert.equal(payerStatusLabel({ status: "REVOKED", authorization: { consent: "GRANTED", grantCancellation: "DONE", canAuthorize: false, canRevoke: false } }), "Revocado");
-  assert.equal(categoryList(["MEDICATION", "FOOD", "TOBACCO"]), "Medicamentos, alimentos y tabaco");
+  assert.equal(categoryList(["MEDICATION", "FOOD", "TOBACCO"]), "Medicamentos, alimentación y tabaco");
   assert.match(errorText("OPEN_PAYMENTS_NOT_CONFIGURED"), /Open Payments/);
   assert.match(errorText("PAYER_GRANTS_DISABLED_FOR_DEMO"), /sin activar/);
 });
@@ -163,7 +194,7 @@ test("a budget authorizes nothing until the payer consented", () => {
   assert.equal(isAuthorized(payer("REVOKED", "GRANTED")), true);
   assert.equal(isAuthorized({ status: "EXPIRED", viewerRole: "DELEGATE" }), true, "a delegate only sees consented budgets");
   assert.equal(capacityLabel(payer("DRAFT", "NOT_STARTED")), "Monto por autorizar");
-  assert.equal(capacityLabel(payer("ACTIVE", "GRANTED")), "Capacidad autorizada disponible");
+  assert.equal(capacityLabel(payer("ACTIVE", "GRANTED")), "Disponible para pagar");
   assert.equal(capacityLabel(payer("REVOKED", "NOT_STARTED")), "Descartado sin autorizarse");
 });
 

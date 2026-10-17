@@ -6,9 +6,10 @@ import { compasApi, errorCode } from "../api/client";
 import type { MandateView, SpendingResponse } from "../api/contracts";
 import { useMandate, useSpending } from "../api/hooks";
 import { formatDate } from "../lib/dates";
-import { errorText, isAuthorized, payerStatusLabel, purposeTitle } from "../lib/labels";
+import { categoryList, ENFORCEMENT_LABEL, errorText, isAuthorized, payerStatusLabel } from "../lib/labels";
 import { ActivityList } from "../ui/ActivityList";
 import { CapacityRoute } from "../ui/CapacityRoute";
+import { ChevronRightIcon, ShieldIcon, WalletIcon } from "../ui/icons";
 import { RulesSummary } from "../ui/RulesSummary";
 import {
   Button,
@@ -22,6 +23,7 @@ import {
   StaleDataNotice,
   StatusBadge,
 } from "../ui/primitives";
+import { Avatar, CategoryStack } from "../ui/visuals";
 
 export type DetailNotice =
   | { kind: "consent-return"; result: "granted" | "rejected" | "failed" }
@@ -32,23 +34,23 @@ export type DetailNotice =
 function ConsentReturnNotice({ result, status }: { result: "granted" | "rejected" | "failed"; status: MandateView["status"] }) {
   if (result === "granted") {
     return status === "ACTIVE" ? (
-      <Notice title="Presupuesto activo">Tu billetera confirmó el permiso. Ya se pueden hacer compras con estas reglas.</Notice>
+      <Notice title="Presupuesto activo">Tu billetera confirmó la autorización.</Notice>
     ) : (
-      <Notice tone="warn" title="Estamos confirmando tu autorización">
-        Tu billetera respondió, pero COMPAS aún no registra el permiso. Esta pantalla se actualiza sola.
+      <Notice tone="warn" title="Confirmando tu autorización">
+        Tu billetera respondió. Esta pantalla se actualiza sola.
       </Notice>
     );
   }
   if (result === "rejected") {
     return (
       <Notice tone="warn" title="No autorizaste el presupuesto">
-        Rechazaste el permiso en tu billetera. Puedes intentarlo de nuevo cuando quieras.
+        Puedes intentarlo de nuevo cuando quieras.
       </Notice>
     );
   }
   return (
     <Notice tone="danger" title="No pudimos completar la autorización">
-      La respuesta de tu billetera no se pudo verificar. El presupuesto no quedó activo. Intenta de nuevo.
+      La respuesta de tu billetera no se pudo verificar. El presupuesto no quedó activo.
     </Notice>
   );
 }
@@ -59,10 +61,20 @@ function Totals({ mandate, spending }: { mandate: MandateView; spending?: Spendi
   return (
     <Facts
       rows={[
+        { label: "Para", value: mandate.delegate.displayName },
+        {
+          label: "Uso",
+          value: (
+            <span className="inline-flex items-center gap-1.5">
+              <CategoryStack categories={mandate.purposePolicy.eligibleCategories} />
+              {categoryList(mandate.purposePolicy.eligibleCategories)}
+            </span>
+          ),
+        },
         { label: authorized ? "Presupuesto autorizado" : "Presupuesto por autorizar", value: formatMoneyAmount(mandate.budget) },
         ...(authorized
           ? [
-              { label: "Pagado y confirmado", value: totals ? formatMoneyAmount(totals.completed) : "…" },
+              { label: "Pagado", value: totals ? formatMoneyAmount(totals.completed) : "…" },
               ...(totals && totals.inProgressCount > 0
                 ? [{ label: `En proceso (${totals.inProgressCount})`, value: formatMoneyAmount(totals.inProgress) }]
                 : []),
@@ -74,13 +86,10 @@ function Totals({ mandate, spending }: { mandate: MandateView; spending?: Spendi
                     },
                   ]
                 : []),
-              { label: "Capacidad restante", value: formatMoneyAmount(mandate.remainingAuthorizedAmount) },
             ]
           : []),
         { label: "Vigencia", value: `${formatDate(mandate.validFrom)} al ${formatDate(mandate.expiresAt)}` },
-        { label: "Quién paga", value: mandate.delegate.displayName },
-        { label: "Para quién", value: mandate.beneficiary.displayName },
-        { label: "Estado", value: payerStatusLabel(mandate) },
+        { label: "Control", value: ENFORCEMENT_LABEL[mandate.purposePolicy.enforcement] },
       ]}
     />
   );
@@ -94,6 +103,7 @@ export function PayerMandateDetail({
   notice,
   onOpenHistory,
   onRedirectToWallet,
+  payerGrants,
 }: {
   partyId: string;
   id: string;
@@ -102,6 +112,8 @@ export function PayerMandateDetail({
   notice?: DetailNotice;
   onOpenHistory: () => void;
   onRedirectToWallet: (redirectUrl: string) => void;
+  /** Whether this session may ask the wallet for a grant. Unknown until /me answers. */
+  payerGrants?: "enabled" | "disabled_for_demo" | "not_configured";
 }) {
   const mandate = useMandate(partyId, id, active);
   const spending = useSpending(partyId, id, active);
@@ -148,18 +160,22 @@ export function PayerMandateDetail({
 
   const draftOnly = view.status === "DRAFT";
   const cancellationPending = view.status === "REVOKED" && auth?.grantCancellation === "PENDING";
+  const entries = spendingData?.activity.entries ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <StatusBadge status={view.status} label={payerStatusLabel(view)} />
-        <ScreenHeading focusOnMount={focusOnMount}>{purposeTitle(view)}</ScreenHeading>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <Avatar name={view.delegate.displayName} seed={view.delegate.id} size="lg" />
+        <div className="min-w-0 space-y-1">
+          <ScreenHeading focusOnMount={focusOnMount}>Para {view.delegate.displayName}</ScreenHeading>
+          <StatusBadge status={view.status} label={payerStatusLabel(view)} />
+        </div>
       </div>
 
       {notice?.kind === "consent-return" ? <ConsentReturnNotice result={notice.result} status={view.status} /> : null}
       {notice?.kind === "draft-saved" && view.status === "DRAFT" ? (
         <Notice tone="warn" title="Borrador guardado, sin autorizar">
-          {errorText(notice.reason)} {view.delegate.displayName} no ve este presupuesto ni puede pagar con él.
+          {errorText(notice.reason)} {view.delegate.displayName} aún no lo ve.
         </Notice>
       ) : null}
       {mandate.refreshError ? <StaleDataNotice error={mandate.refreshError} /> : null}
@@ -169,89 +185,97 @@ export function PayerMandateDetail({
         </Notice>
       ) : null}
       {cancellationPending ? (
-        <Notice tone="warn" title="Revocado en COMPAS, falta tu billetera">
-          COMPAS ya no permite compras con este presupuesto. Tu billetera aún no confirmó que canceló el permiso.
-          Vuelve a intentarlo abajo.
+        <Notice tone="warn" title="Revocado, falta confirmar en tu billetera">
+          Ya no se puede pagar con este presupuesto. Reintenta la cancelación abajo.
         </Notice>
       ) : null}
 
-      <CapacityRoute mandate={view} />
+      <div className="rounded-(--cx-radius) border border-(--cx-line) p-4">
+        <CapacityRoute mandate={view} />
+      </div>
+
+      {auth?.canAuthorize && payerGrants && payerGrants !== "enabled" && notice?.kind !== "draft-saved" ? (
+        <p className="flex gap-2 rounded-(--cx-radius) bg-(--cx-card) p-3 text-[13px] text-(--cx-muted)">
+          <ShieldIcon className="mt-px size-[18px] shrink-0" />
+          {errorText(payerGrants === "not_configured" ? "OPEN_PAYMENTS_NOT_CONFIGURED" : "PAYER_GRANTS_DISABLED_FOR_DEMO")}
+        </p>
+      ) : null}
+      {auth?.canAuthorize && payerGrants === "enabled" ? (
+        <div className="space-y-2">
+          <Button onClick={authorize} disabled={busy !== null}>
+            <ShieldIcon className="size-5" />
+            {busy === "authorize"
+              ? "Abriendo tu billetera…"
+              : view.status === "PENDING_AUTHORIZATION"
+                ? "Reintentar autorización"
+                : "Autorizar en mi billetera"}
+          </Button>
+          <p className="text-center text-[12px] text-(--cx-muted)">Aprobarás un permiso de hasta {formatMoneyAmount(view.budget)}.</p>
+        </div>
+      ) : null}
+
       {spendingData && !spendingData.activity.totals.capacityReconciled ? (
         <Notice tone="warn" title="La capacidad aún no descuenta todas las compras">
-          COMPAS registró pagos por {formatMoneyAmount(spendingData.activity.totals.completed)}
-          {spendingData.activity.totals.inProgressCount > 0
-            ? ` y ${formatMoneyAmount(spendingData.activity.totals.inProgress)} en proceso`
-            : ""}
-          , que la capacidad restante todavía no refleja. El permiso en tu billetera sigue limitando el gasto total
-          a {formatMoneyAmount(view.budget)}.
+          Tu billetera sigue limitando el gasto total a {formatMoneyAmount(view.budget)}.
         </Notice>
       ) : null}
-      <p className="text-[13px] leading-snug text-(--cx-muted)">
+
+      <p className="flex gap-2 text-[13px] leading-snug text-(--cx-ink)">
+        <WalletIcon className="mt-px size-[18px] shrink-0 text-(--cx-route)" />
         {isAuthorized(view)
-          ? "Es un permiso, no un saldo: el dinero sigue en tu billetera hasta que se pague una compra que cumpla tus reglas."
-          : `Todavía no es un permiso. ${view.delegate.displayName} podrá pagar solo después de que lo apruebes en tu billetera. Tu dinero no se mueve.`}
+          ? "Es una autorización, no un saldo: el dinero sigue en tu billetera."
+          : `Aún no autoriza nada. Tu dinero no se mueve.`}
       </p>
+
+      <section aria-labelledby="detail-activity" className="space-y-1">
+        <SectionTitle id="detail-activity">Movimientos</SectionTitle>
+        {entries.length > 0 ? (
+          <>
+            <ActivityList entries={entries.slice(0, 3)} />
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              className="flex w-full items-center justify-between py-2 text-[14px] font-semibold text-(--cx-ink) focus-visible:outline-2 focus-visible:outline-(--cx-focus)"
+            >
+              Ver todos
+              <ChevronRightIcon className="size-4" />
+            </button>
+          </>
+        ) : (
+          <p className="py-2 text-[13px] text-(--cx-muted)">
+            {view.status === "ACTIVE" ? "Aún no hay compras." : "Sin movimientos."}
+          </p>
+        )}
+      </section>
 
       <section aria-labelledby="detail-summary" className="space-y-1">
         <SectionTitle id="detail-summary">Resumen</SectionTitle>
         <Totals mandate={view} spending={spendingData} />
       </section>
 
-      <section aria-labelledby="detail-rules" className="space-y-3">
-        <SectionTitle id="detail-rules">Reglas</SectionTitle>
-        <RulesSummary policy={view.purposePolicy} />
-      </section>
+      <details className="rounded-(--cx-radius) border border-(--cx-line) [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer items-center justify-between p-3.5 text-[14px] font-semibold text-(--cx-ink)">
+          Reglas completas
+          <ChevronRightIcon className="size-4 text-(--cx-muted)" />
+        </summary>
+        <div className="border-t border-(--cx-line) p-3.5">
+          <RulesSummary policy={view.purposePolicy} />
+        </div>
+      </details>
 
-      <section aria-labelledby="detail-activity" className="space-y-1">
-        <SectionTitle id="detail-activity">Actividad</SectionTitle>
-        {spendingData && spendingData.activity.entries.length > 0 ? (
-          <>
-            <ActivityList entries={spendingData.activity.entries.slice(0, 3)} />
-            <Button variant="secondary" onClick={onOpenHistory}>
-              Ver todos los movimientos
-            </Button>
-          </>
-        ) : (
-          <p className="py-2 text-[13px] text-(--cx-muted)">
-            {view.status === "ACTIVE"
-              ? "Aún no hay compras con este presupuesto."
-              : "No hay movimientos. Solo un presupuesto activo puede tener compras."}
-          </p>
-        )}
-      </section>
-
-      {auth && (auth.canAuthorize || auth.canRevoke) ? (
-        <section aria-labelledby="detail-admin" className="space-y-2">
-          <SectionTitle id="detail-admin">Administración</SectionTitle>
-          {auth.canAuthorize ? (
-            <>
-              <p className="text-[13px] leading-snug text-(--cx-muted)">
-                {view.status === "PENDING_AUTHORIZATION"
-                  ? "Falta que apruebes el permiso en tu billetera."
-                  : "Este presupuesto todavía no está autorizado."}
-              </p>
-              <Button onClick={authorize} disabled={busy !== null}>
-                {busy === "authorize"
-                  ? "Abriendo tu billetera…"
-                  : view.status === "PENDING_AUTHORIZATION"
-                    ? "Reintentar autorización"
-                    : "Autorizar en mi billetera"}
-              </Button>
-            </>
-          ) : null}
-          {auth.canRevoke ? (
-            <Button variant="danger" onClick={() => (cancellationPending ? revoke() : setConfirming(true))} disabled={busy !== null}>
-              {cancellationPending
-                ? busy === "revoke"
-                  ? "Reintentando…"
-                  : "Reintentar cancelación en mi billetera"
-                : draftOnly
-                  ? "Descartar borrador"
-                  : "Revocar autorización"}
-            </Button>
-          ) : null}
+      {auth?.canRevoke ? (
+        <div className="space-y-2">
+          <Button variant="danger" onClick={() => (cancellationPending ? revoke() : setConfirming(true))} disabled={busy !== null}>
+            {cancellationPending
+              ? busy === "revoke"
+                ? "Reintentando…"
+                : "Reintentar cancelación"
+              : draftOnly
+                ? "Descartar borrador"
+                : "Revocar autorización"}
+          </Button>
           {actionError ? <Notice tone="danger">{actionError}</Notice> : null}
-        </section>
+        </div>
       ) : null}
 
       <ConfirmDialog
@@ -263,8 +287,8 @@ export function PayerMandateDetail({
         onCancel={() => setConfirming(false)}
       >
         {draftOnly
-          ? "El borrador no se podrá autorizar después."
-          : `${view.delegate.displayName} ya no podrá pagar compras con este presupuesto. Si una compra ya se pagó, no se revierte.`}
+          ? "No se podrá autorizar después."
+          : `${view.delegate.displayName} ya no podrá pagar con este presupuesto. Las compras ya pagadas no se revierten.`}
       </ConfirmDialog>
     </div>
   );

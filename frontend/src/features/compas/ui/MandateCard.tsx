@@ -1,41 +1,71 @@
+import type { ReactNode } from "react";
 import { formatMoneyAmount } from "@/lib/format-money";
 import type { MandateView } from "../api/contracts";
+import { shareOf } from "../lib/amounts";
 import { formatDate } from "../lib/dates";
-import { ENFORCEMENT_LABEL, payerStatusLabel, purposeTitle, STATUS_LABEL } from "../lib/labels";
-import { CapacityRoute } from "./CapacityRoute";
+import { categoryList, isAuthorized, payerStatusLabel, STATUS_LABEL } from "../lib/labels";
 import { ChevronRightIcon } from "./icons";
 import { StatusBadge } from "./primitives";
+import { Avatar, CategoryStack } from "./visuals";
 
-/** One budget in a list. The whole card is one button that opens its detail. */
-export function MandateCard({ mandate, onOpen }: { mandate: MandateView; onOpen: () => void }) {
-  const asPayer = mandate.viewerRole === "PAYER";
-  const people = asPayer
-    ? `Paga ${mandate.delegate.displayName}`
-    : `Autorizado por ${mandate.payer.displayName}`;
+/** A thin version of the capacity route: the solid stretch is permission still available. */
+export function CapacityBar({ mandate }: { mandate: Pick<MandateView, "status" | "viewerRole" | "authorization" | "budget" | "remainingAuthorizedAmount"> }) {
+  const share = isAuthorized(mandate) ? shareOf(mandate.remainingAuthorizedAmount.value, mandate.budget.value) : 0;
+  const live = mandate.status === "ACTIVE";
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full rounded-(--cx-radius) border border-(--cx-line) bg-(--cx-surface) p-4 text-left transition-colors hover:bg-(--cx-card)/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--cx-focus)"
-    >
-      <span className="flex items-start justify-between gap-3">
-        <span className="min-w-0">
-          <span className="block text-[15px] leading-snug font-semibold text-(--cx-ink)">{purposeTitle(mandate)}</span>
-          <span className="mt-0.5 block text-[13px] text-(--cx-muted)">
-            {people}. Modo {ENFORCEMENT_LABEL[mandate.purposePolicy.enforcement].toLowerCase()}.
+    <span aria-hidden="true" className="relative block h-1.5 overflow-hidden rounded-full bg-(--cx-line)">
+      <span
+        className={`absolute inset-y-0 left-0 rounded-full ${live ? "bg-(--cx-route)" : "bg-(--cx-muted)/50"}`}
+        style={{ width: `${share * 100}%` }}
+      />
+    </span>
+  );
+}
+
+/**
+ * One budget in a list, as the viewer sees it. The whole card opens the
+ * detail; `action` adds a button below it (Andrea's "Pagar con COMPAS").
+ */
+export function MandateCard({ mandate, onOpen, action }: { mandate: MandateView; onOpen: () => void; action?: ReactNode }) {
+  const asPayer = mandate.viewerRole === "PAYER";
+  const person = asPayer ? mandate.delegate : mandate.payer;
+  const authorized = isAuthorized(mandate);
+  const amount = authorized ? mandate.remainingAuthorizedAmount : mandate.budget;
+  return (
+    <div className="rounded-(--cx-radius) border border-(--cx-line) bg-(--cx-surface) shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full rounded-(--cx-radius) p-4 text-left transition-colors hover:bg-(--cx-card)/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--cx-focus)"
+      >
+        <span className="flex items-center gap-3">
+          <Avatar name={person.displayName} seed={person.id} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-semibold text-(--cx-ink)">
+              {asPayer ? person.displayName : `De ${person.displayName}`}
+            </span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-(--cx-muted)">
+              <CategoryStack categories={mandate.purposePolicy.eligibleCategories} />
+              <span className="truncate">{categoryList(mandate.purposePolicy.eligibleCategories)}</span>
+            </span>
           </span>
+          <StatusBadge status={mandate.status} label={asPayer ? payerStatusLabel(mandate) : STATUS_LABEL[mandate.status]} />
         </span>
-        <StatusBadge status={mandate.status} label={asPayer ? payerStatusLabel(mandate) : STATUS_LABEL[mandate.status]} />
-      </span>
-      <span className="mt-4 block">
-        <CapacityRoute mandate={mandate} />
-      </span>
-      <span className="mt-3 flex items-center justify-between gap-2 border-t border-(--cx-line) pt-3 text-[13px] text-(--cx-muted)">
-        <span className="tabular-nums">
-          Presupuesto {formatMoneyAmount(mandate.budget)}, hasta el {formatDate(mandate.expiresAt)}
+        <span className="mt-3.5 block">
+          <span className={`text-[22px] font-semibold tracking-tight whitespace-nowrap tabular-nums ${mandate.status === "ACTIVE" ? "text-(--cx-ink)" : "text-(--cx-muted)"}`}>
+            {formatMoneyAmount(amount)}
+          </span>
+          <span className="ml-1.5 text-[12px] text-(--cx-muted)">{authorized ? "disponible" : "por autorizar"}</span>
         </span>
-        <ChevronRightIcon className="size-4 shrink-0" />
-      </span>
-    </button>
+        <span className="mt-2 block">
+          <CapacityBar mandate={mandate} />
+        </span>
+        <span className="mt-2 flex items-center justify-between text-[12px] text-(--cx-muted)">
+          Hasta el {formatDate(mandate.expiresAt)}
+          <ChevronRightIcon className="size-4" />
+        </span>
+      </button>
+      {action ? <div className="px-4 pb-4">{action}</div> : null}
+    </div>
   );
 }

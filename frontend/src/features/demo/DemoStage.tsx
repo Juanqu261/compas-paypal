@@ -83,6 +83,56 @@ function ScenarioPicker() {
   );
 }
 
+const GUIDE = [
+  { app: "ARQ", text: "Pedro creates a budget for a contact" },
+  { app: "ARQ", text: "He authorizes it at his wallet, if this backend allows it" },
+  { app: "Nequi", text: "The contact sees what they can spend" },
+  { app: "Nequi Negocios", text: "The pharmacy charges with COMPAS" },
+  { app: "Nequi", text: "The contact reviews the purchase" },
+  { app: "COMPAS", text: "The backend checks the rules" },
+  { app: "All three", text: "The real result, or this environment's limit" },
+] as const;
+
+/**
+ * The live walk-through. Steps 4 to 7 follow the shared charge; steps 1 to 3
+ * happen on the backend and are not tracked here, so they are never ticked.
+ */
+function DemoGuide() {
+  const { charge } = useDemoSession();
+  const result = charge?.result;
+  const finished =
+    result?.kind === "PURCHASE" || (result?.kind === "PREVIEW" && result.preview.next !== "QUOTE") || result?.kind === "ERROR";
+  const done = (index: number) =>
+    (index === 3 && charge !== null) || ((index === 4 || index === 5) && result !== undefined) || (index === 6 && finished);
+
+  return (
+    <details open className="group mt-6 rounded-lg border border-ink/15 bg-paper/70 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer px-4 py-3 font-semibold text-ink">Presenter guide</summary>
+      <ol className="grid gap-x-6 gap-y-2 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-4">
+        {GUIDE.map((step, index) => (
+          <li key={step.text} className="flex gap-2.5 text-sm leading-snug">
+            <span
+              className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${
+                done(index) ? "bg-route text-paper" : "border border-ink/25 text-ink-soft"
+              }`}
+            >
+              {done(index) ? "✓" : index + 1}
+            </span>
+            <span>
+              <span className="text-ink">{step.text}</span>
+              <span className="block text-ink-soft">{step.app}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="border-t border-ink/10 px-4 py-2.5 text-sm text-ink-soft">
+        The charge passes between the phones inside this browser. It is not NFC, not a sync between devices and
+        not stored in the database.
+      </p>
+    </details>
+  );
+}
+
 function DemoPhones() {
   return (
     <div className="flex snap-x snap-mandatory gap-8 overflow-x-auto px-4 pt-2 pb-10 sm:px-8 xl:justify-center xl:overflow-visible">
@@ -120,6 +170,7 @@ export function DemoStage({
     <DemoSessionProvider scenarios={scenarios}>
       <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-8">
         <ScenarioPicker />
+        <DemoGuide />
       </div>
       <div className="border-y border-ink/15 bg-shoal/45 pt-8">
         <DemoPhones />

@@ -28,7 +28,7 @@ Roles come from the mandate, not from the app. The same party can be the payer o
 | Method and path | Who | Result |
 | --- | --- | --- |
 | `GET /me` | any session | The party, `payerWallet`, and runtime facts |
-| `GET /demo/participants` | any session | Demo parties the actor can name. `dataLabel: "demo/test data"` |
+| `GET /demo/participants` | any session | Demo parties the actor can name: Andrea, Gladys and four test contacts (`demo-contact-*`). `dataLabel: "demo/test data"` |
 | `GET /mandates?role=payer` | any session | Mandates where the actor is the payer |
 | `GET /mandates?role=delegate` | any session | Mandates where the actor is the delegate, only `ACTIVE`, `EXHAUSTED`, `EXPIRED`, `REVOKED` |
 | `GET /mandates/:id` | payer or delegate | One mandate. A stranger gets `404` |
@@ -77,7 +77,7 @@ POST /mandates
 
 | Field | Rule |
 | --- | --- |
-| `delegateId`, `beneficiaryId` | Known parties. The delegate is not the payer. The beneficiary needs no wallet |
+| `delegateId`, `beneficiaryId` | Known parties. The delegate is not the payer. The beneficiary needs no wallet. They may be the same party: the ARQ wizard asks for one contact and sends it as both |
 | `categories` | One or more of `MEDICATION`, `FOOD`, `PERSONAL_CARE`, `ALCOHOL`, `TOBACCO`. Duplicates are dropped |
 | `budget.value` | A positive integer string, at most 10,000 whole units of the asset |
 | `budget.assetCode`, `assetScale` | The payer wallet's asset when it can be read (`ASSET_MISMATCH` otherwise). Scale 0 to 9 |

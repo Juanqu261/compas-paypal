@@ -321,6 +321,23 @@ The dated running log below is the detailed record: which tool, which files or c
 - Prompt log: [prompts/018-compas-frontend-backend-integration.md](prompts/018-compas-frontend-backend-integration.md)
 - Human review: Pending team review. No purchase ran against a real wallet: the purchase flow was tested with in-memory repositories and a recording stand-in for Open Payments. The charge between Nequi Negocios and Nequi is a browser simulation, because merchants have no authentication yet.
 
+### 2026-10-17 — Claude Code — COMPAS UX redesign
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - created branch `feature/compas-ux-redesign` from `origin/main` (`974061e`). Nothing new was on the remote to pull
+  - ARQ (Pedro): a three-step wizard (contact, budget, confirm) with a searchable contact list and no preselected person, category tiles with icons, quick durations, advanced rules folded away, and a summary card. The one chosen contact is sent as both `delegateId` and `beneficiaryId`; nobody else is added. The home and the budget detail were reorganized around the capacity, the main action and short texts; the authorize button is shown only when this backend lets a demo session ask the wallet
+  - Nequi (Andrea): budget cards with a "Pagar con COMPAS" button, a payment screen with a step bar (Presupuesto, Cobro, Revisión, Pago), a waiting state until a charge arrives, the backend's checks shown one per row, and result cards that only say "Pago realizado" for a payment the wallet confirmed
+  - Nequi Negocios (Droguería Central): "Cobrar con COMPAS" as the main action, a charge form with category tiles and several lines whose total is their sum, a charge card that follows the backend's answer, and the local settings, the verification view and "how it works" folded away
+  - `/demo`: a presenter guide whose last steps follow the shared charge, and a note that the charge travels inside the browser
+  - shared UI in `frontend/src/features/compas/ui/` (`visuals.tsx`, `ContactPicker.tsx`, new icons in `icons.tsx`, `MandateCard.tsx`), plain-language labels in `lib/labels.ts`, the wizard model in `lib/wizard.ts`, the charge model in `features/demo/demo-charge.ts`
+  - fixed a duplicate-payment bug found while testing: two taps in the same tick sent two purchases with different keys. The lock and the idempotency key now live in refs
+  - backend: four demo contacts in `demo-party-directory.ts` (no wallet, `demo/test data`) and a test that one contact can be both delegate and beneficiary. No change to mandates, policy, purchases, Open Payments, Supabase or RLS
+  - tests: `backend/tests/integrations/mandates/demo-party-directory.test.ts`, updates to `frontend/tests/compas/lib.test.ts` and `checkout.test.ts`
+  - verification: typecheck, tests, lint and build; click-throughs in headless Edge over the DevTools protocol on `/arq`, `/nequi`, `/nequi-negocios` and `/demo`, with screenshots reviewed, against a harness outside the repository that ran the real handlers with in-memory storage and a fake Open Payments provider. No real wallet, no Supabase write
+- Prompt log: [prompts/019-compas-ux-redesign.md](prompts/019-compas-ux-redesign.md)
+- Human review: Pending team review. The payment screens were exercised only against the fake provider; the charge between phones is a browser simulation.
+
 ## What We Did Ourselves
 
 - The product idea, the design-session answers, and the scope decisions came from the team. See the verbatim prompts in `prompts/002-agent-skills.md` and later prompt files.
@@ -353,6 +370,7 @@ Verbatim prompts for each AI coding session are in `/prompts/`, numbered in orde
 - [prompts/016-compas-integration.md](prompts/016-compas-integration.md)
 - [prompts/017-nequi-negocios-compas.md](prompts/017-nequi-negocios-compas.md)
 - [prompts/018-compas-frontend-backend-integration.md](prompts/018-compas-frontend-backend-integration.md)
+- [prompts/019-compas-ux-redesign.md](prompts/019-compas-ux-redesign.md)
 
 ## Entry template
 

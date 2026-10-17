@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useMe, useParticipants } from "../api/hooks";
 import { DEMO_PARTY_IDS } from "../demo-identities";
-import { initialDraft, type WizardDraft, type WizardStep } from "../lib/wizard";
+import { datesFor, initialDraft, type WizardDraft, type WizardStep } from "../lib/wizard";
 import { ErrorState, LoadingState } from "../ui/primitives";
-import { CreateBudgetWizard, newDraftDates } from "./CreateBudgetWizard";
+import { CreateBudgetWizard } from "./CreateBudgetWizard";
 import { MandateHistory } from "./MandateHistory";
 import { type DetailNotice, PayerMandateDetail } from "./PayerMandateDetail";
 import { PayerHome } from "./PayerHome";
@@ -76,18 +76,17 @@ export function PayerCompas({
 }) {
   // Dates are filled when the person opens the wizard, never during prerender:
   // "today" belongs to the visit, not to the build.
-  const [draft, setDraft] = useState<WizardDraft>(() =>
-    initialDraft({ delegateId: DEMO_PARTY_IDS.andrea, beneficiaryId: DEMO_PARTY_IDS.gladys, startDate: "", endDate: "" }),
-  );
+  // Nobody is chosen for the payer: not Andrea, not Gladys.
+  const [draft, setDraft] = useState<WizardDraft>(() => initialDraft({ startDate: "", endDate: "" }));
   const resetWizard = () => {
-    setDraft(initialDraft({ delegateId: DEMO_PARTY_IDS.andrea, beneficiaryId: DEMO_PARTY_IDS.gladys, startDate: "", endDate: "" }));
-    setStep("participants");
+    setDraft(initialDraft({ startDate: "", endDate: "" }));
+    setStep("contact");
   };
   const openWizard = () => {
-    if (!draft.startDate) setDraft((current) => ({ ...current, ...newDraftDates() }));
+    if (!draft.startDate) setDraft((current) => ({ ...current, ...datesFor(30) }));
     nav.push({ name: "create" });
   };
-  const [step, setStep] = useState<WizardStep>("participants");
+  const [step, setStep] = useState<WizardStep>("contact");
   const creating = active && nav.current.name === "create";
   const me = useMe(partyId, active, openCount);
   const participants = useParticipants(partyId, creating);
@@ -150,6 +149,7 @@ export function PayerCompas({
         focusOnMount={focusOnMount}
         notice={route.notice}
         onOpenHistory={() => nav.push({ name: "history", id: route.id })}
+        payerGrants={me.resource.status === "ready" ? me.resource.data.payerGrants : undefined}
         onRedirectToWallet={goToWallet}
       />
     );

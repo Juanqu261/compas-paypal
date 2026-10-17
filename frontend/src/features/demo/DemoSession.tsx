@@ -12,7 +12,7 @@ import {
   type DemoScenario,
   type DemoScenarioId,
 } from "@/demo/scenarios";
-import { chargeFromScenario, type DemoCharge } from "./demo-charge";
+import type { DemoCharge } from "./demo-charge";
 
 export type { DemoCharge } from "./demo-charge";
 
@@ -23,7 +23,8 @@ type DemoSessionValue = {
   setScenarioId: (id: DemoScenarioId) => void;
   /** The open simulated charge, if any. A new scenario clears it. */
   charge: DemoCharge | null;
-  createCharge: () => void;
+  /** The merchant phone hands over the charge it built. One open charge at a time. */
+  createCharge: (charge: DemoCharge) => void;
   clearCharge: () => void;
   recordChargeResult: (chargeId: string, result: NonNullable<DemoCharge["result"]>) => void;
 };
@@ -47,7 +48,7 @@ export function DemoSessionProvider({
     setCharge(null);
     setScenario(id);
   }, []);
-  const createCharge = useCallback(() => setCharge(chargeFromScenario(scenario)), [scenario]);
+  const createCharge = useCallback((next: DemoCharge) => setCharge(next), []);
   const clearCharge = useCallback(() => setCharge(null), []);
   const recordChargeResult = useCallback(
     (chargeId: string, result: NonNullable<DemoCharge["result"]>) =>

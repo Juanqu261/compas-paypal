@@ -18,7 +18,7 @@ import type {
 
 export const STATUS_LABEL: Record<MandateStatus, string> = {
   DRAFT: "Borrador",
-  PENDING_AUTHORIZATION: "Esperando autorización",
+  PENDING_AUTHORIZATION: "Por autorizar",
   ACTIVE: "Activo",
   EXHAUSTED: "Agotado",
   EXPIRED: "Vencido",
@@ -48,7 +48,7 @@ export function isAuthorized(mandate: Pick<MandateView, "status" | "viewerRole" 
 export function capacityLabel(mandate: Pick<MandateView, "status" | "viewerRole" | "authorization">): string {
   switch (mandate.status) {
     case "ACTIVE":
-      return "Capacidad autorizada disponible";
+      return "Disponible para pagar";
     case "DRAFT":
     case "PENDING_AUTHORIZATION":
       return "Monto por autorizar";
@@ -71,18 +71,18 @@ export function payerStatusLabel(mandate: Pick<MandateView, "status" | "authoriz
 
 export const CATEGORY_LABEL: Record<CompasCategory, string> = {
   MEDICATION: "Medicamentos",
-  FOOD: "Alimentos",
+  FOOD: "Alimentación",
   PERSONAL_CARE: "Cuidado personal",
   ALCOHOL: "Bebidas alcohólicas",
   TOBACCO: "Tabaco",
 };
 
 export const CATEGORY_DESCRIPTION: Record<CompasCategory, string> = {
-  MEDICATION: "Droguerías y farmacias, con medicamentos de fórmula o de venta libre.",
-  FOOD: "Mercado y alimentos en tiendas, supermercados y plazas.",
-  PERSONAL_CARE: "Productos de aseo e higiene personal.",
-  ALCOHOL: "Licoreras y bebidas alcohólicas.",
-  TOBACCO: "Cigarrillos y productos de tabaco.",
+  MEDICATION: "Con o sin fórmula, en droguerías.",
+  FOOD: "Mercado en tiendas y supermercados.",
+  PERSONAL_CARE: "Aseo e higiene personal.",
+  ALCOHOL: "Bebidas alcohólicas.",
+  TOBACCO: "Cigarrillos y tabaco.",
 };
 
 /** "Medicamentos", "Medicamentos y alimentos", "Medicamentos, alimentos y tabaco". */
@@ -100,19 +100,17 @@ export function purposeTitle(mandate: Pick<MandateView, "purposePolicy" | "benef
 }
 
 export const ENFORCEMENT_LABEL: Record<Enforcement, string> = {
-  ENFORCED: "Estricto",
-  MONITORED: "Supervisado",
+  ENFORCED: "Solo compras permitidas",
+  MONITORED: "Permitir y avisarme",
 };
 
 export const ENFORCEMENT_DESCRIPTION: Record<Enforcement, string> = {
-  ENFORCED:
-    "Solo se podrán pagar compras que cumplan las condiciones que establezcas. Si falta información suficiente, el pago no continuará automáticamente.",
-  MONITORED:
-    "Permitirás también compras que no cumplan completamente el propósito. COMPAS registrará las excepciones para que puedas revisarlas después.",
+  ENFORCED: "Si una compra no cumple tus reglas, no se paga.",
+  MONITORED: "Se paga aunque no cumpla el propósito, y queda marcada para que la revises.",
 };
 
 export const MONITORED_WARNING =
-  "Con el modo supervisado, una compra que no cumpla el propósito igual se pagará, hasta el límite del presupuesto. Esto no significa que el comercio sea seguro. La vigencia, la persona autorizada y el monto máximo siguen aplicando siempre.";
+  "Una compra fuera del propósito se pagará igual, hasta el monto del presupuesto. La vigencia, la persona y el monto máximo siempre aplican.";
 
 export const CONFIDENCE_LABEL: Record<ConfidenceMinimum, string> = {
   HIGH: "Alta",
@@ -121,9 +119,9 @@ export const CONFIDENCE_LABEL: Record<ConfidenceMinimum, string> = {
 };
 
 export const CONFIDENCE_DESCRIPTION: Record<ConfidenceMinimum, string> = {
-  HIGH: "Solo comercios cuya actividad confirmó alguien independiente, como su billetera o un registro oficial.",
-  MEDIUM: "También comercios con evidencia parcial, como una coincidencia con el registro mercantil o compras anteriores confirmadas.",
-  LOW: "También comercios con evidencia limitada, como su propia declaración. Conviene ponerle un límite por compra.",
+  HIGH: "Comercios verificados por su billetera o un registro oficial.",
+  MEDIUM: "También comercios con verificación parcial.",
+  LOW: "También comercios que solo declaran su actividad. Ponle un límite por compra.",
 };
 
 export const REASON_TEXT: Record<PolicyReasonCode, string> = {
@@ -148,13 +146,13 @@ export function reasonText(code: string): string {
 export function activityLabel(kind: ActivityKind, monitoredException: boolean): string {
   switch (kind) {
     case "COMPLETED":
-      return monitoredException ? "Pagada bajo supervisión" : "Pagada";
+      return monitoredException ? "Pago realizado, con aviso" : "Pago realizado";
     case "PENDING":
       return "Pago en proceso";
     case "FAILED":
       return "Pago fallido";
     case "DENIED":
-      return "Rechazada";
+      return "Compra no permitida";
     case "REVIEW":
       return "Retenida para revisión";
   }
@@ -166,7 +164,7 @@ export function activityReason(kind: ActivityKind, codes: readonly string[]): st
     const purposeCode = codes.find((code) => code !== "PAYER_MONITORED_EXCEPTION");
     return codes.includes("PAYER_MONITORED_EXCEPTION") && purposeCode ? reasonText(purposeCode) : undefined;
   }
-  if (kind === "FAILED") return "La billetera no completó el pago. No se debitó nada por esta compra.";
+  if (kind === "FAILED") return "La billetera no completó el pago. No se debitó nada.";
   return codes.length > 0 ? reasonText(codes[0]) : undefined;
 }
 
@@ -177,7 +175,7 @@ export function errorText(code: string): string {
     case "NOT_CONFIGURED":
       return "Este entorno no tiene Open Payments configurado, así que no se puede pedir la autorización a tu billetera.";
     case "PAYER_GRANTS_DISABLED_FOR_DEMO":
-      return "En este modo de demostración no se le pide autorización a una billetera real. El presupuesto queda guardado sin activar.";
+      return "En esta demostración no se pide autorización a una billetera real. El presupuesto queda guardado sin activar.";
     case "PAYER_WALLET_NOT_CONFIGURED":
       return "Tu billetera de Open Payments no está configurada en este entorno.";
     case "AUTHORIZATION_FAILED":
@@ -203,7 +201,7 @@ export function errorText(code: string): string {
     case "NOT_THE_DELEGATE":
       return "Solo la persona autorizada puede pagar con este presupuesto.";
     case "PURCHASES_DISABLED_FOR_DEMO":
-      return "En este modo de demostración no se pagan compras con una billetera real. COMPAS no registró ni pagó nada.";
+      return "Los pagos están desactivados en esta demostración. No se cobró nada.";
     case "UNKNOWN_MERCHANT":
       return "Este comercio no recibe pagos con COMPAS en este entorno.";
     case "INVALID_PURCHASE":
@@ -235,12 +233,21 @@ export const CORROBORATION_LABEL: Record<Corroboration, string> = {
   EXTERNAL_VERIFIED: "Corroborada en un registro oficial",
 };
 
-/** Where a purchase stands, without ever calling a decision a payment. */
+export type PurchaseTone = "ok" | "wait" | "stop";
+
+/**
+ * Where a purchase stands, without ever calling a decision a payment: only a
+ * payment the wallet confirmed is "realizado".
+ */
+export function purchaseStatus(purchase: Pick<PurchaseView, "outcome" | "payment">): { title: string; tone: PurchaseTone } {
+  if (purchase.outcome === "DENY") return { title: "Compra no permitida", tone: "stop" };
+  if (purchase.outcome === "REVIEW") return { title: "Compra retenida para revisión", tone: "wait" };
+  if (purchase.payment.status === "NOT_CREATED") return { title: "No se pudo crear el pago", tone: "stop" };
+  if (purchase.payment.state === "COMPLETED") return { title: "Pago realizado", tone: "ok" };
+  if (purchase.payment.state === "FAILED") return { title: "Pago fallido", tone: "stop" };
+  return { title: "Pago en proceso", tone: "wait" };
+}
+
 export function purchaseStatusLabel(purchase: Pick<PurchaseView, "outcome" | "payment">): string {
-  if (purchase.outcome === "DENY") return "Rechazada por COMPAS. No se creó ningún pago.";
-  if (purchase.outcome === "REVIEW") return "Retenida para revisión. No se creó ningún pago.";
-  if (purchase.payment.status === "NOT_CREATED") return "COMPAS la permitió, pero no se creó el pago.";
-  if (purchase.payment.state === "COMPLETED") return "Pagada: la billetera confirmó el pago.";
-  if (purchase.payment.state === "FAILED") return "El pago falló. No se debitó nada.";
-  return "Pago en proceso: la billetera aún no lo confirma.";
+  return purchaseStatus(purchase).title;
 }

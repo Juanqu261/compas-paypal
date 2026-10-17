@@ -1,24 +1,24 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { errorCode } from "@/features/compas/api/client";
-import type { DemoMerchant } from "@/features/compas/api/contracts";
+import { COMPAS_CATEGORIES, type CompasCategory, type DemoMerchant } from "@/features/compas/api/contracts";
 import { useDemoMerchants } from "@/features/compas/api/hooks";
 import { DEMO_MERCHANTS } from "@/features/compas/demo-identities";
-import {
-  CATEGORY_LABEL,
-  CORROBORATION_LABEL,
-  errorText,
-  purchaseStatusLabel,
-  reasonText,
-  TRUST_LEVEL_LABEL,
-} from "@/features/compas/lib/labels";
+import { parseAmountInput } from "@/features/compas/lib/amounts";
+import { CATEGORY_LABEL, CORROBORATION_LABEL, errorText, reasonText, TRUST_LEVEL_LABEL } from "@/features/compas/lib/labels";
+import { CategoryGlyph } from "@/features/compas/ui/visuals";
+import { buildCharge, type ChargeLine, merchantChargeStatus, scenarioLines } from "@/features/demo/demo-charge";
 import { useDemoSession } from "@/features/demo/DemoSession";
 import { formatMoneyAmount } from "@/lib/format-money";
+import { CloseIcon, InfoIcon } from "./NequiBusinessIcons";
 import type { MerchantCompasCategory } from "./nequi-business-compas-demo";
 
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-blue)";
+
+/** The merchant's charges are in the demo story's asset. demo/test data: there is no wallet lookup here. */
+const CHARGE_ASSET = { assetCode: "USD", assetScale: 2 } as const;
 
 function Chip({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "ok" | "sim" }) {
   const look = {
@@ -29,13 +29,24 @@ function Chip({ children, tone = "neutral" }: { children: string; tone?: "neutra
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${look}`}>{children}</span>;
 }
 
+/** A category's glyph on the merchant's own palette. */
+export function MerchantCategoryChip({ category }: { category: CompasCategory }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-(--nb-card) py-1 pr-3 pl-1 text-[13px]">
+      <span className="grid size-6 place-items-center rounded-full bg-white">
+        <CategoryGlyph category={category} className="size-4" />
+      </span>
+      {CATEGORY_LABEL[category]}
+    </span>
+  );
+}
+
 /**
- * What COMPAS itself knows about this shop, read from the backend: the
- * categories it declared and the ones independent evidence corroborates.
- * Separate from the local preferences above, which the backend never sees.
+ * What COMPAS itself knows about this shop, read from the backend: what it
+ * declared and what independent evidence corroborates. Separate from the
+ * local preferences, which the backend never sees.
  */
 export function MerchantCompasEvidence({ selected }: { selected: readonly MerchantCompasCategory[] }) {
-  const headingId = useId();
   const { resource, reload, refreshError } = useDemoMerchants(true);
   const data = resource.status === "ready" ? resource.data : undefined;
   const merchant: DemoMerchant | undefined = data?.merchants.find((item) => item.id === DEMO_MERCHANTS.drogueria.id);
@@ -43,17 +54,10 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
   const notSent = selected.filter((category) => !declared.has(category));
 
   return (
-    <section aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-[15px] font-bold">
-        Lo que COMPAS sabe de tu negocio
-      </h3>
-      <p className="mt-1 text-[13px] text-(--nb-muted)">
-        Leído del servidor de COMPAS. Una casilla marcada aquí no cambia esto.
-      </p>
-
-      {resource.status === "loading" ? <p className="mt-3 text-[13px] text-(--nb-muted)">Consultando COMPAS…</p> : null}
+    <div className="space-y-4">
+      {resource.status === "loading" ? <p className="text-[13px] text-(--nb-muted)">Consultando COMPAS…</p> : null}
       {resource.status === "error" ? (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           <p role="alert" className="rounded-md bg-(--nb-sand) p-3 text-[13px]">
             {errorText(errorCode(resource.error))}
           </p>
@@ -62,21 +66,17 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
           </button>
         </div>
       ) : null}
-      {refreshError ? (
-        <p className="mt-3 text-[12px] text-(--nb-muted)">Sin conexión con COMPAS. Mostrando la última consulta.</p>
-      ) : null}
+      {refreshError ? <p className="text-[12px] text-(--nb-muted)">Sin conexión. Mostrando la última consulta.</p> : null}
 
       {data ? (
-        <div className="mt-3 space-y-4">
+        <>
           {data.categorySources === "NONE_REGISTERED" ? (
             <p className="rounded-md bg-(--nb-sand) p-3 text-[13px] leading-snug">
-              COMPAS no tiene fuentes de evidencia activas en este entorno, así que todavía no reconoce ninguna
-              categoría de tu negocio. Las compras con COMPAS no pasarán la revisión del comercio.
+              COMPAS no tiene fuentes de verificación activas en este entorno. Aún no reconoce categorías de tu negocio.
             </p>
           ) : null}
-
           <div>
-            <p className="text-[13px] font-semibold">Categorías que declaraste ante COMPAS</p>
+            <p className="text-[13px] font-semibold">Declaradas ante COMPAS</p>
             {merchant && merchant.declarations.length > 0 ? (
               <ul className="mt-2 space-y-1.5">
                 {merchant.declarations.map((item) => (
@@ -89,102 +89,249 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-[13px] text-(--nb-muted)">Ninguna registrada.</p>
+              <p className="mt-1 text-[13px] text-(--nb-muted)">Ninguna.</p>
             )}
           </div>
-
           <div>
-            <p className="text-[13px] font-semibold">Categorías que COMPAS reconoce</p>
+            <p className="text-[13px] font-semibold">Reconocidas por COMPAS</p>
             {merchant && merchant.categories.length > 0 ? (
               <ul className="mt-2 space-y-1.5">
                 {merchant.categories.map((item) => (
                   <li key={item.category} className="flex flex-wrap items-center justify-between gap-2 text-[14px]">
                     <span>{CATEGORY_LABEL[item.category]}</span>
-                    <span className="flex gap-1">
+                    <span className="flex flex-wrap justify-end gap-1">
                       <Chip tone="ok">{TRUST_LEVEL_LABEL[item.trustLevel]}</Chip>
-                      {item.simulated ? <Chip tone="sim">Atestación simulada de Nequi Negocios</Chip> : null}
+                      {item.simulated ? <Chip tone="sim">Verificación simulada</Chip> : null}
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-[13px] text-(--nb-muted)">Ninguna por ahora.</p>
+              <p className="mt-1 text-[13px] text-(--nb-muted)">Ninguna.</p>
             )}
           </div>
-
           {notSent.length > 0 ? (
-            <p className="rounded-md bg-(--nb-cyan) p-3 text-[13px] leading-snug">
-              Marcaste {notSent.map((category) => CATEGORY_LABEL[category].toLowerCase()).join(", ")}, pero COMPAS no
-              tiene esa declaración. Enviarla necesita la conexión autenticada de tu negocio con COMPAS, que aún no
-              existe en esta demostración.
+            <p className="flex gap-2 rounded-md bg-(--nb-cyan) p-3 text-[13px] leading-snug">
+              <InfoIcon className="size-5 shrink-0" />
+              Marcaste {notSent.map((category) => CATEGORY_LABEL[category].toLowerCase()).join(", ")} en este teléfono.
+              COMPAS no la tiene registrada.
             </p>
           ) : null}
-
-          <p className="text-[12px] leading-snug text-(--nb-muted)">
-            Que una compra se pague se decide en cada cobro: depende de las reglas que puso quien autorizó el
-            presupuesto, de la confianza que exige y del historial de tu negocio.
-          </p>
-        </div>
+        </>
       ) : null}
+    </div>
+  );
+}
+
+const TONE_LOOK = {
+  wait: "bg-(--nb-sand) text-(--nb-plum)",
+  ok: "bg-(--nb-mint) text-(--nb-green)",
+  stop: "bg-[#FBE3DA] text-(--nb-alert)",
+} as const;
+
+/**
+ * The open charge, large: amount, what it is for, and where it stands. It
+ * follows the backend's answer to the customer, relayed in this browser.
+ */
+export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
+  const { charge, clearCharge } = useDemoSession();
+  if (!charge) return null;
+  const status = merchantChargeStatus(charge);
+  const categories = [...new Set(charge.lineItems.flatMap((line) => (line.category ? [line.category] : [])))];
+  const reasons = charge.result?.kind === "PURCHASE" ? charge.result.purchase.reasonCodes : charge.result?.kind === "PREVIEW" ? [...charge.result.preview.mandateRules.reasonCodes, ...(charge.result.preview.purposeCheck?.reasonCodes ?? [])] : [];
+  const done = Boolean(charge.result && (charge.result.kind === "PURCHASE" || status.tone === "stop"));
+
+  return (
+    <section aria-label="Cobro actual" className="rounded-xl border border-(--nb-line) bg-white p-4 shadow-[0_1px_3px_rgba(43,0,43,0.08)]">
+      <p className="text-[13px] text-(--nb-muted)">Cobro generado</p>
+      <p className="mt-0.5 text-[30px] leading-tight font-bold tracking-tight tabular-nums">{formatMoneyAmount(charge.amount)}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {categories.map((category) => (
+          <MerchantCategoryChip key={category} category={category} />
+        ))}
+      </div>
+      <p role="status" className={`mt-3 rounded-md px-3 py-2 text-[14px] font-semibold ${TONE_LOOK[status.tone]}`}>
+        {status.title}
+      </p>
+      {!charge.result ? (
+        <p className="mt-2 text-[13px] text-(--nb-muted)">El cliente debe abrir COMPAS en Nequi y revisar el cobro.</p>
+      ) : reasons.length > 0 && status.tone !== "ok" ? (
+        <p className="mt-2 text-[13px] text-(--nb-muted)">{reasonText(reasons[0])}.</p>
+      ) : null}
+      <p className="mt-2 text-[11px] text-(--nb-muted)">Simulación: el cobro viaja a Nequi dentro de este navegador.</p>
+      <div className="mt-3 flex gap-2">
+        {done ? (
+          <button
+            type="button"
+            onClick={onNew}
+            className={`h-11 flex-1 rounded-md bg-(--nb-plum) text-[15px] font-semibold text-white ${focusRing}`}
+          >
+            Nuevo cobro
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={clearCharge}
+          className={`h-11 flex-1 rounded-md border border-(--nb-line) text-[15px] font-semibold ${focusRing}`}
+        >
+          {done ? "Cerrar" : "Cancelar cobro"}
+        </button>
+      </div>
     </section>
   );
 }
 
+type DraftLine = { category: CompasCategory | null; amount: string };
+
+/** "1500" at scale 2 becomes "15,00", without floating point. */
+function minorToInput(value: string, scale: number): string {
+  if (scale === 0) return value;
+  const padded = value.padStart(scale + 1, "0");
+  return `${padded.slice(0, -scale)},${padded.slice(-scale)}`;
+}
+
 /**
- * SIMULATED: a charge this phone hands to Andrea's phone in the same browser.
- * The backend stores no charge yet. Its answer to Andrea comes back here.
+ * The charge form: what the customer buys and how much, line by line. The
+ * total is the sum of the lines, as the backend checks. The merchant is this
+ * shop, named by its directory id; the backend finds its wallet and categories.
  */
-export function MerchantDemoCharge() {
-  const headingId = useId();
-  const { scenario, charge, createCharge, clearCharge } = useDemoSession();
-  const result = charge?.result;
+export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const { scenario, createCharge } = useDemoSession();
+  const [lines, setLines] = useState<DraftLine[]>([{ category: null, amount: "" }]);
+  const [showIssues, setShowIssues] = useState(false);
+  const baseId = useId();
+
+  const parsed = lines.map((line) => ({ line, amount: parseAmountInput(line.amount, CHARGE_ASSET.assetScale) }));
+  const valid = parsed.every(({ line, amount }) => line.category !== null && amount.ok);
+  const total = parsed.reduce((sum, { amount }) => sum + (amount.ok ? BigInt(amount.minorUnits) : BigInt(0)), BigInt(0));
+
+  const update = (index: number, patch: Partial<DraftLine>) =>
+    setLines((current) => current.map((line, at) => (at === index ? { ...line, ...patch } : line)));
+
+  function fillFromScenario() {
+    setLines(
+      scenarioLines(scenario).map((line) => ({ category: line.category ?? null, amount: minorToInput(line.amount.value, line.amount.assetScale) })),
+    );
+  }
+
+  function generate() {
+    if (!valid) {
+      setShowIssues(true);
+      return;
+    }
+    const chargeLines: ChargeLine[] = parsed.map(({ line, amount }) => ({
+      category: line.category ?? undefined,
+      amount: { ...CHARGE_ASSET, value: amount.ok ? amount.minorUnits : "0" },
+    }));
+    const charge = buildCharge(DEMO_MERCHANTS.drogueria, chargeLines, new Date(), scenario.id);
+    if (!charge) return;
+    createCharge(charge);
+    onDone();
+  }
 
   return (
-    <section aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-[15px] font-bold">
-        Probar un cobro con COMPAS
-      </h3>
-      <p className="mt-1 text-[13px] text-(--nb-muted)">
-        Simulación: el cobro pasa al teléfono de Andrea dentro de este navegador. Escenario: {scenario.title}.
-      </p>
-
-      {!charge ? (
-        <button
-          type="button"
-          onClick={createCharge}
-          className={`mt-3 flex h-11 w-full items-center justify-center rounded-md border border-(--nb-plum) text-[15px] font-semibold hover:bg-(--nb-card) ${focusRing}`}
-        >
-          Generar cobro de {formatMoneyAmount(scenario.purchaseIntent.amount)}
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[19px] font-bold">Cobrar con COMPAS</h3>
+        <button type="button" onClick={onCancel} aria-label="Cancelar" className={`grid size-10 place-items-center rounded-full hover:bg-black/5 ${focusRing}`}>
+          <CloseIcon className="size-6" />
         </button>
-      ) : (
-        <div className="mt-3 space-y-2 rounded-lg border border-(--nb-line) p-3.5">
-          <p className="text-[14px] font-semibold">
-            Cobro de {charge.merchantDisplayName} · {formatMoneyAmount(charge.amount)}
-          </p>
-          {charge.merchantId !== DEMO_MERCHANTS.drogueria.id ? (
-            <p className="text-[12px] text-(--nb-muted)">En este escenario cobra otro comercio, no tu droguería.</p>
-          ) : null}
-          <p role="status" className="text-[13px] leading-snug">
-            {!result
-              ? "Esperando a que Andrea lo revise en Nequi."
-              : result.kind === "PREVIEW"
-                ? result.preview.next === "QUOTE"
-                  ? "Andrea lo revisó: pasa las comprobaciones previas de COMPAS. Aún no es una aprobación ni un pago."
-                  : "Andrea lo revisó: COMPAS detendría esta compra antes de cualquier pago."
-                : result.kind === "PURCHASE"
-                  ? purchaseStatusLabel(result.purchase)
-                  : errorText(result.code)}
-          </p>
-          {result?.kind === "PURCHASE" && result.purchase.reasonCodes.length > 0 ? (
-            <p className="text-[12px] text-(--nb-muted)">
-              {result.purchase.reasonCodes.map((code) => reasonText(code)).join(". ")}.
-            </p>
-          ) : null}
-          <button type="button" onClick={clearCharge} className={`text-[13px] font-semibold underline ${focusRing}`}>
-            Cerrar cobro
+      </div>
+
+      <ol className="space-y-4">
+        {lines.map((line, index) => {
+          const amountIssue = showIssues && !parsed[index].amount.ok;
+          const categoryIssue = showIssues && line.category === null;
+          return (
+            <li key={index} className="space-y-3 rounded-lg border border-(--nb-line) p-3.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[14px] font-semibold">
+                  {lines.length > 1 ? `Producto ${index + 1}` : "¿Qué está comprando el cliente?"}
+                </p>
+                {lines.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setLines((current) => current.filter((_, at) => at !== index))}
+                    className={`text-[13px] text-(--nb-muted) underline ${focusRing}`}
+                  >
+                    Quitar
+                  </button>
+                ) : null}
+              </div>
+              <fieldset>
+                <legend className="sr-only">Categoría</legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {COMPAS_CATEGORIES.map((category) => (
+                    <label
+                      key={category}
+                      className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-(--nb-line) px-1 py-2.5 text-center has-checked:border-(--nb-plum) has-checked:bg-(--nb-card) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--nb-blue)"
+                    >
+                      <input
+                        type="radio"
+                        name={`${baseId}-${index}`}
+                        checked={line.category === category}
+                        onChange={() => update(index, { category })}
+                        className="sr-only"
+                      />
+                      <CategoryGlyph category={category} className="size-6" />
+                      <span className="text-[12px] leading-tight">{CATEGORY_LABEL[category]}</span>
+                    </label>
+                  ))}
+                </div>
+                {categoryIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--nb-alert)">Elige una categoría.</p> : null}
+              </fieldset>
+              <div>
+                <label htmlFor={`${baseId}-amount-${index}`} className="text-[13px] font-medium">
+                  Monto
+                </label>
+                <div className="mt-1 flex items-center rounded-md border border-(--nb-line) focus-within:outline-2 focus-within:outline-(--nb-blue)">
+                  <input
+                    id={`${baseId}-amount-${index}`}
+                    inputMode="decimal"
+                    value={line.amount}
+                    placeholder="0"
+                    onChange={(event) => update(index, { amount: event.target.value })}
+                    aria-invalid={amountIssue ? true : undefined}
+                    className="h-11 min-w-0 flex-1 bg-transparent px-3 text-[18px] font-semibold outline-none tabular-nums"
+                  />
+                  <span className="pr-3 text-[13px] font-semibold text-(--nb-muted)">{CHARGE_ASSET.assetCode}</span>
+                </div>
+                {amountIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--nb-alert)">Escribe un monto mayor que cero.</p> : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        {lines.length < 5 ? (
+          <button
+            type="button"
+            onClick={() => setLines((current) => [...current, { category: null, amount: "" }])}
+            className={`text-[14px] font-semibold text-(--nb-blue) ${focusRing}`}
+          >
+            Agregar producto
           </button>
-        </div>
-      )}
-    </section>
+        ) : null}
+        <button type="button" onClick={fillFromScenario} className={`text-[14px] font-semibold text-(--nb-blue) ${focusRing}`}>
+          Usar ejemplo de la demo
+        </button>
+      </div>
+
+      <div className="flex items-baseline justify-between border-t border-(--nb-line) pt-3">
+        <span className="text-[14px] text-(--nb-muted)">Total del cobro</span>
+        <span className="text-[24px] font-bold tabular-nums">
+          {formatMoneyAmount({ ...CHARGE_ASSET, value: total.toString() })}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={generate}
+        className={`flex h-13 w-full items-center justify-center rounded-md bg-(--nb-plum) text-[16px] font-semibold text-white transition-opacity hover:opacity-90 active:opacity-80 ${focusRing}`}
+      >
+        Generar cobro
+      </button>
+    </div>
   );
 }

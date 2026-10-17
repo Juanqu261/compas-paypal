@@ -19,12 +19,6 @@ export const DEMO_MERCHANTS = {
   liquor: { id: "demo-merchant-liquor", displayName: "Licorera de ejemplo" },
 } as const;
 
-/** Which demo merchant charges in each scenario of `data/fixtures/demo/`. */
-export const DEMO_MERCHANT_BY_SCENARIO = {
-  "medication-pharmacy": DEMO_MERCHANTS.drogueria,
-  "alcohol-rejection": DEMO_MERCHANTS.liquor,
-} as const;
-
 export type ConsentReturn = { result: "granted" | "rejected" | "failed"; mandateId: string };
 
 /**

@@ -1,37 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { formatMoneyAmount } from "@/lib/format-money";
 import { CompasApiError, compasApi, errorCode } from "../api/client";
 import type { MeResponse, PartyView } from "../api/contracts";
 import { parseAmountInput } from "../lib/amounts";
-import { addDays, endOfDayIso, startOfDayIso, toDateInput } from "../lib/dates";
-import { CATEGORY_DESCRIPTION, CATEGORY_LABEL, errorText } from "../lib/labels";
+import { addDays, endOfDayIso, formatDate, startOfDayIso, toDateInput } from "../lib/dates";
+import { categoryList, CONFIDENCE_LABEL, ENFORCEMENT_LABEL, errorText } from "../lib/labels";
 import {
   type Asset,
+  DURATIONS,
   stepForField,
   stepIssues,
   toCreateBody,
+  WIZARD_STEP_LABEL,
   WIZARD_STEPS,
   type WizardDraft,
   type WizardStep,
 } from "../lib/wizard";
-import { AuthorizationSummary } from "../ui/AuthorizationSummary";
-import {
-  CategoryPicker,
-  ConfidencePicker,
-  EnforcementPicker,
-  ParticipantPicker,
-  TextField,
-} from "../ui/forms";
+import { ContactPicker } from "../ui/ContactPicker";
+import { ConfidencePicker, EnforcementPicker, FieldIssue, TextField } from "../ui/forms";
+import { CalendarIcon, ShieldIcon, SlidersIcon, WalletIcon } from "../ui/icons";
 import { Button, Notice, ScreenHeading } from "../ui/primitives";
+import { Avatar, CategoryStack, CategoryTiles, StepBar } from "../ui/visuals";
 
 const STEP_TITLE: Record<WizardStep, string> = {
-  participants: "¿Para quién es este presupuesto?",
-  purpose: "¿En qué se podrá utilizar?",
-  budget: "¿Cuánto puede gastar y hasta cuándo?",
-  rules: "¿Cómo quieres controlar las compras?",
-  review: "Revisa y autoriza",
+  contact: "¿Quién recibe el presupuesto?",
+  budget: "¿Cuánto y para qué?",
+  confirm: "Revisa y autoriza",
 };
 
 /** When the wallet's asset can't be read, the budget uses USD and the wallet checks it at consent. */
@@ -43,8 +39,13 @@ export function walletAsset(me: MeResponse | undefined): Asset {
     : FALLBACK_ASSET;
 }
 
-export function newDraftDates(today = new Date()) {
-  return { startDate: toDateInput(today), endDate: toDateInput(addDays(today, 30)) };
+function SummaryRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-(--cx-card) text-(--cx-ink)">{icon}</span>
+      <span className="min-w-0 text-[15px] text-(--cx-ink)">{children}</span>
+    </li>
+  );
 }
 
 export function CreateBudgetWizard({
@@ -97,6 +98,11 @@ export function CreateBudgetWizard({
     showIssues ? issues.find((issue) => issue.field === field)?.message : undefined;
   const update = (patch: Partial<WizardDraft>) => onDraftChange({ ...draft, ...patch });
 
+  const contact = participants.find((person) => person.id === draft.contactId);
+  const parsedBudget = parseAmountInput(draft.amount, asset.assetScale);
+  const parsedCap = draft.confidence !== "HIGH" ? parseAmountInput(draft.capAmount, asset.assetScale) : undefined;
+  const advancedChanged = draft.enforcement !== "ENFORCED" || draft.confidence !== "HIGH";
+
   function next() {
     if (issues.length > 0) {
       setShowIssues(true);
@@ -108,7 +114,7 @@ export function CreateBudgetWizard({
 
   async function submit() {
     const body = toCreateBody(draft, asset);
-    if (!body) return;
+    if (!body || busy) return;
     setBusy(true);
     setSubmitError(null);
     setServerIssues([]);
@@ -139,28 +145,15 @@ export function CreateBudgetWizard({
     }
   }
 
-  const delegate = participants.find((person) => person.id === draft.delegateId);
-  const beneficiary = participants.find((person) => person.id === draft.beneficiaryId);
-  const parsedBudget = parseAmountInput(draft.amount, asset.assetScale);
-  const parsedCap = draft.confidence !== "HIGH" ? parseAmountInput(draft.capAmount, asset.assetScale) : undefined;
+  const chosenDays = DURATIONS.find(
+    (option) => draft.startDate === toDateInput(today) && draft.endDate === toDateInput(addDays(today, option.days)),
+  )?.days;
 
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-[13px] text-(--cx-muted)">
-          Paso {index + 1} de {WIZARD_STEPS.length}
-        </p>
-        <div aria-hidden="true" className="mt-1.5 flex gap-1">
-          {WIZARD_STEPS.map((item, position) => (
-            <span
-              key={item}
-              className={`h-1 flex-1 rounded-full ${position <= index ? "bg-(--cx-route)" : "bg-(--cx-line)"}`}
-            />
-          ))}
-        </div>
-        <div className="mt-4">
-          <ScreenHeading focusOnMount={focusOnMount}>{STEP_TITLE[step]}</ScreenHeading>
-        </div>
+      <div className="space-y-4">
+        <StepBar steps={WIZARD_STEPS.map((item) => WIZARD_STEP_LABEL[item])} current={index} />
+        <ScreenHeading focusOnMount={focusOnMount}>{STEP_TITLE[step]}</ScreenHeading>
       </div>
 
       {serverIssues.length > 0 ? (
@@ -173,150 +166,170 @@ export function CreateBudgetWizard({
         </Notice>
       ) : null}
 
-      {step === "participants" ? (
-        <div className="space-y-5">
-          <ParticipantPicker
-            legend="Quién podrá pagar"
-            hint="Recibe permiso para pagar compras. No recibe tu dinero."
-            name="delegate"
-            people={participants}
-            value={draft.delegateId}
-            onChange={(delegateId) => update({ delegateId })}
-            issue={issueFor("delegateId")}
-          />
-          <ParticipantPicker
-            legend="Para quién es"
-            hint="No necesita billetera. Es a quien benefician las compras."
-            name="beneficiary"
-            people={participants}
-            value={draft.beneficiaryId}
-            onChange={(beneficiaryId) => update({ beneficiaryId })}
-            issue={issueFor("beneficiaryId")}
-          />
-          <Notice>Por ahora solo puedes elegir personas de demostración. Aún no hay agenda de contactos.</Notice>
-        </div>
-      ) : null}
-
-      {step === "purpose" ? (
-        <div className="space-y-3">
-          <p className="text-[14px] leading-snug text-(--cx-muted)">
-            COMPAS solo dejará pagar en comercios de estas categorías.
-          </p>
-          <CategoryPicker
-            value={draft.categories}
-            onChange={(categories) => update({ categories })}
-            issue={issueFor("categories")}
-          />
-          {draft.categories.length === 1 ? (
-            <p className="text-[13px] text-(--cx-muted)">
-              {CATEGORY_LABEL[draft.categories[0]]}: {CATEGORY_DESCRIPTION[draft.categories[0]]}
-            </p>
-          ) : null}
-        </div>
+      {step === "contact" ? (
+        <ContactPicker
+          people={participants}
+          value={draft.contactId}
+          onChange={(contactId) => update({ contactId })}
+          issue={issueFor("contactId")}
+        />
       ) : null}
 
       {step === "budget" ? (
-        <div className="space-y-4">
-          <TextField
-            label="Monto máximo"
-            hint="Es lo máximo que se podrá pagar. El dinero sigue en tu billetera hasta cada compra."
-            value={draft.amount}
-            onChange={(amount) => update({ amount })}
-            inputMode="decimal"
-            suffix={asset.assetCode}
-            issue={issueFor("amount")}
-          />
-          {!assetConfirmed ? (
-            <Notice tone="warn">
-              No pudimos leer la moneda de tu billetera. Usaremos {asset.assetCode}, sin convertir nada. Si tu billetera
-              usa otra moneda, rechazará la autorización y el presupuesto no se activará.
-            </Notice>
-          ) : null}
-          <div className="grid grid-cols-2 gap-3">
-            <TextField
-              label="Desde"
-              type="date"
-              value={draft.startDate}
-              min={toDateInput(today)}
-              onChange={(startDate) => update({ startDate })}
-              issue={issueFor("startDate")}
-            />
-            <TextField
-              label="Hasta"
-              type="date"
-              value={draft.endDate}
-              min={draft.startDate}
-              onChange={(endDate) => update({ endDate })}
-              issue={issueFor("endDate")}
-            />
-          </div>
-          <p className="text-[13px] text-(--cx-muted)">Es un presupuesto único. No se renueva cada mes.</p>
-        </div>
-      ) : null}
-
-      {step === "rules" ? (
         <div className="space-y-6">
-          <EnforcementPicker
-            value={draft.enforcement}
-            acknowledged={draft.monitoredAcknowledged}
-            onChange={(enforcement) => update({ enforcement, monitoredAcknowledged: false })}
-            onAcknowledge={(monitoredAcknowledged) => update({ monitoredAcknowledged })}
-            issue={issueFor("monitoredAcknowledged")}
-          />
-          <ConfidencePicker value={draft.confidence} onChange={(confidence) => update({ confidence })} />
-          <details className="rounded-(--cx-radius) border border-(--cx-line) p-3.5 [&_summary::-webkit-details-marker]:hidden">
-            <summary className="cursor-pointer text-[14px] font-semibold text-(--cx-ink)">Configuración avanzada</summary>
-            <div className="mt-3">
-              {draft.confidence === "HIGH" ? (
-                <p className="text-[13px] text-(--cx-muted)">
-                  Con confianza alta no hace falta un límite adicional: solo pasan comercios verificados.
-                </p>
-              ) : (
+          <div>
+            <label htmlFor="budget-amount" className="text-[14px] font-semibold text-(--cx-ink)">
+              Monto máximo
+            </label>
+            <div className="mt-1.5 flex items-baseline gap-2 border-b-2 border-(--cx-line-strong) pb-1 focus-within:border-(--cx-route)">
+              <input
+                id="budget-amount"
+                value={draft.amount}
+                onChange={(event) => update({ amount: event.target.value })}
+                inputMode="decimal"
+                placeholder="0"
+                autoComplete="off"
+                aria-invalid={issueFor("amount") ? true : undefined}
+                className="h-12 min-w-0 flex-1 bg-transparent text-[34px] font-semibold tracking-tight text-(--cx-ink) outline-none tabular-nums placeholder:text-(--cx-line-strong)"
+              />
+              <span className="text-[16px] font-semibold text-(--cx-muted)">{asset.assetCode}</span>
+            </div>
+            <FieldIssue message={issueFor("amount")} />
+            {!assetConfirmed ? (
+              <p className="mt-1.5 text-[12px] text-(--cx-warn)">
+                Moneda sin confirmar: tu billetera la revisará al autorizar.
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <p className="mb-2 text-[14px] font-semibold text-(--cx-ink)">¿En qué puede usarlo?</p>
+            <CategoryTiles
+              legend="¿En qué puede usarlo?"
+              value={draft.categories}
+              onChange={(categories) => update({ categories })}
+            />
+            <FieldIssue message={issueFor("categories")} />
+          </div>
+
+          <div>
+            <p className="mb-2 text-[14px] font-semibold text-(--cx-ink)">¿Hasta cuándo?</p>
+            <div role="group" aria-label="Duración" className="flex flex-wrap gap-2">
+              {DURATIONS.map((option) => (
+                <button
+                  key={option.days}
+                  type="button"
+                  aria-pressed={chosenDays === option.days}
+                  onClick={() =>
+                    update({ startDate: toDateInput(today), endDate: toDateInput(addDays(today, option.days)) })
+                  }
+                  className="h-10 rounded-full border border-(--cx-line-strong) px-4 text-[14px] font-medium text-(--cx-ink) aria-pressed:border-(--cx-route) aria-pressed:bg-(--cx-route) aria-pressed:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--cx-focus)"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-[14px] text-(--cx-ink)">
+              <CalendarIcon className="size-5 text-(--cx-muted)" />
+              <label htmlFor="budget-end" className="text-(--cx-muted)">
+                Hasta el
+              </label>
+              <input
+                id="budget-end"
+                type="date"
+                value={draft.endDate}
+                min={draft.startDate}
+                onChange={(event) => update({ endDate: event.target.value })}
+                className="h-10 rounded-(--cx-radius) border border-(--cx-line) bg-(--cx-surface) px-2 text-[15px] text-(--cx-ink) tabular-nums focus-visible:outline-2 focus-visible:outline-(--cx-focus)"
+              />
+            </div>
+            <FieldIssue message={issueFor("endDate") ?? issueFor("startDate")} />
+          </div>
+
+          <details className="rounded-(--cx-radius) border border-(--cx-line) [&_summary::-webkit-details-marker]:hidden" open={advancedChanged || Boolean(issueFor("monitoredAcknowledged") ?? issueFor("capAmount"))}>
+            <summary className="flex cursor-pointer items-center gap-2 p-3.5 text-[14px] font-semibold text-(--cx-ink)">
+              <SlidersIcon className="size-5 text-(--cx-muted)" />
+              Opciones avanzadas
+              <span className="ml-auto text-[12px] font-normal text-(--cx-muted)">
+                {advancedChanged ? "Modificadas" : "Recomendadas"}
+              </span>
+            </summary>
+            <div className="space-y-6 border-t border-(--cx-line) p-3.5">
+              <EnforcementPicker
+                value={draft.enforcement}
+                acknowledged={draft.monitoredAcknowledged}
+                onChange={(enforcement) => update({ enforcement, monitoredAcknowledged: false })}
+                onAcknowledge={(monitoredAcknowledged) => update({ monitoredAcknowledged })}
+                issue={issueFor("monitoredAcknowledged")}
+              />
+              <ConfidencePicker value={draft.confidence} onChange={(confidence) => update({ confidence })} />
+              {draft.confidence !== "HIGH" ? (
                 <TextField
-                  label="Límite por compra en comercios con confianza menor que alta"
-                  hint="Opcional. Una compra más grande en esos comercios quedará retenida para revisión."
+                  label="Límite por compra en comercios con menos confianza"
+                  hint="Opcional. Una compra mayor queda retenida para revisión."
                   value={draft.capAmount}
                   onChange={(capAmount) => update({ capAmount })}
                   inputMode="decimal"
                   suffix={asset.assetCode}
                   issue={issueFor("capAmount")}
                 />
-              )}
+              ) : null}
+              <TextField
+                label="Empieza el"
+                type="date"
+                value={draft.startDate}
+                min={toDateInput(today)}
+                onChange={(startDate) => update({ startDate })}
+                issue={issueFor("startDate")}
+              />
             </div>
           </details>
         </div>
       ) : null}
 
-      {step === "review" && parsedBudget.ok ? (
+      {step === "confirm" && parsedBudget.ok && contact ? (
         <div className="space-y-4">
-          <AuthorizationSummary
-            payer={me.party.displayName}
-            delegate={delegate?.displayName ?? ""}
-            beneficiary={beneficiary?.displayName ?? ""}
-            categories={draft.categories}
-            budget={{ ...asset, value: parsedBudget.minorUnits }}
-            validFrom={startOfDayIso(draft.startDate) ?? draft.startDate}
-            expiresAt={endOfDayIso(draft.endDate) ?? draft.endDate}
-            enforcement={draft.enforcement}
-            confidence={draft.confidence}
-            cap={parsedCap?.ok ? { ...asset, value: parsedCap.minorUnits } : undefined}
-          />
+          <div className="rounded-(--cx-radius) border border-(--cx-line) bg-(--cx-surface) p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <div className="flex items-center gap-3">
+              <Avatar name={contact.displayName} seed={contact.id} size="lg" />
+              <p className="text-[18px] leading-tight font-semibold text-(--cx-ink)">
+                Presupuesto para {contact.displayName}
+              </p>
+            </div>
+            <ul className="mt-3 divide-y divide-(--cx-line)">
+              <SummaryRow icon={<CategoryStack categories={draft.categories} />}>{categoryList(draft.categories)}</SummaryRow>
+              <SummaryRow icon={<WalletIcon className="size-5" />}>
+                <span className="font-semibold tabular-nums">
+                  {formatMoneyAmount({ ...asset, value: parsedBudget.minorUnits })}
+                </span>
+              </SummaryRow>
+              <SummaryRow icon={<CalendarIcon className="size-5" />}>
+                Hasta el {formatDate(endOfDayIso(draft.endDate) ?? draft.endDate)}
+                {draft.startDate !== toDateInput(today) ? `, desde el ${formatDate(startOfDayIso(draft.startDate) ?? draft.startDate)}` : ""}
+              </SummaryRow>
+              <SummaryRow icon={<ShieldIcon className="size-5" />}>
+                {ENFORCEMENT_LABEL[draft.enforcement]}
+                {draft.confidence !== "HIGH" ? `. Confianza ${CONFIDENCE_LABEL[draft.confidence].toLowerCase()}` : ""}
+                {parsedCap?.ok ? `, hasta ${formatMoneyAmount({ ...asset, value: parsedCap.minorUnits })} por compra` : ""}
+              </SummaryRow>
+            </ul>
+          </div>
+
+          <p className="flex gap-2 text-[13px] leading-snug text-(--cx-ink)">
+            <WalletIcon className="mt-px size-[18px] shrink-0 text-(--cx-route)" />
+            El dinero sigue en tu billetera. {contact.displayName} podrá usar esta autorización para pagar compras
+            permitidas.
+          </p>
           {draftOnlyReason ? (
             <Notice tone="warn" title="Se guardará como borrador">
-              {errorText(draftOnlyReason)} Un borrador no autoriza nada: {delegate?.displayName ?? "la persona"} no
-              podrá usarlo hasta que lo apruebes en tu billetera.
+              {errorText(draftOnlyReason)}
             </Notice>
           ) : (
-            <Notice title="Qué pasa al autorizar">
-              Te llevaremos a tu billetera para que apruebes un permiso de hasta{" "}
-              {formatMoneyAmount({ ...asset, value: parsedBudget.minorUnits })}. No se mueve dinero ahora: cada
-              compra se paga desde tu billetera directo al comercio, solo si cumple tus reglas.
-            </Notice>
+            <p className="text-[13px] text-(--cx-muted)">Te llevaremos a tu billetera de prueba para aprobarlo.</p>
           )}
           {!assetConfirmed ? (
             <Notice tone="warn">
-              La moneda {asset.assetCode} no está confirmada por tu billetera. COMPAS no hace conversiones: si no
-              coincide, la billetera rechazará la autorización.
+              COMPAS no convierte monedas. Si tu billetera no usa {asset.assetCode}, rechazará la autorización.
             </Notice>
           ) : null}
           {submitError ? <Notice tone="danger">{submitError}</Notice> : null}
@@ -324,12 +337,14 @@ export function CreateBudgetWizard({
       ) : null}
 
       <div className="space-y-2 pt-1">
-        {step === "review" ? (
+        {step === "confirm" ? (
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Creando presupuesto…" : draftOnlyReason ? "Guardar borrador" : "Crear y autorizar presupuesto"}
+            {busy ? "Creando…" : draftOnlyReason ? "Guardar borrador" : "Crear y autorizar"}
           </Button>
         ) : (
-          <Button onClick={next}>Continuar</Button>
+          <Button onClick={next} disabled={step === "contact" && !draft.contactId}>
+            Continuar
+          </Button>
         )}
         {index > 0 ? (
           <Button

@@ -1,6 +1,6 @@
 import type { CompasCategory, ConfidenceMinimum, CreateMandateBody, Enforcement, Money } from "../api/contracts";
 import { minorGreaterThan, parseAmountInput } from "./amounts.ts";
-import { endOfDayIso, startOfDayIso, windowProblem } from "./dates.ts";
+import { addDays, endOfDayIso, startOfDayIso, toDateInput, windowProblem } from "./dates.ts";
 
 /**
  * The create-budget wizard's state and its UX checks. The backend validates
@@ -8,15 +8,32 @@ import { endOfDayIso, startOfDayIso, windowProblem } from "./dates.ts";
  * obviously incomplete step from moving on.
  */
 
-export const WIZARD_STEPS = ["participants", "purpose", "budget", "rules", "review"] as const;
+export const WIZARD_STEPS = ["contact", "budget", "confirm"] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
+
+export const WIZARD_STEP_LABEL: Record<WizardStep, string> = {
+  contact: "Contacto",
+  budget: "Presupuesto",
+  confirm: "Confirmar",
+};
 
 /** Whole units. The backend enforces the same ceiling. */
 export const MAX_BUDGET_WHOLE_UNITS = 10_000;
 
+/** Quick choices for how long a budget lasts, in days. A date input covers the rest. */
+export const DURATIONS = [
+  { days: 7, label: "1 semana" },
+  { days: 30, label: "1 mes" },
+  { days: 90, label: "3 meses" },
+] as const;
+
 export type WizardDraft = {
-  delegateId: string;
-  beneficiaryId: string;
+  /**
+   * The one person who receives the budget. The contract still has a
+   * delegate and a beneficiary; this screen sends the same person as both,
+   * and never adds someone the payer did not choose.
+   */
+  contactId: string;
   categories: CompasCategory[];
   amount: string;
   startDate: string;
@@ -31,19 +48,24 @@ export type Asset = { assetCode: string; assetScale: number };
 
 export type StepIssue = { field: keyof WizardDraft; message: string };
 
-export function initialDraft(defaults: { delegateId?: string; beneficiaryId?: string; startDate: string; endDate: string }): WizardDraft {
+/** Nobody and no category is chosen for the payer. The rules start at their safest. */
+export function initialDraft(dates: { startDate: string; endDate: string }): WizardDraft {
   return {
-    delegateId: defaults.delegateId ?? "",
-    beneficiaryId: defaults.beneficiaryId ?? "",
-    categories: ["MEDICATION"],
+    contactId: "",
+    categories: [],
     amount: "",
-    startDate: defaults.startDate,
-    endDate: defaults.endDate,
+    startDate: dates.startDate,
+    endDate: dates.endDate,
     enforcement: "ENFORCED",
     monitoredAcknowledged: false,
     confidence: "HIGH",
     capAmount: "",
   };
+}
+
+/** A start of today and an end `days` later, as date inputs. */
+export function datesFor(days: number, today = new Date()): { startDate: string; endDate: string } {
+  return { startDate: toDateInput(today), endDate: toDateInput(addDays(today, days)) };
 }
 
 function amountIssue(raw: string, asset: Asset, field: keyof WizardDraft): StepIssue | undefined {
@@ -62,12 +84,8 @@ function amountIssue(raw: string, asset: Asset, field: keyof WizardDraft): StepI
 
 export function stepIssues(step: WizardStep, draft: WizardDraft, asset: Asset, today: Date): StepIssue[] {
   const issues: StepIssue[] = [];
-  if (step === "participants") {
-    if (!draft.delegateId) issues.push({ field: "delegateId", message: "Elige quién podrá hacer las compras." });
-    if (!draft.beneficiaryId) issues.push({ field: "beneficiaryId", message: "Elige para quién es el presupuesto." });
-  }
-  if (step === "purpose" && draft.categories.length === 0) {
-    issues.push({ field: "categories", message: "Elige al menos una categoría." });
+  if (step === "contact" && !draft.contactId) {
+    issues.push({ field: "contactId", message: "Elige quién recibe el presupuesto." });
   }
   if (step === "budget") {
     const issue = amountIssue(draft.amount, asset, "amount");
@@ -76,23 +94,22 @@ export function stepIssues(step: WizardStep, draft: WizardDraft, asset: Asset, t
       const parsed = parseAmountInput(draft.amount, asset.assetScale);
       const max = `${MAX_BUDGET_WHOLE_UNITS}${"0".repeat(asset.assetScale)}`;
       if (parsed.ok && minorGreaterThan(parsed.minorUnits, max)) {
-        issues.push({ field: "amount", message: `El máximo para un presupuesto es ${MAX_BUDGET_WHOLE_UNITS.toLocaleString("es-CO")} ${asset.assetCode}.` });
+        issues.push({ field: "amount", message: `El máximo es ${MAX_BUDGET_WHOLE_UNITS.toLocaleString("es-CO")} ${asset.assetCode}.` });
       }
     }
+    if (draft.categories.length === 0) issues.push({ field: "categories", message: "Elige al menos una categoría." });
     const problem = windowProblem(draft.startDate, draft.endDate, today);
-    if (problem === "INVALID_DATE") issues.push({ field: "endDate", message: "Elige las dos fechas." });
-    if (problem === "STARTS_IN_PAST") issues.push({ field: "startDate", message: "La fecha de inicio no puede ser anterior a hoy." });
-    if (problem === "ENDS_BEFORE_START") issues.push({ field: "endDate", message: "La fecha final debe ser posterior a la de inicio." });
-    if (problem === "ENDS_IN_PAST") issues.push({ field: "endDate", message: "La fecha final ya pasó." });
-    if (problem === "TOO_LONG") issues.push({ field: "endDate", message: "Un presupuesto puede durar hasta un año." });
-  }
-  if (step === "rules") {
+    if (problem === "INVALID_DATE") issues.push({ field: "endDate", message: "Elige hasta cuándo." });
+    if (problem === "STARTS_IN_PAST") issues.push({ field: "startDate", message: "No puede empezar antes de hoy." });
+    if (problem === "ENDS_BEFORE_START") issues.push({ field: "endDate", message: "Debe terminar después de empezar." });
+    if (problem === "ENDS_IN_PAST") issues.push({ field: "endDate", message: "Esa fecha ya pasó." });
+    if (problem === "TOO_LONG") issues.push({ field: "endDate", message: "Puede durar hasta un año." });
     if (draft.enforcement === "MONITORED" && !draft.monitoredAcknowledged) {
-      issues.push({ field: "monitoredAcknowledged", message: "Confirma que entiendes el modo supervisado." });
+      issues.push({ field: "monitoredAcknowledged", message: "Confirma que entiendes el modo «Permitir y avisarme»." });
     }
     if (draft.confidence !== "HIGH" && draft.capAmount.trim()) {
-      const issue = amountIssue(draft.capAmount, asset, "capAmount");
-      if (issue) issues.push(issue);
+      const capIssue = amountIssue(draft.capAmount, asset, "capAmount");
+      if (capIssue) issues.push(capIssue);
       else {
         const cap = parseAmountInput(draft.capAmount, asset.assetScale);
         const budget = parseAmountInput(draft.amount, asset.assetScale);
@@ -110,7 +127,7 @@ export function toCreateBody(draft: WizardDraft, asset: Asset): CreateMandateBod
   const amount = parseAmountInput(draft.amount, asset.assetScale);
   const validFrom = startOfDayIso(draft.startDate);
   const expiresAt = endOfDayIso(draft.endDate);
-  if (!amount.ok || !validFrom || !expiresAt) return undefined;
+  if (!draft.contactId || !amount.ok || !validFrom || !expiresAt) return undefined;
   const budget: Money = { value: amount.minorUnits, assetCode: asset.assetCode, assetScale: asset.assetScale };
 
   let maxDebitBelowHigh: Money | undefined;
@@ -121,8 +138,9 @@ export function toCreateBody(draft: WizardDraft, asset: Asset): CreateMandateBod
   }
 
   return {
-    delegateId: draft.delegateId,
-    beneficiaryId: draft.beneficiaryId,
+    // One person: the one who pays is the one the budget is for.
+    delegateId: draft.contactId,
+    beneficiaryId: draft.contactId,
     categories: draft.categories,
     budget,
     validFrom,
@@ -138,11 +156,27 @@ export function toCreateBody(draft: WizardDraft, asset: Asset): CreateMandateBod
 
 /** Which step a backend field error belongs to, so the wizard can send the person back there. */
 export function stepForField(field: string): WizardStep {
-  if (field.startsWith("delegate") || field.startsWith("beneficiary")) return "participants";
-  if (field.startsWith("categories")) return "purpose";
-  if (field.startsWith("budget") || field === "validFrom" || field === "expiresAt") return "budget";
-  if (field.startsWith("merchantConfidence") || field.startsWith("enforcement") || field === "monitoredAcknowledged") {
-    return "rules";
+  if (field.startsWith("delegate") || field.startsWith("beneficiary")) return "contact";
+  if (
+    field.startsWith("categories") ||
+    field.startsWith("budget") ||
+    field === "validFrom" ||
+    field === "expiresAt" ||
+    field.startsWith("merchantConfidence") ||
+    field.startsWith("enforcement") ||
+    field === "monitoredAcknowledged"
+  ) {
+    return "budget";
   }
-  return "review";
+  return "confirm";
+}
+
+/** Contacts whose name contains every word typed, ignoring case and accents. */
+export function searchContacts<T extends { displayName: string }>(people: readonly T[], query: string): T[] {
+  const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  return people.filter((person) => {
+    const name = fold(person.displayName);
+    return words.every((word) => name.includes(word));
+  });
 }

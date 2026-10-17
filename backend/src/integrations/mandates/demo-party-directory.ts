@@ -14,6 +14,14 @@ export const DEMO_PARTY_IDS = {
   gladys: "demo-beneficiary-gladys",
 } as const;
 
+/** demo/test data: contacts with no wallet, who can receive a budget like Andrea. */
+export const DEMO_CONTACTS: readonly DirectoryParty[] = [
+  { id: "demo-contact-camila", displayName: "Camila Rojas" },
+  { id: "demo-contact-mateo", displayName: "Mateo Gómez" },
+  { id: "demo-contact-lucia", displayName: "Lucía Herrera" },
+  { id: "demo-contact-santiago", displayName: "Santiago Patiño" },
+];
+
 export function createDemoPartyDirectory(env: NodeJS.ProcessEnv = process.env): PartyDirectory {
   const payerWallet = env.DEMO_PAYER_WALLET_ADDRESS?.trim();
   const parties: readonly DirectoryParty[] = [
@@ -24,6 +32,9 @@ export function createDemoPartyDirectory(env: NodeJS.ProcessEnv = process.env): 
     },
     { id: DEMO_PARTY_IDS.andrea, displayName: "Andrea" },
     { id: DEMO_PARTY_IDS.gladys, displayName: "Gladys" },
+    // More test contacts, so choosing who receives a budget is a real choice.
+    // Not anyone's address book and not verified accounts.
+    ...DEMO_CONTACTS,
   ];
   return new StaticPartyDirectory(parties);
 }

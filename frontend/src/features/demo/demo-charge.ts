@@ -6,23 +6,25 @@ import {
   type PurchasePreview,
   type PurchaseView,
 } from "../compas/api/contracts.ts";
-import { DEMO_MERCHANT_BY_SCENARIO } from "../compas/demo-identities.ts";
+import { purchaseStatus } from "../compas/lib/labels.ts";
 
 /**
  * SIMULATED: a charge the merchant phone hands to the delegate phone inside
- * this browser. COMPAS has no merchant authentication yet, so the backend
- * stores no charge: Andrea's phone sends it as her purchase, and the backend
+ * this browser, through React state in /demo. Not NFC, not a sync between
+ * devices and not stored by the backend: COMPAS has no merchant
+ * authentication yet. Andrea's phone sends it as her purchase, and the backend
  * finds the merchant's wallet and categories itself. `result` is the
  * backend's answer to Andrea, relayed here so the merchant phone can show it.
  */
 export type DemoCharge = {
   id: string;
-  scenarioId: DemoScenarioId;
+  scenarioId?: DemoScenarioId;
   merchantId: string;
   merchantDisplayName: string;
+  /** The sum of the lines. */
   amount: Money;
   /** Categories and amounts only. Product names stay on the merchant's phone. */
-  lineItems: readonly { category?: CompasCategory; amount: Money }[];
+  lineItems: readonly ChargeLine[];
   createdAt: string;
   /** PREVIEW is the backend's check before Open Payments, not a decision. */
   result?:
@@ -31,23 +33,69 @@ export type DemoCharge = {
     | { kind: "ERROR"; code: string };
 };
 
+export type ChargeLine = { category?: CompasCategory; amount: Money };
+
 function isCategory(value: string): value is CompasCategory {
   return (COMPAS_CATEGORIES as readonly string[]).includes(value);
 }
 
-/** The charge the scenario's fixture describes, without its product names. demo/test data. */
-export function chargeFromScenario(scenario: DemoScenario, now = new Date()): DemoCharge {
-  const merchant = DEMO_MERCHANT_BY_SCENARIO[scenario.id];
+/**
+ * A charge from these lines. The amount is their sum, so it always matches
+ * what the backend checks. Undefined without a line, or with lines in two assets.
+ */
+export function buildCharge(
+  merchant: { id: string; displayName: string },
+  lines: readonly ChargeLine[],
+  now = new Date(),
+  scenarioId?: DemoScenarioId,
+): DemoCharge | undefined {
+  const first = lines[0]?.amount;
+  if (!first || lines.some((line) => line.amount.assetCode !== first.assetCode || line.amount.assetScale !== first.assetScale)) {
+    return undefined;
+  }
+  const total = lines.reduce((sum, line) => sum + BigInt(line.amount.value), BigInt(0));
   return {
     id: `charge-${now.getTime().toString(36)}`,
-    scenarioId: scenario.id,
+    ...(scenarioId ? { scenarioId } : {}),
     merchantId: merchant.id,
     merchantDisplayName: merchant.displayName,
-    amount: scenario.purchaseIntent.amount,
-    lineItems: scenario.purchaseIntent.lineItems.map((line) => ({
-      ...(isCategory(line.category) ? { category: line.category } : {}),
-      amount: line.amount,
-    })),
+    amount: { ...first, value: total.toString() },
+    lineItems: lines.map((line) => ({ ...(line.category ? { category: line.category } : {}), amount: line.amount })),
     createdAt: now.toISOString(),
   };
+}
+
+/** The lines of a scenario fixture, without their product names. demo/test data. */
+export function scenarioLines(scenario: DemoScenario): ChargeLine[] {
+  return scenario.purchaseIntent.lineItems.map((line) => ({
+    ...(isCategory(line.category) ? { category: line.category } : {}),
+    amount: line.amount,
+  }));
+}
+
+export type MerchantChargeTone = "wait" | "ok" | "stop";
+
+/**
+ * What the merchant's phone says about its charge. It follows the backend's
+ * answer to the customer and never says "Pago realizado" before the wallet
+ * confirmed a payment.
+ */
+export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { title: string; tone: MerchantChargeTone } {
+  const result = charge.result;
+  if (!result) return { title: "Esperando al cliente", tone: "wait" };
+  if (result.kind === "PREVIEW") {
+    if (result.preview.next === "STOP_DENY") return { title: "Compra no permitida", tone: "stop" };
+    if (result.preview.next === "STOP_REVIEW") return { title: "Retenida para revisión", tone: "wait" };
+    return result.preview.execution === "ENABLED"
+      ? { title: "Pendiente de confirmación", tone: "wait" }
+      : { title: "Cumple las reglas. Pago desactivado en la demo", tone: "wait" };
+  }
+  if (result.kind === "ERROR") {
+    if (result.code === "PURCHASES_DISABLED_FOR_DEMO") return { title: "Pago desactivado en la demo", tone: "wait" };
+    if (result.code === "PAYMENT_OUTCOME_UNKNOWN") return { title: "Resultado incierto", tone: "wait" };
+    return { title: "No se pudo completar", tone: "stop" };
+  }
+  const status = purchaseStatus(result.purchase);
+  if (status.tone === "stop" && result.purchase.outcome === "ALLOW") return { title: "No se pudo completar", tone: "stop" };
+  return { title: status.title, tone: status.tone };
 }
