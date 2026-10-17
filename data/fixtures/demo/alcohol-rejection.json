@@ -6,7 +6,8 @@
   "notes": [
     "The same medication mandate must not pay for alcohol.",
     "Expected future result: DENY / PURPOSE_MISMATCH, with no outgoing payment. The merchant step adds MERCHANT_NOT_ELIGIBLE: the simulated KYB attestation is CIIU 4724.",
-    "The intent carries no category evidence. Its wallet address uses the reserved example domain and is not a real wallet."
+    "The intent carries no category evidence. Its wallet address uses the reserved example domain and is not a real wallet.",
+    "The charge is in COP, like the pharmacy charge. COMPAS denies it before any quote, so no payer debit is computed."
   ],
   "mandate": {
     "id": "demo-mandate-medication",
@@ -65,15 +66,15 @@
         "description": "Alcohol",
         "category": "ALCOHOL",
         "amount": {
-          "value": "1500",
-          "assetCode": "USD",
+          "value": "4500000",
+          "assetCode": "COP",
           "assetScale": 2
         }
       }
     ],
     "amount": {
-      "value": "1500",
-      "assetCode": "USD",
+      "value": "4500000",
+      "assetCode": "COP",
       "assetScale": 2
     },
     "createdAt": "2026-10-16T16:00:00Z"
