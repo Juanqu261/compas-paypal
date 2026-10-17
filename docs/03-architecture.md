@@ -73,7 +73,7 @@ The Open Payments adapter is real: `InterledgerOpenPaymentsGateway` in `backend/
 
 `createOutgoingPaymentIfAllowed` in `backend/src/application/create-outgoing-payment-if-allowed.ts` is the only payment-related behavior in the scaffold: `DENY` and `REVIEW` return before the gateway is called.
 
-The frontend does not import these modules. It will call the backend over HTTP. Routes today: `GET /health`, the Open Payments consent callback `GET /open-payments/finish`, and the merchant category routes `POST /merchant-category-claims` and `GET /merchants/categories`. The callback answers only with a redirect. Shapes are in `contracts/open-payments/` and `contracts/merchant-categories/`.
+The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the Open Payments consent callback `GET /open-payments/finish`, the merchant category routes `POST /merchant-category-claims` and `GET /merchants/categories`, and the mandate routes (demo sessions, `/me`, `/mandates…`). The callback answers only with a redirect, and it is what activates a mandate after a verified consent. Shapes are in `contracts/open-payments/`, `contracts/merchant-categories/` and `contracts/mandates/`. Mandates are in memory (`InMemoryMandateRepository`). The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
 
 ## Three surfaces, one frontend
 

@@ -235,6 +235,22 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/013-supabase-schema.md](prompts/013-supabase-schema.md)
 - Human review: Pending team review. The schema is applied but empty. The backend has no database adapter yet.
 
+### 2026-10-16 — Claude Code — COMPAS experience: mandates and authorizations
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - created branch `feature/compas-experience` from `origin/open-payments` (`8a1aa24`) in a separate git worktree, so uncommitted work on another branch stayed untouched
+  - backend: `MandateService` (`backend/src/application/mandates.ts`) for creating, authorizing, reading and revoking mandates, and `buildMandateActivity` (`backend/src/application/mandate-activity.ts`), which never counts a pending payment as paid
+  - backend: HTTP routes in `backend/src/api/mandates.ts`, demo sessions in `backend/src/api/demo-identity.ts`, wiring in `backend/src/api/server.ts`, including the `onPayerGrantFinished` hook that activates a mandate after a verified consent
+  - backend: ports `party-directory.ts` and `mandate-authorization-store.ts`, `listByPayer`/`listByDelegate` on `MandateRepository`, and in-memory adapters in `backend/src/integrations/mandates/`. No Postgres adapter: there was no `DATABASE_URL`
+  - frontend: `frontend/src/features/compas/` (typed client and hooks, Spanish labels, amount and date input, wizard checks, shared components, payer and delegate modules, host themes), the ARQ and Nequi COMPAS shells, consent-return handling in `ArqExperience.tsx`, the `/compas-api` rewrite in `next.config.ts`, `allowImportingTsExtensions` in `tsconfig.json`, and an `npm test` script
+  - tests: `backend/tests/application/mandates.test.ts`, `mandate-activity.test.ts`, `backend/tests/api/mandates.test.ts`, `frontend/tests/compas/lib.test.ts`
+  - docs: `contracts/mandates/README.md`, `docs/plans/compas-experience.md`, and updates to `contracts/README.md`, `docs/03-architecture.md`, `backend/README.md`, `backend/src/api/README.md`, `backend/.env.example` and `frontend/README.md`
+  - verification: drove ARQ, Nequi and `/demo` in headless Chrome. Active, revoked and activity screens were checked against a harness outside the repository that ran the real handlers with a fake provider and seeded spending records. That harness is not a payment test.
+  - not changed: the Open Payments gateway, the policy engine, the trust matrix, the merchant registry and `frontend/src/features/nequi-business/`
+- Prompt log: [prompts/014-compas-experience.md](prompts/014-compas-experience.md)
+- Human review: Pending team review. No end-to-end run with a real wallet consent happened: no Open Payments credentials were available. Demo sessions let any caller act as any demo party, which is acceptable only on the test network.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name

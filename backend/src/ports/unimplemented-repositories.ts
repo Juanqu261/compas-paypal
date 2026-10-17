@@ -16,6 +16,14 @@ export class UnimplementedMandateRepository implements MandateRepository {
   save(): Promise<void> {
     return notImplemented("MandateRepository.save");
   }
+
+  listByPayer(): Promise<readonly Mandate[]> {
+    return notImplemented("MandateRepository.listByPayer");
+  }
+
+  listByDelegate(): Promise<readonly Mandate[]> {
+    return notImplemented("MandateRepository.listByDelegate");
+  }
 }
 
 export class UnimplementedAuditRepository implements AuditRepository {

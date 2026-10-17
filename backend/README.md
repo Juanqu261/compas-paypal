@@ -17,11 +17,15 @@ src/policy/          Evaluation order, merchant category step
 src/ports/           Gateway, repositories, classifier, merchant category service
 src/integrations/    Open Payments adapter (real), merchant category service (in memory); other adapters throw
 src/audit/           Future audit writer
-src/api/             HTTP boundary. GET /health, GET /open-payments/finish, merchant category routes
+src/api/             HTTP boundary. GET /health, GET /open-payments/finish, merchant category routes, demo sessions, mandate routes
 scripts/op-smoke.ts  End-to-end Open Payments run on the test network
 ```
 
 Future resources are listed in `src/api/README.md`. They are not implemented.
+
+## Mandates
+
+`MandateService` (`src/application/mandates.ts`) creates, authorizes, reads and revokes mandates for the ARQ and Nequi screens. Access depends on the actor's relation in each mandate. The actor comes from a DEMO session token (`src/api/demo-identity.ts`): COMPAS has no user authentication yet. A mandate becomes `ACTIVE` only in the Open Payments finish callback, after the consent was verified. Mandates and their authorization records are in memory (`persistence: "IN_MEMORY_DEMO"`). Contract: `contracts/mandates/README.md`. Design and limits: `docs/plans/compas-experience.md`.
 
 ## Environment
 

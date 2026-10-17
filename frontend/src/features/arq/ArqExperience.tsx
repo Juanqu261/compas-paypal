@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { readConsentReturn } from "@/features/compas/demo-identities";
 import { ArqCompasShell } from "./ArqCompasShell";
 import { ArqHome } from "./ArqHome";
+
+const noSubscription = () => () => {};
+
+/** The page's query string on the client, "" while server rendering. Read once, never written here. */
+function useLocationSearch(): string {
+  return useSyncExternalStore(noSubscription, () => window.location.search, () => "");
+}
 
 /** ARQ simulation palette, scoped to this surface. */
 const arqTheme = {
@@ -21,14 +29,19 @@ type ArqView = "home" | "compas";
 /**
  * Pedro's simulated ARQ wallet (payer). It fills its container, so the same
  * component works full-screen at /arq and inside a PhoneFrame at /demo.
- * The home/COMPAS view is local UI state, not shared demo state.
+ * The home/COMPAS view is local UI state, not shared demo state. When Pedro
+ * comes back from his wallet's consent screen, COMPAS opens on that budget.
  */
 export function ArqExperience() {
   const [view, setView] = useState<ArqView>("home");
+  const [openCount, setOpenCount] = useState(0);
+  const [consentReturnDismissed, setConsentReturnDismissed] = useState(false);
   const hasNavigated = useRef(false);
   const compasRowRef = useRef<HTMLButtonElement>(null);
   const backButtonRef = useRef<HTMLButtonElement>(null);
-  const compasOpen = view === "compas";
+  const search = useLocationSearch();
+  const consentReturn = consentReturnDismissed ? null : readConsentReturn(search);
+  const compasOpen = view === "compas" || consentReturn !== null;
 
   useEffect(() => {
     if (!hasNavigated.current) return;
@@ -38,6 +51,15 @@ export function ArqExperience() {
 
   function navigate(next: ArqView) {
     hasNavigated.current = true;
+    if (next === "compas") setOpenCount((n) => n + 1);
+    if (next === "home" && consentReturn) {
+      // The return hint has been shown. Drop it from the URL so a reload starts clean.
+      setConsentReturnDismissed(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("payerAuthorization");
+      url.searchParams.delete("grantKey");
+      window.history.replaceState(window.history.state, "", url);
+    }
     setView(next);
   }
 
@@ -64,9 +86,12 @@ export function ArqExperience() {
         }`}
       />
       <ArqCompasShell
+        key={consentReturn ? `consent-return:${consentReturn.mandateId}` : "compas"}
         open={compasOpen}
         onBack={() => navigate("home")}
         backButtonRef={backButtonRef}
+        openCount={openCount}
+        consentReturn={consentReturn}
       />
     </div>
   );
