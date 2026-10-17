@@ -21,6 +21,7 @@ export function loadDemoScenarios(): DemoScenario[] {
       merchantSurface: string;
       mandate: DemoScenario["mandate"];
       purchaseIntent: DemoScenario["purchaseIntent"];
+      expectedPolicyResult: DemoScenario["expectedPolicyResult"];
     };
 
     return asDemoScenario(fixture);

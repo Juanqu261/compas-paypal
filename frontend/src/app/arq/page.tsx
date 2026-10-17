@@ -1,13 +1,14 @@
-import { ArqExperience } from "@/features/arq/ArqExperience";
 import { loadDemoScenarios } from "@/demo/load-scenarios";
 import { DemoSessionProvider } from "@/features/demo/DemoSession";
+import { ArqExperience } from "@/features/arq/ArqExperience";
+import { SurfaceStage } from "@/features/site/SurfaceStage";
 
 export default function ArqPage() {
   return (
-    <main className="mx-auto max-w-md px-6 py-8">
+    <SurfaceStage surface="arq">
       <DemoSessionProvider scenarios={loadDemoScenarios()}>
         <ArqExperience />
       </DemoSessionProvider>
-    </main>
+    </SurfaceStage>
   );
 }

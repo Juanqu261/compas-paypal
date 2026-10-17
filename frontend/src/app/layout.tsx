@@ -1,7 +1,20 @@
 import type { Metadata } from "next";
+import { Familjen_Grotesk, Young_Serif } from "next/font/google";
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { SiteHeader } from "@/features/site/SiteHeader";
 import "./globals.css";
+
+const heading = Young_Serif({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-heading",
+});
+
+const body = Familjen_Grotesk({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  variable: "--font-body",
+});
 
 export const metadata: Metadata = {
   title: "COMPAS",
@@ -11,21 +24,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-neutral-100 text-neutral-900 antialiased">
-        <header className="border-b border-neutral-200 bg-white">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-6 py-3 text-sm">
-            <Link href="/" className="font-semibold">
-              COMPAS
-            </Link>
-            <nav className="flex flex-wrap gap-3 text-neutral-600">
-              <Link href="/demo">Demo</Link>
-              <Link href="/arq">ARQ</Link>
-              <Link href="/nequi">Nequi</Link>
-              <Link href="/nequi-negocios">Nequi Negocios</Link>
-            </nav>
-          </div>
-        </header>
+    <html lang="en" className={`${heading.variable} ${body.variable}`}>
+      <body className="min-h-dvh font-site antialiased">
+        <SiteHeader />
         {children}
       </body>
     </html>
