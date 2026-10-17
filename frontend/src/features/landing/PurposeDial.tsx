@@ -178,10 +178,19 @@ function DialFace({
   );
 }
 
+/**
+ * The fixtures carry no category evidence; the backend resolves it from the
+ * merchant's wallet. Its demo seed declares the same category as the first
+ * line item, so the display reads the claim from there.
+ */
+function merchantClaim(scenario: DemoScenario): string | undefined {
+  return scenario.purchaseIntent.lineItems[0]?.category;
+}
+
 function Readout({ scenario }: { scenario: DemoScenario }) {
-  const { merchant, lineItems, amount } = scenario.purchaseIntent;
+  const { merchantDisplayName, lineItems, amount } = scenario.purchaseIntent;
   const allowed = scenario.mandate.purposePolicy.allowedPurposes;
-  const claim = merchant.categoryClaims[0]?.category ?? "UNKNOWN";
+  const claim = merchantClaim(scenario) ?? "UNKNOWN";
   const item = lineItems[0];
   const result = scenario.expectedPolicyResult;
   const allowedNames = allowed.map(purposeName).join(" and ");
@@ -191,7 +200,7 @@ function Readout({ scenario }: { scenario: DemoScenario }) {
       <div className="space-y-3">
         <p className="font-display text-5xl text-route sm:text-6xl">Allow</p>
         <p className="max-w-[34rem] text-lg leading-relaxed text-ink">
-          {merchant.displayName} claims {purposeName(claim)}, and{" "}
+          {merchantDisplayName} claims {purposeName(claim)}, and{" "}
           {item?.description.toLowerCase()} is {purposeName(item?.category ?? claim)}.
           The mandate allows {allowedNames}, so the payment goes ahead: a quote,
           then {formatMoneyAmount(amount)} from Pedro’s wallet straight to the
@@ -209,7 +218,7 @@ function Readout({ scenario }: { scenario: DemoScenario }) {
         </span>
       </p>
       <p className="max-w-[34rem] text-lg leading-relaxed text-ink">
-        Purpose mismatch. {merchant.displayName} claims {purposeName(claim)}, and
+        Purpose mismatch. {merchantDisplayName} claims {purposeName(claim)}, and
         the mandate only allows {allowedNames}. No outgoing payment is created,
         so none of the {formatMoneyAmount(amount)} moves.
       </p>
@@ -228,16 +237,11 @@ export function PurposeDial({
   const selected =
     scenarios.find((scenario) => scenario.id === selectedId) ?? scenarios[0];
   const allowed = selected.mandate.purposePolicy.allowedPurposes[0];
-  const merchantCategory =
-    selected.purchaseIntent.merchant.categoryClaims[0]?.category ?? allowed;
+  const merchantCategory = merchantClaim(selected) ?? allowed;
   const categories = [
     ...new Set([
       allowed,
-      ...scenarios.flatMap((scenario) =>
-        scenario.purchaseIntent.merchant.categoryClaims.map(
-          (claim) => claim.category,
-        ),
-      ),
+      ...scenarios.flatMap((scenario) => merchantClaim(scenario) ?? []),
     ]),
   ];
 
@@ -286,7 +290,7 @@ export function PurposeDial({
                     className="sr-only"
                   />
                   <span className="block font-medium text-ink">
-                    {scenario.purchaseIntent.merchant.displayName}
+                    {scenario.purchaseIntent.merchantDisplayName}
                   </span>
                   <span className="block text-ink-soft">
                     {item?.description}, {formatMoneyAmount(scenario.purchaseIntent.amount)}

@@ -30,7 +30,9 @@ Pair this with `.skills/hackathon-ai-rules` (AI_USAGE.md, prompts/, code freeze)
 4. **Every spend needs the delegate's action.** Otherwise any eligible merchant could drain a grant.
 5. **Federated trust, one central registry.** Each wallet is the authority on its own merchants and signs attestations (Ed25519, the same key type Open Payments clients use). The registry is an append-only trust log of claims, checks, AI flags and disputes. There is no blockchain.
 6. **One Mandate primitive** for a family, a business, an NGO or a government allocation.
-7. **Business model:** programs and payers pay; merchants join free (state bonus money is their reason to register); wallets gain users and remittance flows.
+7. **Monitored budgets (2026-10-16).** A payer can tick "allow even if not fully approved" (`enforcement: MONITORED`). Purpose checks still run and are shown in the spending report. They don't block. Mandate rules and the grant cap always do. See `docs/adr/0006-monitored-budgets.md`.
+8. **Merchant confidence (2026-10-16).** A shop declares its categories at registration. The trust matrix gives each declared category a confidence (`CONTESTED`/`LOW`/`MEDIUM`/`HIGH`) from corroboration (Cámara de Comercio, wallet KYB) × history (distinct payers who confirmed a purchase). History never changes a trust level and never reaches `HIGH` alone. Mandates set a minimum confidence. See `docs/adr/0007-merchant-confidence-matrix.md`.
+9. **Business model:** programs and payers pay; merchants join free (state bonus money is their reason to register); wallets gain users and remittance flows.
 
 ## Scope ladder
 - **MVP (per AGENTS.md):** Pedro's medication mandate with interactive consent → Andrea's pharmacy purchase → `ALLOW` → quote → outgoing payment → completed. Alcohol → `PURPOSE_MISMATCH`, and no `createOutgoingPayment` call.

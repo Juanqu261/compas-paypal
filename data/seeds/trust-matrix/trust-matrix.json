@@ -1,0 +1,26 @@
+{
+  "version": "2026-10-16.1",
+  "verification": "proposal — thresholds untuned, set by the team, not derived from data",
+  "notes": [
+    "Rows: how independent evidence corroborates a category the merchant declared. Columns: what payment history shows.",
+    "The backend refuses a matrix that breaks its invariants: contradicted rows and columns are CONTESTED, UNCORROBORATED and REGISTRY_UNBOUND never reach HIGH, and better evidence or history never lowers confidence. See backend/src/policy/trust-matrix.ts."
+  ],
+  "history": {
+    "windowDays": 180,
+    "emerging": { "minConfirmingPayers": 3, "minSpanDays": 14 },
+    "established": { "minConfirmingPayers": 10, "minSpanDays": 60 },
+    "contradicted": { "minPayers": 2, "ratioNumerator": 1, "ratioDenominator": 5 }
+  },
+  "incompatible": {
+    "MEDICATION": ["ALCOHOL", "TOBACCO"],
+    "FOOD": ["ALCOHOL", "TOBACCO"],
+    "PERSONAL_CARE": ["ALCOHOL", "TOBACCO"]
+  },
+  "cells": {
+    "CONTRADICTED": { "CONTRADICTED": "CONTESTED", "NONE": "CONTESTED", "EMERGING": "CONTESTED", "ESTABLISHED": "CONTESTED" },
+    "UNCORROBORATED": { "CONTRADICTED": "CONTESTED", "NONE": "LOW", "EMERGING": "LOW", "ESTABLISHED": "MEDIUM" },
+    "REGISTRY_UNBOUND": { "CONTRADICTED": "CONTESTED", "NONE": "LOW", "EMERGING": "MEDIUM", "ESTABLISHED": "MEDIUM" },
+    "PROVIDER_VERIFIED": { "CONTRADICTED": "CONTESTED", "NONE": "HIGH", "EMERGING": "HIGH", "ESTABLISHED": "HIGH" },
+    "EXTERNAL_VERIFIED": { "CONTRADICTED": "CONTESTED", "NONE": "HIGH", "EMERGING": "HIGH", "ESTABLISHED": "HIGH" }
+  }
+}

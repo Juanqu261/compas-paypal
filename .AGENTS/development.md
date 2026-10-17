@@ -19,6 +19,7 @@ npm install
 npm run dev
 npm run typecheck
 npm test
+npm run op:smoke   # real Open Payments run; needs backend/.env
 ```
 
 There is no root `package.json` and no frontend test script. Domain and policy tests live in `backend/tests`.

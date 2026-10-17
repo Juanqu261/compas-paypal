@@ -64,15 +64,16 @@ Ports:
 
 - `OpenPaymentsGateway` — wallet resolution, grants, incoming payments, quotes, outgoing payments, payment status
 - `MandateRepository`
-- `MerchantRegistry`
+- `MerchantRegistry` — resolves a wallet address to COMPAS categories and trust levels
+- `MerchantTrustLog`, `CategorySourceRegistry`, `CategoryMappingRepository`, `CategoryEvidenceFeed` — the merchant category service (see [ADR 0005](adr/0005-merchant-category-attestations.md))
 - `PurposeClassifier`
 - `AuditRepository`
 
-Current adapters throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
+The Open Payments adapter is real: `InterledgerOpenPaymentsGateway` in `backend/src/integrations/open-payments/`. It is used when `CLIENT_WALLET_ADDRESS`, `KEY_ID` and `PRIVATE_KEY_PATH` are set. Otherwise `UnimplementedOpenPaymentsGateway` throws. The merchant category service is real but in memory: `TrustLogMerchantRegistry` with `InMemoryTrustLog`, seeded with simulated Nequi Negocios evidence. Its RUES and health-registry feeds throw. The other adapters still throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
 
 `createOutgoingPaymentIfAllowed` in `backend/src/application/create-outgoing-payment-if-allowed.ts` is the only payment-related behavior in the scaffold: `DENY` and `REVIEW` return before the gateway is called.
 
-The frontend does not import these modules. It will call the backend over HTTP. `GET /health` is the only route implemented today.
+The frontend does not import these modules. It will call the backend over HTTP. Routes today: `GET /health`, the Open Payments consent callback `GET /open-payments/finish`, and the merchant category routes `POST /merchant-category-claims` and `GET /merchants/categories`. The callback answers only with a redirect. Shapes are in `contracts/open-payments/` and `contracts/merchant-categories/`.
 
 ## Three surfaces, one frontend
 
@@ -122,7 +123,7 @@ sequenceDiagram
   end
 ```
 
-The gateway call in that diagram is future behavior. The unimplemented gateway rejects every call today. A decision rendered by the frontend is not authoritative.
+The gateway calls in that diagram are implemented. The orchestrator that makes them is not, and `npm run op:smoke` exercises the Open Payments leg alone. A decision rendered by the frontend is not authoritative.
 
 Evaluation order is the constant `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts` and is explained in [05-policy-engine.md](05-policy-engine.md).
 

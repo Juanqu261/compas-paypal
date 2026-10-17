@@ -5,8 +5,8 @@
   "merchantSurface": "Nequi Negocios simulation",
   "notes": [
     "Expected ALLOW is the story outcome once eligible evidence exists. It is not a decision this scaffold computed.",
-    "The category claim is SELF_DECLARED demo data and is not verification.",
-    "Droguería Central is simulated. No wallet address or quote is included."
+    "The intent carries no category evidence. COMPAS resolves it from the merchant's wallet address. The backend seeds a simulated Nequi Negocios self-declaration and KYB attestation (CIIU 4773) for this wallet.",
+    "Droguería Central is simulated. Its wallet address uses the reserved example domain and is not a real wallet. No quote is included."
   ],
   "mandate": {
     "id": "demo-mandate-medication",
@@ -37,8 +37,16 @@
     },
     "purposePolicy": {
       "id": "demo-policy-medication",
-      "allowedPurposes": ["MEDICATION"],
-      "eligibleCategories": ["MEDICATION"]
+      "allowedPurposes": [
+        "MEDICATION"
+      ],
+      "eligibleCategories": [
+        "MEDICATION"
+      ],
+      "merchantConfidence": {
+        "minimum": "HIGH"
+      },
+      "enforcement": "ENFORCED"
     },
     "status": "ACTIVE",
     "validFrom": "2026-10-16T00:00:00Z",
@@ -49,17 +57,8 @@
     "id": "demo-intent-pharmacy",
     "mandateId": "demo-mandate-medication",
     "delegateId": "demo-delegate-andrea",
-    "merchant": {
-      "id": "demo-merchant-drogueria-central",
-      "displayName": "Droguería Central",
-      "categoryClaims": [
-        {
-          "category": "MEDICATION",
-          "trustLevel": "SELF_DECLARED",
-          "evidenceRef": "demo-claim-only"
-        }
-      ]
-    },
+    "merchantWalletAddressUrl": "https://wallet.example/demo-drogueria-central",
+    "merchantDisplayName": "Droguería Central",
     "lineItems": [
       {
         "id": "demo-line-acetaminophen",

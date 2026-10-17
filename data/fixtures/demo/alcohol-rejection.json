@@ -5,7 +5,8 @@
   "merchantSurface": "Nequi Negocios simulation",
   "notes": [
     "The same medication mandate must not pay for alcohol.",
-    "Expected future result: DENY / PURPOSE_MISMATCH, with no outgoing payment."
+    "Expected future result: DENY / PURPOSE_MISMATCH, with no outgoing payment. The merchant step adds MERCHANT_NOT_ELIGIBLE: the simulated KYB attestation is CIIU 4724.",
+    "The intent carries no category evidence. Its wallet address uses the reserved example domain and is not a real wallet."
   ],
   "mandate": {
     "id": "demo-mandate-medication",
@@ -36,8 +37,16 @@
     },
     "purposePolicy": {
       "id": "demo-policy-medication",
-      "allowedPurposes": ["MEDICATION"],
-      "eligibleCategories": ["MEDICATION"]
+      "allowedPurposes": [
+        "MEDICATION"
+      ],
+      "eligibleCategories": [
+        "MEDICATION"
+      ],
+      "merchantConfidence": {
+        "minimum": "HIGH"
+      },
+      "enforcement": "ENFORCED"
     },
     "status": "ACTIVE",
     "validFrom": "2026-10-16T00:00:00Z",
@@ -48,17 +57,8 @@
     "id": "demo-intent-liquor",
     "mandateId": "demo-mandate-medication",
     "delegateId": "demo-delegate-andrea",
-    "merchant": {
-      "id": "demo-merchant-example-liquor",
-      "displayName": "Example liquor store",
-      "categoryClaims": [
-        {
-          "category": "ALCOHOL",
-          "trustLevel": "SELF_DECLARED",
-          "evidenceRef": "demo-claim-only"
-        }
-      ]
-    },
+    "merchantWalletAddressUrl": "https://wallet.example/demo-example-liquor",
+    "merchantDisplayName": "Example liquor store",
     "lineItems": [
       {
         "id": "demo-line-alcohol",

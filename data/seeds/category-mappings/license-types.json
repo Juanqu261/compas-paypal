@@ -1,0 +1,7 @@
+{
+  "version": "2026-10-16.1",
+  "verification": "Unverified. From memory, Decreto 780 de 2016 and Resolución 1403 de 2007 require pharmacy establishments to register with the territorial health authority. Check before a real source is added.",
+  "mappings": [
+    { "licenseType": "CO_PHARMACY_ESTABLISHMENT", "label": "Pharmacy establishment (droguería) registered with the territorial health authority", "categories": ["MEDICATION"] }
+  ]
+}

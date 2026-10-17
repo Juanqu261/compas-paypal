@@ -25,7 +25,7 @@ These codes come from memory and are not verified. Check them against the annex 
 | `FOOD` (bonus roadmap) | 4711 (non-specialized, mainly food), 4721–4723, 4729 | 4724 |
 
 ## Research the design rests on
-- **Merchant registry.** RUES, run by the Cámaras de Comercio, records one main CIIU code plus up to three secondary ones, which must match the RUT. SIC supervises but doesn't hold the registry. A CIIU code is not proof of what a shop sells: Supersociedades Oficio 220-178431 (2024) lets merchants carry out unregistered lawful activities. A 2008 Bogotá study found Cámara pharmacy lists that included shops not selling medicine. No open bulk RUES or droguería dataset was found; lookups go one NIT at a time.
+- **Merchant registry.** RUES, run by the Cámaras de Comercio, records one main CIIU code plus up to three secondary ones, which must match the RUT. SIC supervises but doesn't hold the registry. A CIIU code is not proof of what a shop sells: Supersociedades Oficio 220-178431 (2024) lets merchants carry out unregistered lawful activities. A 2008 Bogotá study found Cámara pharmacy lists that included shops not selling medicine. Confecámaras does publish monthly bulk RUES extracts on datos.gov.co (CC BY-SA 4.0): establishments with main and secondary CIIU (`nb3d-v3n7`) and their owners (`c82u-588k`). `data/seeds/merchant-registry/` holds a Medellín sample. In it, only 49% of active 4773 shops have a pharmacy name. Open pharmacy-establishment lists exist for Risaralda, Casanare, Norte de Santander and Valle, but none was found for Antioquia.
 - **Wallet data.** Nequi Negocios (2025, built with Wompi) offers QR, links and card acceptance with free signup. No public API exposing a merchant's activity was found, so in the demo it's a simulated wallet node.
 - **Food bonuses.**
   - Medellín Cero Hambre 2026: 81,725 bonuses for 16,345 households at "establecimientos autorizados".
@@ -38,6 +38,7 @@ These codes come from memory and are not verified. Check them against the annex 
 - **Interledger precedent.** Spend Secure (UCT 2024) restricted remittance spending; COMPAS differs by being wallet-embedded with a shared merchant trust registry. Wider prior art is in `docs/09-research-and-prior-art.md`.
 
 ## Sources
+- RUES open data (Confecámaras): https://www.datos.gov.co/d/nb3d-v3n7 and https://www.datos.gov.co/d/c82u-588k
 - RUES form (CCMA): https://www.camaramedellin.com.co/Portals/0/Documentos/Crear%20Empresa/Formatos%20y%20Formularios/Instrucciones%20del%20formulario%20RUES.pdf
 - Supersociedades oficio (INCP): https://incp.org.co/publicaciones/2024/08/supersociedades-se-pronuncia-sobre-actividades-adicionales-de-comerciantes-fuera-del-rues-y-rut/
 - UNAD Bogotá pharmacy study: https://repository.unad.edu.co/handle/10596/1693

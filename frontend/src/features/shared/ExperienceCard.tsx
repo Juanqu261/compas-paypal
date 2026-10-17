@@ -11,7 +11,7 @@ type ExperienceCardProps = {
 
 export function ExperienceCard({ surface, person, role }: ExperienceCardProps) {
   const { scenario } = useDemoSession();
-  const merchant = scenario.purchaseIntent.merchant.displayName;
+  const merchant = scenario.purchaseIntent.merchantDisplayName;
   const purpose = scenario.mandate.purposePolicy.allowedPurposes.join(", ");
 
   return (

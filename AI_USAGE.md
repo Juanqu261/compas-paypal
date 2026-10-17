@@ -55,6 +55,82 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/002-agent-skills.md](prompts/002-agent-skills.md), prompts 11–12
 - Human review: Pending team review.
 
+### 2026-10-16 — Claude Code — Open Payments integration plan
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role: read the scaffold and the `@interledger/open-payments` 7.4.0 type definitions, then wrote `docs/plans/open-payments-integration.md`. No application code.
+- Prompt log: [prompts/004-open-payments-integration-plan.md](prompts/004-open-payments-integration-plan.md)
+- Human review: Pending team review.
+
+### 2026-10-16 — Claude Code — Open Payments integration
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - revised `backend/src/ports/open-payments-gateway.ts` and added `backend/src/ports/grant-store.ts`
+  - wrote the real adapter and its helpers in `backend/src/integrations/open-payments/` (`interledger-open-payments-gateway.ts`, `sdk-client.ts`, `config.ts`, `errors.ts`, `mappers.ts`, `interaction-hash.ts`, `in-memory-grant-store.ts`, `create-open-payments-gateway.ts`)
+  - added the consent callback `backend/src/api/open-payments-finish.ts` and wired it into `backend/src/api/server.ts`
+  - wrote the smoke script `backend/scripts/op-smoke.ts`
+  - wrote the tests in `backend/tests/integrations/open-payments/`, `backend/tests/api/` and `backend/tests/integration/`
+  - updated `backend/.env.example`, `backend/package.json`, `contracts/open-payments/README.md` and the Open Payments docs
+  - restored this file. Merge commit `762d25a` had deleted it.
+- Prompt log: [prompts/005-open-payments-integration.md](prompts/005-open-payments-integration.md)
+- Human review: Pending team review. The adapter was tested against an SDK test double and an offline wiring check only. It has not yet run against the Interledger test network. `npm run op:smoke` is the first real run.
+
+### 2026-10-16 — Claude Code — Merchant category service plan
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role: design discussion on where merchant categories belong relative to Open Payments, then wrote `docs/plans/merchant-category-service.md`. No application code.
+- Prompt log: [prompts/006-merchant-category-service-plan.md](prompts/006-merchant-category-service-plan.md)
+- Human review: Pending team review. The MCC and CIIU mappings in the plan are from memory and marked unverified. Access to card-network merchant-lookup APIs is unverified.
+
+### 2026-10-16 — Claude Code — Merchant category service
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - revised the plan `docs/plans/merchant-category-service.md` after a design discussion: card-network MCCs dropped; wallet KYB, RUES, health-authority registration and self-declaration became the evidence sources
+  - wrote the domain types `backend/src/domain/merchant-category.ts` and `merchant-identifiers.ts`, and changed `merchant.ts`, `mandate.ts`, `purchase.ts`, `policy-decision.ts` and `index.ts`
+  - wrote the ports `merchant-trust-log.ts`, `category-source-registry.ts`, `category-mapping-repository.ts` and `category-evidence-feed.ts`, and revised `merchant-registry.ts`
+  - wrote `backend/src/application/category-claim-submission.ts`, `ingest-category-claim.ts` and `resolve-merchant-categories.ts`, plus `backend/src/policy/merchant-category-evidence.ts`
+  - wrote the adapters in `backend/src/integrations/merchant-registry/` (in-memory trust log, source registry, mapping loader, Ed25519 check, NIT HMAC, demo seed, service wiring) and the throwing RUES and health-registry feeds in `backend/src/integrations/category-sources/`
+  - added `backend/src/api/merchant-categories.ts` and wired it into `server.ts`
+  - wrote the seeds in `data/seeds/category-mappings/` and `data/seeds/category-sources/`, and updated both demo fixtures
+  - wrote `contracts/merchant-categories/` and `docs/adr/0005-merchant-category-attestations.md`, and updated the domain, architecture, policy and AI-classification docs and the backend READMEs and `.env.example`
+  - changed the frontend demo card to read `merchantDisplayName` (`frontend/src/demo/scenarios.ts`, `frontend/src/features/shared/ExperienceCard.tsx`)
+  - wrote the tests under `backend/tests/` (domain, application, policy, api, integration, contracts, integrations/merchant-registry)
+- Prompt log: [prompts/007-merchant-category-service.md](prompts/007-merchant-category-service.md)
+- Human review: Pending team review. Backend typecheck and all 107 tests pass. The frontend change was not typechecked, because the frontend dependencies were not installed. The CIIU 4773 title was checked against secondary sources only; the other CIIU rows and the pharmacy-registration rules are unverified and marked so in the seed files. Every evidence source is simulated.
+
+### 2026-10-16 — Claude Code — Monitored budgets and the purchase flow
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - added the payer's tick, `purposePolicy.enforcement` (`ENFORCED` | `MONITORED`), plus `PurposeCheck` and the reason codes `DELEGATE_NOT_AUTHORIZED` and `PAYER_MONITORED_EXCEPTION`, in `backend/src/domain/`
+  - wrote the deterministic purchase policy `backend/src/policy/evaluate-purchase.ts`
+  - wrote `backend/src/application/purchase-under-mandate.ts` (COMPAS on top of Open Payments: mandate rules, merchant categories, incoming payment and quote, budget, decision, gated outgoing payment) and `spending-report.ts`
+  - added the `SpendingLog` port, the `SpendingRecord` type and `backend/src/integrations/spending/in-memory-spending-log.ts`
+  - wrote the tests `backend/tests/policy/evaluate-purchase.test.ts` and `backend/tests/application/purchase-under-mandate.test.ts`, including a real-adapter check against the SDK test double
+  - wrote `docs/adr/0006-monitored-budgets.md` and `contracts/purchases/README.md`; added the layering section and diagram to `docs/04-open-payments-mapping.md`; updated `docs/02-domain-model.md`, `docs/05-policy-engine.md`, `backend/README.md`, `AGENTS.md` (one invariant line), `.skills/compas-context/SKILL.md` (one decision) and both demo fixtures
+- Prompt log: [prompts/008-monitored-budgets.md](prompts/008-monitored-budgets.md)
+- Human review: Pending team review. Backend typecheck and all 121 tests pass. The purchase flow is not exposed over HTTP and has not run against the test network. The mandate's remaining capacity is not updated after a payment.
+
+### 2026-10-16 — Claude Code — COMPAS smoke test
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - wrote `backend/scripts/compas-smoke.ts` and the `compas:smoke` npm script: payer consent on the test network, then `purchaseUnderMandate` per scenario, with logging wrappers on the merchant registry and the gateway, then the spending report
+  - moved the terminal and consent helpers from `backend/scripts/op-smoke.ts` into `backend/scripts/lib/smoke-io.ts`, with no behavior change
+  - added the optional `DEMO_LIQUOR_WALLET_ADDRESS` to the demo category seed and `backend/.env.example`, with a test
+  - documented the run in `backend/README.md` and `docs/04-open-payments-mapping.md`
+- Prompt log: [prompts/009-compas-smoke.md](prompts/009-compas-smoke.md)
+- Human review: Pending team review. Typecheck and all 122 tests pass. The script was only checked for loading and argument errors. It has not run against the test network; that needs the payer's consent in a browser.
+
+### 2026-10-16 — Claude Code — COMPAS smoke test, one merchant wallet
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role: changed `backend/scripts/compas-smoke.ts` so `DEMO_MERCHANT_WALLET_ADDRESS` plays both the pharmacy and the liquor store, each in its own in-memory category service. Removed `DEMO_LIQUOR_WALLET_ADDRESS` from `backend/.env.example` and `backend/README.md`.
+- Prompt log: [prompts/009-compas-smoke.md](prompts/009-compas-smoke.md), prompt 2
+- Human review: Pending team review. Typecheck and all 122 tests pass. An offline check confirmed that each role resolves without a conflict. The script has not run against the test network.
+
 ### 2026-10-16 — Claude Code — ARQ surface UI
 
 - Tool: Claude Code (Claude Opus 5.5)
@@ -96,16 +172,6 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/006-nequi-negocios-ui.md](prompts/006-nequi-negocios-ui.md)
 - Human review: Pending team review. Merchant name, sales amounts, dates, and the checkout link text are local `demo/test data`.
 
-## Entry template
-
-### YYYY-MM-DD — Tool name
-
-- Tool:
-- Role:
-- Prompt log:
-- Human review:
-- Notes:
-
 ### 2026-10-16 — Claude Code — frontend design skill
 
 - Tool: Claude Code (Claude Opus 5.5)
@@ -123,3 +189,73 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
   - the simulated apps inside the phones were not changed
 - Prompt log: [prompts/008-site-redesign.md](prompts/008-site-redesign.md)
 - Human review: Pending team review. Check the copy against the pitch guardrails in `.skills/compas-context/SKILL.md`.
+
+### 2026-10-16 — Claude Code — merge main into open-payments
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - merged `origin/main` (`8da1554`) into `open-payments` and resolved two conflicts
+  - `AI_USAGE.md`: kept the entries of both branches. Moved main's frontend-design and site-redesign entries above the template.
+  - `frontend/src/demo/scenarios.ts`: kept this branch's `merchantDisplayName`, because the fixtures no longer carry category evidence, and kept main's `lineItems`, `amount` and `expectedPolicyResult`
+  - `frontend/src/features/landing/PurposeDial.tsx`: reads `merchantDisplayName`, and reads the merchant's displayed category from the first line item, which matches the category the backend demo seed declares for that wallet
+- Prompt log: [prompts/010-merge-main.md](prompts/010-merge-main.md)
+- Human review: Pending team review. Prompt numbers 004, 006 and 008 now exist twice, once per branch.
+
+### 2026-10-16 — Claude Code — merchant trust matrix
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - wrote the plan `docs/plans/trust-matrix.md`, then, after the team changed the framing, `docs/adr/0007-merchant-confidence-matrix.md` and the amendment note in ADR 0005
+  - backend: declared-category corroboration and the NIT-bound-twice conflict in the resolver, the observation log, history grading, the trust matrix and its invariant checks, the revised merchant step and the per-purchase confidence cap, payer confirmations, and the Cámara de Comercio registry adapter against a provisional contract
+  - replaced `acceptedTrustLevels` with `merchantConfidence` in the domain and the demo fixtures, added the demo tienda, and wrote the tests (122 → 173)
+  - contracts `merchant-history/` and `merchant-registry/` (provisional), and updates to `docs/02`, `docs/05`, the READMEs and `.env.example`
+- Prompt log: [prompts/011-trust-matrix.md](prompts/011-trust-matrix.md)
+- Human review: Pending team review. The matrix cells and thresholds are untuned team choices. The registry contract is an assumption about another branch's database. The renewal deadline (31 March) is unverified. Payer confirmations have no authentication yet.
+
+### 2026-10-16 — Claude Code — RUES merchant registry seed
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - web research: found the Confecámaras RUES open datasets on datos.gov.co (`nb3d-v3n7`, `c82u-588k`) and the open pharmacy-establishment lists of other departments
+  - wrote `backend/scripts/fetch-rues-registry.ts` and the `registry:fetch` script in `backend/package.json`
+  - generated `data/seeds/merchant-registry/rues-medellin.json` (1,900 establishments, CC BY-SA 4.0) and wrote its `README.md`
+  - updated `data/seeds/README.md`, `.skills/compas-context/REFERENCE.md` and `docs/plans/merchant-category-service.md`, where the research note said no bulk RUES feed existed
+  - after the trust-matrix merge (ADR 0007): wrote `backend/src/integrations/category-sources/json-business-registry-lookup.ts` and its test, added `MERCHANT_REGISTRY_FILE` to `data-paths.ts`, and answered the open questions in `contracts/merchant-registry/README.md`
+- Prompt log: [prompts/012-rues-merchant-registry.md](prompts/012-rues-merchant-registry.md)
+- Human review: Pending team review. The name-keyword figures in the seed README are a heuristic, not evidence. The CIIU titles in the mapping table are still unverified.
+
+### 2026-10-16 — Claude Code — Supabase schema proposal
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - read the backend's ports and domain types, and listed the empty Supabase project's tables, migrations and extensions (read-only)
+  - wrote the migration `data/migrations/20261017032839_compas_core.sql`, `data/schema/README.md` and `data/migrations/README.md`, and updated `data/README.md`
+  - checked the migration on a throwaway Postgres 17 container with dummy rows
+  - applied it to the team's Supabase project on the user's request (migration `20261017032839`), then checked RLS, grants and the security advisors
+- Prompt log: [prompts/013-supabase-schema.md](prompts/013-supabase-schema.md)
+- Human review: Pending team review. The schema is applied but empty. The backend has no database adapter yet.
+
+### 2026-10-16 — Claude Code — Postgres adapters and budget reservation
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - added the `postgres` driver (3.4.9) and wrote the Postgres adapters in `backend/src/integrations/postgres/`
+  - wired them into the server, the category and history factories, the Open Payments gateway factory and `scripts/compas-smoke.ts`
+  - extended `MandateRepository` with `reserveCapacity`/`releaseCapacity`, added `InMemoryMandateRepository`, and made `purchaseUnderMandate` reserve the quoted debit before recording an `ALLOW`
+  - made the HMAC key required with a database, made the demo seeds idempotent, and wrote `scripts/load-rues-registry.ts` (`npm run registry:load`)
+  - fixed the `npm test` glob, which ran 18 of 27 test files. All 188 tests now run.
+  - wrote `tests/integrations/postgres/postgres-adapters.test.ts` and reservation tests in `tests/application/purchase-under-mandate.test.ts`, and updated `backend/README.md`, `backend/.env.example` and `data/schema/README.md`
+  - checked everything on a local Postgres 17 container. Nothing new was applied to Supabase.
+  - fixed the database user in the local `backend/.env`, generated its HMAC key, loaded the Cámara de Comercio registry into Supabase, and wrote `contracts/data-model/README.md` for the frontend team
+- Prompt log: [prompts/014-postgres-adapters.md](prompts/014-postgres-adapters.md)
+- Human review: Pending team review. The server was started once against Supabase, and the registry was loaded there. The adapter tests ran only on the local container. Dropping the observation→spending foreign key is left to the team.
+
+## Entry template
+
+### YYYY-MM-DD — Tool name
+
+- Tool:
+- Role:
+- Prompt log:
+- Human review:
+- Notes:

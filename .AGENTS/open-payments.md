@@ -4,7 +4,9 @@ Open Payments moves value between wallet addresses. COMPAS decides whether a del
 
 Purpose restrictions belong to COMPAS. Grants, access actions, and limits belong to Open Payments. `MEDICATION` is not an Open Payments scope.
 
-Keep the Interledger SDK behind `OpenPaymentsGateway` in `backend/src/ports/open-payments-gateway.ts`. The current adapter throws. Do not replace that throw with a fabricated wallet, grant, quote, or payment.
+Keep the Interledger SDK behind `OpenPaymentsGateway` in `backend/src/ports/open-payments-gateway.ts`. Only `backend/src/integrations/open-payments/` imports `@interledger/open-payments`. When the client env is missing, the backend uses `UnimplementedOpenPaymentsGateway`, which throws. Do not replace that throw, or any gateway error, with a fabricated wallet, grant, quote, or payment.
+
+Access tokens, continuation tokens and nonces stay inside the adapter and the `GrantStore`. They never cross the port, reach HTTP responses, logs or `data/`. Keep the SDK `logLevel` at `warn` or above, because its debug logs print token-bearing bodies.
 
 An outgoing-payment grant can be obtained before the final recipient is known. That is how Pedro can authorize a budget before Andrea chooses a pharmacy. The recipient is the merchant, not the delegate.
 
@@ -14,4 +16,4 @@ Do not hardcode an exchange rate and present it as a live quote. Cross-currency 
 
 Do not put health data or other sensitive personal data in Open Payments metadata. Opaque references only: `compasMandateId`, `compasDecisionId`, `externalReference`.
 
-Client configuration uses `CLIENT_WALLET_ADDRESS`, `KEY_ID`, and `PRIVATE_KEY_PATH` in `backend/.env.example`.
+Client configuration uses `CLIENT_WALLET_ADDRESS`, `KEY_ID`, and `PRIVATE_KEY_PATH` in `backend/.env.example`. `npm run op:smoke` checks the Open Payments leg end to end on the test network. Its plan and handoff contract are in `docs/plans/open-payments-integration.md`.

@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compas.example/contracts/merchant-categories/category-claim-submission.schema.json",
+  "title": "COMPAS category claim submission",
+  "description": "Body of POST /merchant-category-claims, and the shape a pull adapter returns. Signed as raw bytes with Ed25519 in the compas-signature header for push sources. There is no trustLevel field: the source registry assigns trust. The backend parser in backend/src/application/category-claim-submission.ts mirrors this schema.",
+  "oneOf": [
+    { "$ref": "#/$defs/categoryClaim" },
+    { "$ref": "#/$defs/licenseClaim" },
+    { "$ref": "#/$defs/identityBinding" },
+    { "$ref": "#/$defs/revocation" },
+    { "$ref": "#/$defs/flag" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:/-]{1,128}$" },
+    "schemaVersion": { "const": "1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "walletAddressUrl": {
+      "type": "string",
+      "description": "Open Payments wallet address URL or $payment.pointer. No query, fragment or credentials."
+    },
+    "taxId": {
+      "type": "string",
+      "maxLength": 32,
+      "description": "Colombian NIT, with or without dots and check digit. A given check digit must be correct. Stored only as an HMAC."
+    },
+    "compasCategory": { "enum": ["MEDICATION", "FOOD", "PERSONAL_CARE", "ALCOHOL", "TOBACCO"] },
+    "subject": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "walletAddressUrl"],
+          "properties": {
+            "kind": { "const": "WALLET_ADDRESS" },
+            "walletAddressUrl": { "$ref": "#/$defs/walletAddressUrl" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "taxId"],
+          "properties": {
+            "kind": { "const": "TAX_ID" },
+            "taxId": { "$ref": "#/$defs/taxId" }
+          }
+        }
+      ]
+    },
+    "code": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "code"],
+      "properties": {
+        "system": { "enum": ["CIIU_REV4_AC"] },
+        "code": { "type": "string", "pattern": "^\\d{4}$" },
+        "role": { "enum": ["PRIMARY", "SECONDARY"] }
+      }
+    },
+    "categoryClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "subject", "observedAt"],
+      "description": "Needs codes or declaredCategories. Only a MERCHANT source may send declaredCategories, and only about a wallet address. At most one PRIMARY code.",
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "sourceId": { "$ref": "#/$defs/id" },
+        "submissionId": { "$ref": "#/$defs/id" },
+        "type": { "const": "CATEGORY_CLAIM" },
+        "subject": { "$ref": "#/$defs/subject" },
+        "codes": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/code" } },
+        "declaredCategories": { "type": "array", "items": { "$ref": "#/$defs/compasCategory" } },
+        "observedAt": { "$ref": "#/$defs/timestamp" },
+        "validUntil": { "$ref": "#/$defs/timestamp" },
+        "evidenceRef": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "licenseClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "subject", "licenseType", "licenseRef", "observedAt"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "sourceId": { "$ref": "#/$defs/id" },
+        "submissionId": { "$ref": "#/$defs/id" },
+        "type": { "const": "LICENSE_CLAIM" },
+        "subject": { "$ref": "#/$defs/subject" },
+        "licenseType": { "enum": ["CO_PHARMACY_ESTABLISHMENT"] },
+        "licenseRef": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "observedAt": { "$ref": "#/$defs/timestamp" },
+        "validUntil": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "identityBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "walletAddressUrl", "taxId", "observedAt"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "sourceId": { "$ref": "#/$defs/id" },
+        "submissionId": { "$ref": "#/$defs/id" },
+        "type": { "const": "IDENTITY_BINDING" },
+        "walletAddressUrl": { "$ref": "#/$defs/walletAddressUrl" },
+        "taxId": { "$ref": "#/$defs/taxId" },
+        "observedAt": { "$ref": "#/$defs/timestamp" },
+        "validUntil": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "revocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "revokesSubmissionId", "reason"],
+      "description": "Revokes one of the same source's earlier submissions.",
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "sourceId": { "$ref": "#/$defs/id" },
+        "submissionId": { "$ref": "#/$defs/id" },
+        "type": { "const": "REVOCATION" },
+        "revokesSubmissionId": { "$ref": "#/$defs/id" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 280 }
+      }
+    },
+    "flag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "walletAddressUrl", "category", "note"],
+      "description": "Lowers trust only: a flag on an eligible category leads to REVIEW. The note must not hold personal or health data.",
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "sourceId": { "$ref": "#/$defs/id" },
+        "submissionId": { "$ref": "#/$defs/id" },
+        "type": { "const": "FLAG" },
+        "walletAddressUrl": { "$ref": "#/$defs/walletAddressUrl" },
+        "category": { "$ref": "#/$defs/compasCategory" },
+        "note": { "type": "string", "minLength": 1, "maxLength": 280 }
+      }
+    }
+  }
+}

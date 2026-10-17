@@ -74,7 +74,7 @@ npm test
 npm start
 ```
 
-`npm run dev` in `frontend/` serves the demo at [http://localhost:3000](http://localhost:3000). `npm run dev` in `backend/` serves `GET /health` on port 4000.
+`npm run dev` in `frontend/` serves the demo at [http://localhost:3000](http://localhost:3000). `npm run dev` in `backend/` serves `GET /health` and the Open Payments consent callback on port 4000. `npm run op:smoke` in `backend/` runs one real Open Payments payment on the test network. See `backend/README.md`.
 
 ## Environment variables
 
