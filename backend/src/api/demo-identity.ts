@@ -76,6 +76,37 @@ export function readDemoPayerGrantsMode(env: NodeJS.ProcessEnv = process.env): D
   return { enabled: true };
 }
 
+/**
+ * Whether a DEMO session may spend a payer's grant through `POST /purchases`.
+ * Off by default, for the same reason as payer grants: anyone can start a demo
+ * session as Andrea, so a demo session alone must not move money. The operator
+ * turns it on with `COMPAS_DEMO_PURCHASES=enabled` for a supervised demo, and
+ * only when the COMPAS client, Pedro's wallet and the merchant's wallet are on
+ * the Interledger test network. Never in production. The policy still decides.
+ */
+export function readDemoPurchasesMode(env: NodeJS.ProcessEnv = process.env): DemoIdentityMode {
+  if (env.NODE_ENV?.trim() === "production") {
+    return { enabled: false, reason: "Demo sessions never spend a payer's grant in production." };
+  }
+  if (env.COMPAS_DEMO_PURCHASES?.trim().toLowerCase() !== "enabled") {
+    return {
+      enabled: false,
+      reason: "Demo sessions can't spend a payer's grant. Set COMPAS_DEMO_PURCHASES=enabled for a supervised test-network demo.",
+    };
+  }
+  if (
+    !onTestNetwork(env.CLIENT_WALLET_ADDRESS) ||
+    !onTestNetwork(env.DEMO_PAYER_WALLET_ADDRESS) ||
+    !onTestNetwork(env.DEMO_MERCHANT_WALLET_ADDRESS)
+  ) {
+    return {
+      enabled: false,
+      reason: `COMPAS_DEMO_PURCHASES needs CLIENT_WALLET_ADDRESS, DEMO_PAYER_WALLET_ADDRESS and DEMO_MERCHANT_WALLET_ADDRESS on ${TEST_NETWORK_HOST}.`,
+    };
+  }
+  return { enabled: true };
+}
+
 export type DemoSession = { token: string; party: PartyView; expiresAt: string };
 
 export class DemoIdentityProvider {

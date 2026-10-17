@@ -53,7 +53,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseMoney(value: unknown, field: string, errors: FieldError[]): MoneyAmount | undefined {
+/** A `{ value, assetCode, assetScale }` from a request body, or undefined with the problem pushed to `errors`. */
+export function parseMoney(value: unknown, field: string, errors: FieldError[]): MoneyAmount | undefined {
   if (!isRecord(value)) {
     errors.push({ field, code: "REQUIRED", message: `${field} must be { value, assetCode, assetScale }` });
     return undefined;
@@ -340,6 +341,7 @@ export type MandateErrorCode =
   | "INVALID_MANDATE"
   | "NOT_FOUND"
   | "NOT_THE_PAYER"
+  | "NOT_THE_DELEGATE"
   | "INVALID_STATE"
   | "PAYER_WALLET_NOT_CONFIGURED"
   | "OPEN_PAYMENTS_NOT_CONFIGURED"
@@ -655,6 +657,21 @@ export class MandateService {
     }
     if (await this.#deps.grants.get(id)) await this.#cancelGrant(id);
     return { ok: true, mandate: this.#view(mandate, "PAYER", await this.#authorization(mandate)), alreadyRevoked };
+  }
+
+  /**
+   * The mandate a delegate wants to spend under, for the purchase flow. Same
+   * visibility as a read: a stranger gets NOT_FOUND and a delegate sees nothing
+   * before consent. The payer may read the mandate but never spend under it.
+   * The purchase policy still checks status, validity and delegate itself.
+   */
+  async forDelegatePurchase(actor: Actor, id: string): Promise<MandateResult<{ mandate: Mandate }>> {
+    const access = await this.#access(actor, id);
+    if (!access.ok) return access;
+    if (access.role !== "DELEGATE") {
+      return failure("NOT_THE_DELEGATE", "Only the authorized delegate can pay under this budget.");
+    }
+    return { ok: true, mandate: access.mandate };
   }
 
   async activity(

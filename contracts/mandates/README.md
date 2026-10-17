@@ -50,12 +50,14 @@ A delegate never sees a `DRAFT` or `PENDING_AUTHORIZATION` mandate. Before the p
   "identity": "DEMO",
   "persistence": "IN_MEMORY_DEMO | POSTGRES",
   "openPayments": "configured | not_configured",
-  "payerGrants": "enabled | disabled_for_demo | not_configured"
+  "payerGrants": "enabled | disabled_for_demo | not_configured",
+  "purchases": "enabled | disabled_for_demo | not_configured"
 }
 ```
 
 - `persistence`: `POSTGRES` when `DATABASE_URL` is set. Mandates, payer grants, spending records and audit events then live in the `compas` schema (`data/schema/README.md`). `IN_MEMORY_DEMO` keeps them in process memory, and a restart loses them.
 - `payerGrants`: whether this backend lets a demo session ask the payer's wallet for a grant. `not_configured` means Open Payments has no client env, so authorize answers `503 OPEN_PAYMENTS_NOT_CONFIGURED`.
+- `purchases`: whether a demo session may spend a payer's grant through `POST /purchases` (`COMPAS_DEMO_PURCHASES`). See `contracts/purchases/README.md`.
 
 ## Create a mandate
 
@@ -191,4 +193,4 @@ GET /mandates/:id/spending
 
 Each entry has `kind`, `merchantDisplayName`, `requestedAmount`, `debitAmount` when quoted, `monitoredException`, `purposeMatched` and `reasonCodes`. It has no line items, wallet URLs or Open Payments references. `providerSpent` is the wallet's own figure from `readGrantSpentAmounts`, for the payer only, when the grant is active.
 
-No HTTP route records purchases yet, so in this runtime the activity is empty until the purchase routes share the spending log.
+`POST /purchases` (`contracts/purchases/README.md`) writes to the same spending log, so each of the delegate's attempts shows here. It runs only when the operator enabled demo purchases.

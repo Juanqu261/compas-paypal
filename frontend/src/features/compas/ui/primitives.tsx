@@ -138,6 +138,15 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   );
 }
 
+/** The last good data is still on screen, but refreshing it failed. Says so instead of pretending it is current. */
+export function StaleDataNotice({ error }: { error: unknown }) {
+  return (
+    <Notice tone="warn" title="Mostrando los últimos datos conocidos">
+      {errorText(errorCode(error))} Esta pantalla vuelve a intentarlo sola.
+    </Notice>
+  );
+}
+
 export function EmptyState({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
     <div className="rounded-(--cx-radius) border border-dashed border-(--cx-line-strong) px-4 py-6 text-center">

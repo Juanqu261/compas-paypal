@@ -304,6 +304,23 @@ The dated running log below is the detailed record: which tool, which files or c
 - Prompt log: [prompts/017-nequi-negocios-compas.md](prompts/017-nequi-negocios-compas.md) (numbered 009 on local `main`, renumbered 017 when it was merged with `origin/main`, which already had a prompt 009)
 - Human review: Pending team review. The categories and the enabled state are local `demo/test data`.
 
+### 2026-10-17 — Claude Code — frontend and backend integration
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - created branch `feature/compas-frontend-backend-integration` from `origin/main` (`09af6ec`) in the `compas-integration` worktree. No commit, push or merge
+  - backend: `DelegatePurchaseService` (`backend/src/application/delegate-purchases.ts`) runs `purchaseUnderMandate` for an authenticated delegate. It reads the merchant's wallet from a server-side directory (`backend/src/ports/merchant-directory.ts`, `backend/src/integrations/merchants/demo-merchant-directory.ts`), checks the payer's grant, and keeps a retry with the same idempotency key from paying twice. A failure after the outgoing payment was requested is reported as unknown and not retried
+  - backend: routes `POST /purchases/preview`, `POST /purchases` and `GET /demo/merchants` (`backend/src/api/purchases.ts`), wired in `server.ts` on the same mandates, grants and spending log as `MandateService`. `POST /purchases` is off for demo sessions unless `COMPAS_DEMO_PURCHASES=enabled` on the test network (`readDemoPurchasesMode`). `MandateService.forDelegatePurchase`, the `purchases` runtime fact, `merchantCategoryView` and the category service's `sourceCount`
+  - diagnosed why `GET /merchants/categories` returned no category against Supabase: with `MERCHANT_CATEGORY_DEMO_SEED=false` no evidence source is registered, so the resolver ignores the trust-log entries. Read-only aggregate queries confirmed it. The setting was not changed
+  - frontend: purchase contracts and client methods, a read timeout, hooks that never show data loaded for another key and report a failed refresh, Andrea's checkout (`delegate/DelegateCheckout.tsx`), a draft-only path in Pedro's wizard when the environment can't ask the wallet for a grant, currency warnings, Spanish texts for the new codes
+  - frontend: Nequi Negocios merchant categories now use COMPAS categories (`HEALTH_WELLNESS` removed), and the COMPAS screen shows apart the local preferences, the declarations and corroborated categories COMPAS holds, and a simulated charge handed to Andrea's phone in the browser (`NequiBusinessCompasStatus.tsx`, `features/demo/demo-charge.ts`, `DemoSession.tsx`)
+  - tests: `backend/tests/application/delegate-purchases.test.ts`, `backend/tests/api/purchases.test.ts`, `frontend/tests/compas/checkout.test.ts`. The concurrency test found a duplicate-payment race in the first version, fixed before delivery
+  - docs: `contracts/purchases/README.md`, `contracts/mandates/README.md`, `contracts/merchant-categories/README.md`, `backend/src/api/README.md`, `backend/.env.example`, `docs/03-architecture.md`, `docs/05-policy-engine.md`; `.personal-docs/` added to `.gitignore`
+  - verification: typecheck, tests, lint and build; an isolated backend on port 4100 with in-memory storage and no Open Payments client; the four routes loaded headless in Edge. Only read-only queries reached Supabase. No Open Payments call was made
+  - not changed: the Open Payments gateway, the policy engine, `purchaseUnderMandate`, the Supabase schema, RLS, roles and every `.env` file
+- Prompt log: [prompts/018-compas-frontend-backend-integration.md](prompts/018-compas-frontend-backend-integration.md)
+- Human review: Pending team review. No purchase ran against a real wallet: the purchase flow was tested with in-memory repositories and a recording stand-in for Open Payments. The charge between Nequi Negocios and Nequi is a browser simulation, because merchants have no authentication yet.
+
 ## What We Did Ourselves
 
 - The product idea, the design-session answers, and the scope decisions came from the team. See the verbatim prompts in `prompts/002-agent-skills.md` and later prompt files.
@@ -335,6 +352,7 @@ Verbatim prompts for each AI coding session are in `/prompts/`, numbered in orde
 - [prompts/015-compas-experience.md](prompts/015-compas-experience.md)
 - [prompts/016-compas-integration.md](prompts/016-compas-integration.md)
 - [prompts/017-nequi-negocios-compas.md](prompts/017-nequi-negocios-compas.md)
+- [prompts/018-compas-frontend-backend-integration.md](prompts/018-compas-frontend-backend-integration.md)
 
 ## Entry template
 

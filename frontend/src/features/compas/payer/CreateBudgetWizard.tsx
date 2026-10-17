@@ -58,6 +58,7 @@ export function CreateBudgetWizard({
   focusOnMount,
   onAuthorizationStarted,
   onCreatedWithoutConsent,
+  onDraftSaved,
 }: {
   partyId: string;
   me: MeResponse;
@@ -71,6 +72,8 @@ export function CreateBudgetWizard({
   onAuthorizationStarted: (mandateId: string, redirectUrl: string) => void;
   /** The draft exists, but authorization could not start. */
   onCreatedWithoutConsent: (mandateId: string, errorCode: string) => void;
+  /** This environment can't ask the wallet for a grant, so only the draft was saved, on purpose. */
+  onDraftSaved: (mandateId: string, reason: string) => void;
 }) {
   const [showIssues, setShowIssues] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -78,6 +81,14 @@ export function CreateBudgetWizard({
   const [serverIssues, setServerIssues] = useState<readonly { field: string; message: string }[]>([]);
 
   const asset = walletAsset(me);
+  const assetConfirmed = me.payerWallet.status === "RESOLVED";
+  // Only ask the wallet when the backend says this session may. Otherwise save a draft and say so.
+  const draftOnlyReason =
+    me.payerGrants === "enabled"
+      ? null
+      : me.payerGrants === "not_configured"
+        ? "OPEN_PAYMENTS_NOT_CONFIGURED"
+        : "PAYER_GRANTS_DISABLED_FOR_DEMO";
   // The wizard only renders after the person opened it, never during prerender.
   const [today] = useState(() => new Date());
   const index = WIZARD_STEPS.indexOf(step);
@@ -112,6 +123,11 @@ export function CreateBudgetWizard({
         return;
       }
       setSubmitError(errorText(errorCode(error)));
+      return;
+    }
+    if (draftOnlyReason) {
+      setBusy(false);
+      onDraftSaved(mandateId, draftOnlyReason);
       return;
     }
     try {
@@ -210,9 +226,10 @@ export function CreateBudgetWizard({
             suffix={asset.assetCode}
             issue={issueFor("amount")}
           />
-          {me.payerWallet.status !== "RESOLVED" ? (
+          {!assetConfirmed ? (
             <Notice tone="warn">
-              No pudimos leer la moneda de tu billetera. Usaremos {asset.assetCode}, y tu billetera la confirmará al autorizar.
+              No pudimos leer la moneda de tu billetera. Usaremos {asset.assetCode}, sin convertir nada. Si tu billetera
+              usa otra moneda, rechazará la autorización y el presupuesto no se activará.
             </Notice>
           ) : null}
           <div className="grid grid-cols-2 gap-3">
@@ -284,11 +301,24 @@ export function CreateBudgetWizard({
             confidence={draft.confidence}
             cap={parsedCap?.ok ? { ...asset, value: parsedCap.minorUnits } : undefined}
           />
-          <Notice title="Qué pasa al autorizar">
-            Te llevaremos a tu billetera para que apruebes un permiso de hasta{" "}
-            {formatMoneyAmount({ ...asset, value: parsedBudget.minorUnits })}. No se mueve dinero ahora: cada
-            compra se paga desde tu billetera directo al comercio, solo si cumple tus reglas.
-          </Notice>
+          {draftOnlyReason ? (
+            <Notice tone="warn" title="Se guardará como borrador">
+              {errorText(draftOnlyReason)} Un borrador no autoriza nada: {delegate?.displayName ?? "la persona"} no
+              podrá usarlo hasta que lo apruebes en tu billetera.
+            </Notice>
+          ) : (
+            <Notice title="Qué pasa al autorizar">
+              Te llevaremos a tu billetera para que apruebes un permiso de hasta{" "}
+              {formatMoneyAmount({ ...asset, value: parsedBudget.minorUnits })}. No se mueve dinero ahora: cada
+              compra se paga desde tu billetera directo al comercio, solo si cumple tus reglas.
+            </Notice>
+          )}
+          {!assetConfirmed ? (
+            <Notice tone="warn">
+              La moneda {asset.assetCode} no está confirmada por tu billetera. COMPAS no hace conversiones: si no
+              coincide, la billetera rechazará la autorización.
+            </Notice>
+          ) : null}
           {submitError ? <Notice tone="danger">{submitError}</Notice> : null}
         </div>
       ) : null}
@@ -296,7 +326,7 @@ export function CreateBudgetWizard({
       <div className="space-y-2 pt-1">
         {step === "review" ? (
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Creando presupuesto…" : "Crear y autorizar presupuesto"}
+            {busy ? "Creando presupuesto…" : draftOnlyReason ? "Guardar borrador" : "Crear y autorizar presupuesto"}
           </Button>
         ) : (
           <Button onClick={next}>Continuar</Button>

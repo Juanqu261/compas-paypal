@@ -68,3 +68,21 @@ For the Nequi Negocios simulation and the demo screen. It returns COMPAS categor
 `dataLabel` appears when any evidence comes from a simulated source. `simulated: true` marks a category backed by a simulated source. The UI must label it "simulated Nequi Negocios provider attestation", not a real Nequi signal.
 
 A missing or malformed `walletAddress` returns `400 { "error": "INVALID_WALLET_ADDRESS" }`.
+
+## Demo merchants
+
+`GET /demo/merchants`
+
+demo/test data. The merchants a purchase may name (`contracts/purchases/README.md`), each with the same category view as above minus `walletAddressUrl`: the wallet stays on the server. No session is needed.
+
+```json
+{
+  "dataLabel": "demo/test data",
+  "categorySources": "REGISTERED",
+  "merchants": [{ "id": "demo-merchant-drogueria-central", "displayName": "Droguería Central", "categories": [], "declarations": [], "conflicts": [], "flaggedCategories": [], "unmappedEvidence": [], "mappingVersion": "…", "resolvedAt": "…" }]
+}
+```
+
+`categorySources: "NONE_REGISTERED"` means no evidence source is registered, so the resolver ignores every trust-log entry and every merchant has no category. That is the state with `MERCHANT_CATEGORY_DEMO_SEED=false`: the demo sources (`nequi-negocios-sim/*`) are registered only with the seed on.
+
+The wallet is the test-network one when `DEMO_MERCHANT_WALLET_ADDRESS` (Droguería Central) or `DEMO_LIQUOR_WALLET_ADDRESS` (the liquor store) is set, and the reserved example domain otherwise.

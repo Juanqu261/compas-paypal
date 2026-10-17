@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { DelegatePurchaseService } from "../application/delegate-purchases.ts";
 import { MandateService } from "../application/mandates.ts";
 import { InMemoryAuditRepository } from "../integrations/audit/in-memory-audit-repository.ts";
 import { createDemoPartyDirectory } from "../integrations/mandates/demo-party-directory.ts";
 import { InMemoryMandateRepository } from "../integrations/mandates/in-memory-mandate-repository.ts";
 import { createMerchantHistoryService } from "../integrations/merchant-history/create-merchant-history-service.ts";
 import { createMerchantCategoryService } from "../integrations/merchant-registry/create-merchant-category-service.ts";
+import { createDemoMerchantDirectory } from "../integrations/merchants/demo-merchant-directory.ts";
 import { createOpenPaymentsGateway } from "../integrations/open-payments/create-open-payments-gateway.ts";
 import { InMemoryGrantStore } from "../integrations/open-payments/in-memory-grant-store.ts";
 import { connectDatabase } from "../integrations/postgres/database.ts";
@@ -20,6 +22,7 @@ import {
   MAX_SESSION_BODY_BYTES,
   readDemoIdentityMode,
   readDemoPayerGrantsMode,
+  readDemoPurchasesMode,
 } from "./demo-identity.ts";
 import {
   handleMandateRequest,
@@ -43,6 +46,13 @@ import {
   handleOpenPaymentsFinish,
   OPEN_PAYMENTS_FINISH_PATH,
 } from "./open-payments-finish.ts";
+import {
+  DEMO_MERCHANTS_PATH,
+  handleListDemoMerchants,
+  handlePurchaseRequest,
+  isPurchaseApiPath,
+  MAX_PURCHASE_BODY_BYTES,
+} from "./purchases.ts";
 
 const port = Number(process.env.PORT?.trim() || 4000);
 const returnUrl =
@@ -108,14 +118,41 @@ const mandates = new MandateService({
       : { allowed: false, reason: payerGrantsMode.reason },
   logWarning: (message) => console.warn(message),
 });
+// Purchases. The delegate's flow runs purchaseUnderMandate on the same
+// mandates, grants and spending log as above, so the payer sees each attempt.
+// A demo session spends a grant only if the operator opted in, on the test network.
+const purchasesMode = readDemoPurchasesMode();
+const merchantDirectory = createDemoMerchantDirectory();
+const purchases = new DelegatePurchaseService({
+  mandates,
+  merchants: merchantDirectory,
+  registry: merchantCategories.registry,
+  history: merchantHistory,
+  parties,
+  grants,
+  payments: openPayments.gateway,
+  spending,
+  capacity: mandateRepository,
+  execution: !openPayments.configured
+    ? { allowed: false, code: "OPEN_PAYMENTS_NOT_CONFIGURED", reason: "Open Payments is not configured in this environment." }
+    : purchasesMode.enabled
+      ? { allowed: true }
+      : { allowed: false, code: "PURCHASES_DISABLED_FOR_DEMO", reason: purchasesMode.reason },
+  logWarning: (message) => console.warn(message),
+});
+
 const runtimeFacts: RuntimeFacts = {
   identity: "DEMO",
   persistence: database ? "POSTGRES" : "IN_MEMORY_DEMO",
   openPayments: openPayments.configured ? "configured" : "not_configured",
   payerGrants: !openPayments.configured ? "not_configured" : payerGrantsMode.enabled ? "enabled" : "disabled_for_demo",
+  purchases: !openPayments.configured ? "not_configured" : purchasesMode.enabled ? "enabled" : "disabled_for_demo",
 };
 if (openPayments.configured && !payerGrantsMode.enabled) {
   console.warn(`Payer grants are off for demo sessions: ${payerGrantsMode.reason}`);
+}
+if (openPayments.configured && !purchasesMode.enabled) {
+  console.warn(`Purchases are off for demo sessions: ${purchasesMode.reason}`);
 }
 
 const demoIdentityMode = readDemoIdentityMode();
@@ -199,6 +236,16 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   const actor = demoIdentity.authenticate(request.headers.authorization);
   if (!actor) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
 
+  if (isPurchaseApiPath(url.pathname)) {
+    let purchaseBody: unknown;
+    if (request.method === "POST") {
+      const parsed = await readJsonBody(request, MAX_PURCHASE_BODY_BYTES);
+      if (!parsed.ok) return parsed.response;
+      purchaseBody = parsed.body;
+    }
+    return handlePurchaseRequest({ method: request.method ?? "GET", url, body: purchaseBody }, actor, { service: purchases });
+  }
+
   let body: unknown;
   if (request.method === "POST" && url.pathname === MANDATES_PATH) {
     const parsed = await readJsonBody(request, MAX_MANDATE_BODY_BYTES);
@@ -230,6 +277,7 @@ const server = createServer(async (request, response) => {
         identity: demoIdentity ? "demo" : "disabled",
         persistence: runtimeFacts.persistence,
         payerGrants: runtimeFacts.payerGrants,
+        purchases: runtimeFacts.purchases,
       }),
     );
     return;
@@ -267,7 +315,25 @@ const server = createServer(async (request, response) => {
     }
   }
 
-  if (url.pathname === DEMO_SESSIONS_PATH || isMandateApiPath(url.pathname)) {
+  if (request.method === "GET" && url.pathname === DEMO_MERCHANTS_PATH) {
+    try {
+      sendJson(
+        response,
+        await handleListDemoMerchants({
+          merchants: merchantDirectory,
+          registry: merchantCategories.registry,
+          sources: merchantCategories.sources,
+          sourceCount: merchantCategories.sourceCount,
+        }),
+      );
+    } catch (error) {
+      console.error(`Demo merchant request failed: ${error instanceof Error ? error.message : String(error)}`);
+      sendJson(response, { status: 500, body: { error: "internal_error" } });
+    }
+    return;
+  }
+
+  if (url.pathname === DEMO_SESSIONS_PATH || isMandateApiPath(url.pathname) || isPurchaseApiPath(url.pathname)) {
     try {
       sendJson(response, await routeMandates(request, url));
     } catch (error) {

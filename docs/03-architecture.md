@@ -73,7 +73,7 @@ The Open Payments adapter is real: `InterledgerOpenPaymentsGateway` in `backend/
 
 `createOutgoingPaymentIfAllowed` in `backend/src/application/create-outgoing-payment-if-allowed.ts` is the only payment-related behavior in the scaffold: `DENY` and `REVIEW` return before the gateway is called.
 
-The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the Open Payments consent callback `GET /open-payments/finish`, the merchant category routes `POST /merchant-category-claims` and `GET /merchants/categories`, and the mandate routes (demo sessions, `/me`, `/mandates…`). The callback answers only with a redirect, and it is what activates a mandate after a verified consent. Shapes are in `contracts/open-payments/`, `contracts/merchant-categories/` and `contracts/mandates/`. Mandates are in memory (`InMemoryMandateRepository`). The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
+The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the Open Payments consent callback `GET /open-payments/finish`, the merchant category routes `POST /merchant-category-claims`, `GET /merchants/categories` and `GET /demo/merchants`, the mandate routes (demo sessions, `/me`, `/mandates…`) and the delegate's purchase routes `POST /purchases/preview` and `POST /purchases`. The callback answers only with a redirect, and it is what activates a mandate after a verified consent. `POST /purchases` runs `purchaseUnderMandate` and is off for demo sessions unless the operator sets `COMPAS_DEMO_PURCHASES=enabled` on the test network. Shapes are in `contracts/open-payments/`, `contracts/merchant-categories/`, `contracts/mandates/` and `contracts/purchases/`. Mandates are in Postgres with `DATABASE_URL`, in memory without it. The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
 
 ## Three surfaces, one frontend
 
@@ -123,7 +123,7 @@ sequenceDiagram
   end
 ```
 
-The gateway calls in that diagram are implemented. The orchestrator that makes them is not, and `npm run op:smoke` exercises the Open Payments leg alone. A decision rendered by the frontend is not authoritative.
+The gateway calls in that diagram are implemented. `purchaseUnderMandate` makes them, behind `POST /purchases`. `npm run op:smoke` exercises the Open Payments leg alone. A decision rendered by the frontend is not authoritative.
 
 Evaluation order is the constant `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts` and is explained in [05-policy-engine.md](05-policy-engine.md).
 

@@ -77,6 +77,17 @@ export async function handleGetMerchantCategories(
     return { status: 400, body: { error: "INVALID_WALLET_ADDRESS", message: "walletAddress must be a wallet address URL" } };
   }
 
+  return { status: 200, body: await merchantCategoryView(walletAddressUrl, deps) };
+}
+
+/**
+ * A merchant's categories as the category routes show them. A view, not a
+ * policy decision. Never subject refs, entry ids or raw identifiers.
+ */
+export async function merchantCategoryView(
+  walletAddressUrl: string,
+  deps: { registry: MerchantRegistry; sources: CategorySourceRegistry },
+): Promise<Record<string, unknown>> {
   const resolution = await deps.registry.resolve(walletAddressUrl);
   const simulatedSources = new Set<string>();
   for (const sourceId of new Set(resolution.categories.flatMap((category) => category.sourceIds))) {
@@ -91,17 +102,14 @@ export async function handleGetMerchantCategories(
   }));
 
   return {
-    status: 200,
-    body: {
-      ...(simulatedSources.size > 0 ? { dataLabel: "demo/test data" } : {}),
-      walletAddressUrl: resolution.walletAddressUrl,
-      categories,
-      declarations: resolution.declarations.map(({ category, corroboration }) => ({ category, corroboration })),
-      conflicts: resolution.conflicts.map((conflict) => ({ categories: conflict.categories })),
-      flaggedCategories: [...new Set(resolution.flags.map((flag) => flag.category))],
-      unmappedEvidence: resolution.unmappedEvidence,
-      mappingVersion: resolution.mappingVersion,
-      resolvedAt: resolution.resolvedAt,
-    },
+    ...(simulatedSources.size > 0 ? { dataLabel: "demo/test data" } : {}),
+    walletAddressUrl: resolution.walletAddressUrl,
+    categories,
+    declarations: resolution.declarations.map(({ category, corroboration }) => ({ category, corroboration })),
+    conflicts: resolution.conflicts.map((conflict) => ({ categories: conflict.categories })),
+    flaggedCategories: [...new Set(resolution.flags.map((flag) => flag.category))],
+    unmappedEvidence: resolution.unmappedEvidence,
+    mappingVersion: resolution.mappingVersion,
+    resolvedAt: resolution.resolvedAt,
   };
 }

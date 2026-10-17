@@ -1,17 +1,20 @@
+import type { CompasCategory } from "@/features/compas/api/contracts";
+
 /**
  * Merchant-side COMPAS settings for the simulated Nequi Negocios app.
  * demo/test data.
  *
  * This is local UI state only. It is not a merchant-registry record, not a
  * backend enrollment, not a verification, and not the authoritative COMPAS
- * purpose policy. The ids mirror COMPAS purpose names (`MEDICATION`, ...) so a
- * later task can map them. A category the merchant selects here is only a
- * self-declared claim and proves nothing about eligibility on its own.
+ * purpose policy. A category the merchant selects here is only what the shop
+ * would declare. COMPAS resolves the categories it accepts from its trust log.
+ *
+ * The options are COMPAS categories, so a selection always names one the
+ * backend knows. A pharmacy sells medication, personal care and some food.
+ * Vitamins, supplements and first aid have no COMPAS category yet: they used
+ * to appear here as "Salud y bienestar", which no budget could ever match.
  */
-export type MerchantCompasCategory =
-  | "MEDICATION"
-  | "PERSONAL_CARE"
-  | "HEALTH_WELLNESS";
+export type MerchantCompasCategory = Extract<CompasCategory, "MEDICATION" | "PERSONAL_CARE" | "FOOD">;
 
 export type MerchantCompasConfig = {
   enabled: boolean;
@@ -34,9 +37,9 @@ export const merchantCompasCategories: readonly {
     description: "Higiene y aseo personal",
   },
   {
-    id: "HEALTH_WELLNESS",
-    label: "Salud y bienestar",
-    description: "Vitaminas, suplementos y primeros auxilios",
+    id: "FOOD",
+    label: "Alimentos",
+    description: "Alimentos y productos de mercado",
   },
 ];
 

@@ -2,24 +2,28 @@
 
 import { useEffect, useEffectEvent, useState } from "react";
 import { compasApi } from "./client";
-import type { MandateView, MeResponse, ParticipantsResponse, SpendingResponse } from "./contracts";
+import type { DemoMerchantsResponse, MandateView, MeResponse, ParticipantsResponse, SpendingResponse } from "./contracts";
 
 export type Resource<T> =
   | { status: "loading" }
   | { status: "error"; error: unknown }
   | { status: "ready"; data: T };
 
+type Loaded<T> = { key: string | null; resource: Resource<T>; refreshError?: unknown };
+
 /**
- * Loads `load()` whenever `key` changes, and again on `reload()` or every
- * `pollMs` while `key` is not null. The last good data stays on screen while a
- * reload runs. Data only: no decision is made here.
+ * Loads `load()` for `key`, again on `reload()`, when `refresh` changes, and
+ * every `pollMs` while `key` is not null. `key` says what the data is: data
+ * loaded for another key is never shown, so a screen can't show the previous
+ * mandate or person while the next one loads. A failed refresh keeps the last
+ * good data on screen and reports `refreshError`. Data only: no decision is made here.
  */
 export function useResource<T>(
   key: string | null,
   load: () => Promise<T>,
-  options: { pollMs?: number } = {},
-): { resource: Resource<T>; reload: () => void } {
-  const [resource, setResource] = useState<Resource<T>>({ status: "loading" });
+  options: { pollMs?: number; refresh?: number } = {},
+): { resource: Resource<T>; reload: () => void; refreshError?: unknown } {
+  const [loaded, setLoaded] = useState<Loaded<T>>({ key, resource: { status: "loading" } });
   const [version, setVersion] = useState(0);
   const run = useEffectEvent(() => load());
 
@@ -28,16 +32,21 @@ export function useResource<T>(
     let cancelled = false;
     run().then(
       (data) => {
-        if (!cancelled) setResource({ status: "ready", data });
+        if (!cancelled) setLoaded({ key, resource: { status: "ready", data } });
       },
       (error: unknown) => {
-        if (!cancelled) setResource((current) => (current.status === "ready" ? current : { status: "error", error }));
+        if (cancelled) return;
+        setLoaded((current) =>
+          current.key === key && current.resource.status === "ready"
+            ? { ...current, refreshError: error }
+            : { key, resource: { status: "error", error } },
+        );
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [key, version]);
+  }, [key, version, options.refresh]);
 
   useEffect(() => {
     if (key === null || !options.pollMs) return;
@@ -45,11 +54,17 @@ export function useResource<T>(
     return () => clearInterval(timer);
   }, [key, options.pollMs]);
 
-  return { resource, reload: () => setVersion((n) => n + 1) };
+  // A closed screen (null key) keeps what it showed. Another key starts from loading.
+  const current = key === null || loaded.key === key;
+  return {
+    resource: current ? loaded.resource : { status: "loading" },
+    reload: () => setVersion((n) => n + 1),
+    ...(current && loaded.refreshError !== undefined ? { refreshError: loaded.refreshError } : {}),
+  };
 }
 
 export function useMe(partyId: string, active: boolean, openCount: number) {
-  return useResource<MeResponse>(active ? `${partyId}:${openCount}` : null, () => compasApi.me(partyId));
+  return useResource<MeResponse>(active ? partyId : null, () => compasApi.me(partyId), { refresh: openCount });
 }
 
 export function useParticipants(partyId: string, active: boolean) {
@@ -58,9 +73,9 @@ export function useParticipants(partyId: string, active: boolean) {
 
 export function useMandateList(partyId: string, role: "payer" | "delegate", active: boolean, openCount: number) {
   return useResource<MandateView[]>(
-    active ? `${partyId}:${role}:${openCount}` : null,
+    active ? `${partyId}:${role}` : null,
     () => compasApi.listMandates(partyId, role),
-    { pollMs: 5000 },
+    { pollMs: 5000, refresh: openCount },
   );
 }
 
@@ -78,4 +93,11 @@ export function useSpending(partyId: string, id: string | null, active: boolean)
     () => compasApi.spending(partyId, id ?? ""),
     { pollMs: 8000 },
   );
+}
+
+/** demo/test data: the demo merchants and the categories COMPAS resolves for them now. */
+export function useDemoMerchants(active: boolean) {
+  return useResource<DemoMerchantsResponse>(active ? "demo-merchants" : null, () => compasApi.demoMerchants(), {
+    pollMs: 15000,
+  });
 }

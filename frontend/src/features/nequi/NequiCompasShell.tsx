@@ -5,11 +5,13 @@ import {
   type DelegateRoute,
 } from "@/features/compas/delegate/DelegateCompas";
 import { compasTheme } from "@/features/compas/theme";
+import { useDemoSession } from "@/features/demo/DemoSession";
 import { NequiScreen } from "./NequiScreen";
 
 /**
  * COMPAS inside the Nequi host, for Andrea (delegate): the authorizations she
  * received, read from the backend. She can read them, not revoke or change
+ * them. A charge from the merchant's phone opens a checkout under one of
  * them. The back arrow steps from a detail to the list, then closes COMPAS.
  */
 export function NequiCompasShell({
@@ -22,6 +24,8 @@ export function NequiCompasShell({
   backButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const [route, setRoute] = useState<DelegateRoute>({ name: "list" });
+  // A simulated charge from the merchant's phone, in the same browser. Not stored by the backend.
+  const { charge, recordChargeResult } = useDemoSession();
   const [moves, setMoves] = useState(0);
 
   const go = (next: DelegateRoute) => {
@@ -43,6 +47,7 @@ export function NequiCompasShell({
           active={open}
           openCount={0}
           focusOnMount={moves > 0}
+          checkout={{ charge, onResult: recordChargeResult }}
         />
       </div>
     </NequiScreen>

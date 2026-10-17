@@ -1,10 +1,14 @@
 import type {
   AuthorizeResponse,
   CreateMandateBody,
+  DemoMerchantsResponse,
   FieldError,
   MandateView,
   MeResponse,
   ParticipantsResponse,
+  PurchaseBody,
+  PurchasePreview,
+  PurchaseResponse,
   RevokeResponse,
   SpendingResponse,
 } from "./contracts";
@@ -38,10 +42,24 @@ export class CompasApiError extends Error {
 /** One session per demo person and tab. A backend restart invalidates it, and the next call starts another. */
 const sessions = new Map<string, Promise<string>>();
 
+/**
+ * Reads give up after this long. Writes have no client timeout: giving up on
+ * a write the backend may still finish would only make its outcome unknown.
+ */
+const READ_TIMEOUT_MS = 15_000;
+
 async function send(path: string, init: RequestInit): Promise<Response> {
+  const read = (init.method ?? "GET") === "GET";
   try {
-    return await fetch(`${BASE}${path}`, { ...init, cache: "no-store" });
-  } catch {
+    return await fetch(`${BASE}${path}`, {
+      ...init,
+      cache: "no-store",
+      ...(read ? { signal: AbortSignal.timeout(READ_TIMEOUT_MS) } : {}),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new CompasApiError(0, "TIMEOUT", "the backend did not answer in time");
+    }
     throw new CompasApiError(0, "BACKEND_UNAVAILABLE", "network error");
   }
 }
@@ -114,7 +132,27 @@ export const compasApi = {
     request<RevokeResponse>(partyId, `/mandates/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
   spending: (partyId: string, id: string) =>
     request<SpendingResponse>(partyId, `/mandates/${encodeURIComponent(id)}/spending`),
+  /** The checks before Open Payments. Writes nothing and moves no money. */
+  previewPurchase: (partyId: string, body: PurchaseBody) =>
+    request<{ preview: PurchasePreview }>(partyId, "/purchases/preview", { method: "POST", body }).then((result) => result.preview),
+  /**
+   * One purchase attempt. Never retried here: the caller keeps the idempotency
+   * key, and sending the same key again replays the first attempt.
+   */
+  purchase: (partyId: string, body: PurchaseBody & { idempotencyKey: string }) =>
+    request<PurchaseResponse>(partyId, "/purchases", { method: "POST", body }),
+  /** demo/test data: the demo merchants and the categories COMPAS resolves for them. No session needed. */
+  demoMerchants: async () => {
+    const response = await send("/demo/merchants", { method: "GET" });
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as DemoMerchantsResponse;
+  },
 };
+
+/** A key for one purchase attempt. Reused only to ask again about that same attempt. */
+export function newIdempotencyKey(): string {
+  return `purchase-${crypto.randomUUID()}`;
+}
 
 export function errorCode(error: unknown): string {
   return error instanceof CompasApiError ? error.code : "UNKNOWN";

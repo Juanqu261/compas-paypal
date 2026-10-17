@@ -75,6 +75,6 @@ No outgoing payment is initiated before COMPAS policy evaluation returns `ALLOW`
 
 ## Not in this scaffold
 
-The AI classifier step, remaining-capacity updates on the mandate (that needs the mandate repository) and HTTP routes for purchases.
+The AI classifier step. `POST /purchases` runs `purchaseUnderMandate` with the mandate repository, so an `ALLOW` reserves capacity. `POST /purchases/preview` runs the checks before the quote and is not a decision (`contracts/purchases/README.md`).
 
 There is no rule implementation, no split-tender calculation, and no partial approval of a mixed basket. Mixed-basket behavior is described in [02-domain-model.md](02-domain-model.md) and stays future work.

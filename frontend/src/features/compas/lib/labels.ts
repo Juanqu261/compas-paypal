@@ -2,10 +2,13 @@ import type {
   ActivityKind,
   CompasCategory,
   ConfidenceMinimum,
+  Corroboration,
   Enforcement,
   MandateStatus,
   MandateView,
   PolicyReasonCode,
+  PurchaseView,
+  TrustLevel,
 } from "../api/contracts";
 
 /**
@@ -195,7 +198,49 @@ export function errorText(code: string): string {
       return "La sesión de demostración no está disponible en el backend.";
     case "BACKEND_UNAVAILABLE":
       return "No pudimos conectar con COMPAS. Revisa que el backend esté en ejecución.";
+    case "TIMEOUT":
+      return "COMPAS tardó demasiado en responder. Intenta de nuevo.";
+    case "NOT_THE_DELEGATE":
+      return "Solo la persona autorizada puede pagar con este presupuesto.";
+    case "PURCHASES_DISABLED_FOR_DEMO":
+      return "En este modo de demostración no se pagan compras con una billetera real. COMPAS no registró ni pagó nada.";
+    case "UNKNOWN_MERCHANT":
+      return "Este comercio no recibe pagos con COMPAS en este entorno.";
+    case "INVALID_PURCHASE":
+      return "El cobro no es válido. Pide al comercio que lo genere de nuevo.";
+    case "GRANT_NOT_ACTIVE":
+      return "La billetera de quien paga no tiene un permiso activo para este presupuesto. No se pagó nada.";
+    case "IDEMPOTENCY_KEY_REUSED":
+      return "Este intento ya se usó para otra compra. Genera el cobro de nuevo.";
+    case "PAYMENT_NOT_STARTED":
+      return "La compra se detuvo antes de pedir el pago. No se pagó nada. Puedes intentarlo de nuevo.";
+    case "PAYMENT_OUTCOME_UNKNOWN":
+      return "Pedimos el pago, pero la billetera no confirmó qué pasó. No lo repitas: revisa los movimientos del presupuesto.";
     default:
       return "Algo salió mal. Intenta de nuevo.";
   }
+}
+
+export const TRUST_LEVEL_LABEL: Record<TrustLevel, string> = {
+  SELF_DECLARED: "Declarada por el comercio",
+  PROVIDER_VERIFIED: "Verificada por la billetera",
+  EXTERNAL_VERIFIED: "Verificada en un registro oficial",
+};
+
+export const CORROBORATION_LABEL: Record<Corroboration, string> = {
+  CONTRADICTED: "Contradicha por otra fuente",
+  UNCORROBORATED: "Sin corroborar",
+  REGISTRY_UNBOUND: "Coincide con un registro, sin vínculo verificado",
+  PROVIDER_VERIFIED: "Corroborada por la billetera",
+  EXTERNAL_VERIFIED: "Corroborada en un registro oficial",
+};
+
+/** Where a purchase stands, without ever calling a decision a payment. */
+export function purchaseStatusLabel(purchase: Pick<PurchaseView, "outcome" | "payment">): string {
+  if (purchase.outcome === "DENY") return "Rechazada por COMPAS. No se creó ningún pago.";
+  if (purchase.outcome === "REVIEW") return "Retenida para revisión. No se creó ningún pago.";
+  if (purchase.payment.status === "NOT_CREATED") return "COMPAS la permitió, pero no se creó el pago.";
+  if (purchase.payment.state === "COMPLETED") return "Pagada: la billetera confirmó el pago.";
+  if (purchase.payment.state === "FAILED") return "El pago falló. No se debitó nada.";
+  return "Pago en proceso: la billetera aún no lo confirma.";
 }

@@ -42,3 +42,6 @@ next-env.d.ts
 # local AI tool configuration
 .cursor/
 .claude/
+
+# Personal local documentation — never publish
+/.personal-docs/

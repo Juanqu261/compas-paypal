@@ -79,6 +79,10 @@ export function PayerCompas({
   const [draft, setDraft] = useState<WizardDraft>(() =>
     initialDraft({ delegateId: DEMO_PARTY_IDS.andrea, beneficiaryId: DEMO_PARTY_IDS.gladys, startDate: "", endDate: "" }),
   );
+  const resetWizard = () => {
+    setDraft(initialDraft({ delegateId: DEMO_PARTY_IDS.andrea, beneficiaryId: DEMO_PARTY_IDS.gladys, startDate: "", endDate: "" }));
+    setStep("participants");
+  };
   const openWizard = () => {
     if (!draft.startDate) setDraft((current) => ({ ...current, ...newDraftDates() }));
     nav.push({ name: "create" });
@@ -125,9 +129,12 @@ export function PayerCompas({
         focusOnMount={focusOnMount}
         onAuthorizationStarted={(_id, redirectUrl) => goToWallet(redirectUrl)}
         onCreatedWithoutConsent={(id, code) => {
-          setDraft(initialDraft({ delegateId: DEMO_PARTY_IDS.andrea, beneficiaryId: DEMO_PARTY_IDS.gladys, startDate: "", endDate: "" }));
-          setStep("participants");
+          resetWizard();
           nav.reset([{ name: "home" }, { name: "detail", id, notice: { kind: "authorize-error", code } }]);
+        }}
+        onDraftSaved={(id, reason) => {
+          resetWizard();
+          nav.reset([{ name: "home" }, { name: "detail", id, notice: { kind: "draft-saved", reason } }]);
         }}
       />
     );

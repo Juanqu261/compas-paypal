@@ -19,12 +19,15 @@ import {
   Notice,
   ScreenHeading,
   SectionTitle,
+  StaleDataNotice,
   StatusBadge,
 } from "../ui/primitives";
 
 export type DetailNotice =
   | { kind: "consent-return"; result: "granted" | "rejected" | "failed" }
-  | { kind: "authorize-error"; code: string };
+  | { kind: "authorize-error"; code: string }
+  /** Saved as a draft on purpose: this environment can't ask the wallet for a grant. */
+  | { kind: "draft-saved"; reason: string };
 
 function ConsentReturnNotice({ result, status }: { result: "granted" | "rejected" | "failed"; status: MandateView["status"] }) {
   if (result === "granted") {
@@ -154,6 +157,12 @@ export function PayerMandateDetail({
       </div>
 
       {notice?.kind === "consent-return" ? <ConsentReturnNotice result={notice.result} status={view.status} /> : null}
+      {notice?.kind === "draft-saved" && view.status === "DRAFT" ? (
+        <Notice tone="warn" title="Borrador guardado, sin autorizar">
+          {errorText(notice.reason)} {view.delegate.displayName} no ve este presupuesto ni puede pagar con él.
+        </Notice>
+      ) : null}
+      {mandate.refreshError ? <StaleDataNotice error={mandate.refreshError} /> : null}
       {authorizeError && auth?.canAuthorize ? (
         <Notice tone="danger" title="La autorización no empezó">
           {errorText(authorizeError)}

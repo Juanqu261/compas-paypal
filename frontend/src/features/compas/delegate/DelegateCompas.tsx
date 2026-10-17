@@ -1,5 +1,6 @@
 "use client";
 
+import type { DemoCharge } from "@/features/demo/DemoSession";
 import { formatMoneyAmount } from "@/lib/format-money";
 import type { MandateView } from "../api/contracts";
 import { useMandate, useMandateList, useMe } from "../api/hooks";
@@ -7,6 +8,7 @@ import { DEMO_PARTY_IDS } from "../demo-identities";
 import { formatDate } from "../lib/dates";
 import { CONFIDENCE_LABEL, ENFORCEMENT_LABEL, purposeTitle, STATUS_LABEL } from "../lib/labels";
 import { CapacityRoute } from "../ui/CapacityRoute";
+import { DelegateCheckout } from "./DelegateCheckout";
 import { WalletIcon } from "../ui/icons";
 import { MandateCard } from "../ui/MandateCard";
 import { RulesSummary } from "../ui/RulesSummary";
@@ -19,10 +21,17 @@ import {
   Notice,
   ScreenHeading,
   SectionTitle,
+  StaleDataNotice,
   StatusBadge,
 } from "../ui/primitives";
 
 export type DelegateRoute = { name: "list" } | { name: "detail"; id: string };
+
+/** The charge the host app received, if any, and where to report what the backend answered. */
+export type DelegateCheckoutProps = {
+  charge: DemoCharge | null;
+  onResult: (chargeId: string, result: NonNullable<DemoCharge["result"]>) => void;
+};
 
 export const DELEGATE_ROUTE_TITLE: Record<DelegateRoute["name"], string> = {
   list: "Tus autorizaciones",
@@ -35,14 +44,16 @@ function DelegateList({
   openCount,
   focusOnMount,
   onOpen,
+  charge,
 }: {
   partyId: string;
   active: boolean;
   openCount: number;
   focusOnMount: boolean;
   onOpen: (id: string) => void;
+  charge: DemoCharge | null;
 }) {
-  const { resource, reload } = useMandateList(partyId, "delegate", active, openCount);
+  const { resource, reload, refreshError } = useMandateList(partyId, "delegate", active, openCount);
   const me = useMe(partyId, active, openCount);
   const persistence = me.resource.status === "ready" ? me.resource.data.persistence : undefined;
   const mandates = resource.status === "ready" ? resource.data : undefined;
@@ -58,6 +69,13 @@ function DelegateList({
           al comercio. No pasa por tu Nequi.
         </p>
       </div>
+
+      {charge && !charge.result ? (
+        <Notice title={`Cobro pendiente de ${charge.merchantDisplayName}`}>
+          {formatMoneyAmount(charge.amount)}. Abre la autorización con la que quieres pagarlo para que COMPAS lo revise.
+        </Notice>
+      ) : null}
+      {refreshError ? <StaleDataNotice error={refreshError} /> : null}
 
       <section aria-labelledby="delegate-active" className="space-y-3">
         <SectionTitle id="delegate-active">Activas</SectionTitle>
@@ -108,8 +126,20 @@ function UnusableNotice({ mandate }: { mandate: MandateView }) {
   return null;
 }
 
-function DelegateDetail({ partyId, id, active, focusOnMount }: { partyId: string; id: string; active: boolean; focusOnMount: boolean }) {
-  const { resource, reload } = useMandate(partyId, id, active);
+function DelegateDetail({
+  partyId,
+  id,
+  active,
+  focusOnMount,
+  checkout,
+}: {
+  partyId: string;
+  id: string;
+  active: boolean;
+  focusOnMount: boolean;
+  checkout: DelegateCheckoutProps;
+}) {
+  const { resource, reload, refreshError } = useMandate(partyId, id, active);
   if (resource.status === "loading") return <LoadingState label="Cargando la autorización" />;
   if (resource.status === "error") return <ErrorState error={resource.error} onRetry={reload} />;
   const mandate = resource.data;
@@ -125,6 +155,7 @@ function DelegateDetail({ partyId, id, active, focusOnMount }: { partyId: string
         </p>
       </div>
 
+      {refreshError ? <StaleDataNotice error={refreshError} /> : null}
       <UnusableNotice mandate={mandate} />
 
       <CapacityRoute mandate={mandate} />
@@ -168,10 +199,13 @@ function DelegateDetail({ partyId, id, active, focusOnMount }: { partyId: string
       <section aria-labelledby="delegate-pay" className="space-y-2">
         <SectionTitle id="delegate-pay">Pagar con COMPAS</SectionTitle>
         {mandate.usable ? (
-          <Notice title="El pago se activa en el comercio">
-            Para pagar, el comercio debe crear el cobro desde Nequi Negocios. Esa conexión aún no está disponible en
-            esta versión, así que todavía no puedes iniciar una compra desde aquí.
-          </Notice>
+          <DelegateCheckout
+            partyId={partyId}
+            mandate={mandate}
+            charge={checkout.charge}
+            onResult={checkout.onResult}
+            onPurchased={reload}
+          />
         ) : (
           <p className="text-[13px] text-(--cx-muted)">Esta autorización no se puede usar para pagar.</p>
         )}
@@ -187,6 +221,7 @@ export function DelegateCompas({
   active,
   openCount,
   focusOnMount,
+  checkout,
   partyId = DEMO_PARTY_IDS.andrea,
 }: {
   route: DelegateRoute;
@@ -194,10 +229,29 @@ export function DelegateCompas({
   active: boolean;
   openCount: number;
   focusOnMount: boolean;
+  checkout: DelegateCheckoutProps;
   partyId?: string;
 }) {
   if (route.name === "detail") {
-    return <DelegateDetail key={route.id} partyId={partyId} id={route.id} active={active} focusOnMount={focusOnMount} />;
+    return (
+      <DelegateDetail
+        key={route.id}
+        partyId={partyId}
+        id={route.id}
+        active={active}
+        focusOnMount={focusOnMount}
+        checkout={checkout}
+      />
+    );
   }
-  return <DelegateList partyId={partyId} active={active} openCount={openCount} focusOnMount={focusOnMount} onOpen={onOpen} />;
+  return (
+    <DelegateList
+      partyId={partyId}
+      active={active}
+      openCount={openCount}
+      focusOnMount={focusOnMount}
+      onOpen={onOpen}
+      charge={checkout.charge}
+    />
+  );
 }

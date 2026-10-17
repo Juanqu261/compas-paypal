@@ -7,6 +7,7 @@ import {
   type MerchantCompasConfig,
 } from "./nequi-business-compas-demo";
 import { BackIcon, CompassIcon, InfoIcon, StoreIcon } from "./NequiBusinessIcons";
+import { MerchantCompasEvidence, MerchantDemoCharge } from "./NequiBusinessCompasStatus";
 import { NequiBusinessScreen } from "./NequiBusinessScreen";
 import { NequiBusinessStatusBar } from "./NequiBusinessStatusBar";
 
@@ -24,14 +25,15 @@ const steps = [
   },
   {
     title: "COMPAS valida automáticamente",
-    body: "Revisa que el propósito del pago coincida con tus categorías.",
+    body: "Revisa que el propósito del pago coincida con las categorías que COMPAS verificó de tu negocio.",
   },
 ];
 
 /**
  * Merchant COMPAS settings. Edits a local draft and hands it to the parent on
  * save. Saving is local UI state, not an enrollment, a registry write, or a
- * verification. This screen makes no payment decision.
+ * verification. What COMPAS itself knows about the shop is read from the
+ * backend and shown apart. This screen makes no payment decision.
  */
 export function NequiBusinessCompas({
   config,
@@ -195,10 +197,15 @@ export function NequiBusinessCompas({
               className="mt-3 flex gap-2 rounded-md bg-(--nb-cyan) p-3 text-[13px] leading-snug"
             >
               <InfoIcon className="size-5 shrink-0" />
-              Tus categorías se contrastarán con la información disponible de
-              tu negocio y de cada compra.
+              Es tu preferencia en este teléfono. Para COMPAS, marcar una
+              categoría no la verifica: la acepta cuando una fuente
+              independiente la corrobora.
             </p>
           </fieldset>
+
+          <MerchantCompasEvidence selected={draft.categories} />
+
+          <MerchantDemoCharge />
 
           <section aria-labelledby={stepsId}>
             <h3 id={stepsId} className="text-[15px] font-bold">
@@ -231,7 +238,7 @@ export function NequiBusinessCompas({
           {missingCategory
             ? "Elige al menos una categoría."
             : saved
-              ? "Configuración guardada."
+              ? "Preferencia guardada en este teléfono. No se envió a COMPAS."
               : ""}
         </p>
         <button

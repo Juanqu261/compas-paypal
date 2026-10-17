@@ -29,6 +29,11 @@ export type MerchantCategoryService = {
   sources: CategorySourceRegistry;
   /** Number of demo submissions ingested at startup. 0 when the seed is off. */
   demoSubmissions: number;
+  /**
+   * Registered evidence sources. 0 with the demo seed off: the trust log may
+   * still hold entries, but evidence from an unregistered source is ignored.
+   */
+  sourceCount: number;
 };
 
 export type CreateMerchantCategoryServiceOptions = {
@@ -109,5 +114,6 @@ export async function createMerchantCategoryService(
     }),
     sources,
     demoSubmissions,
+    sourceCount: sourceList.length,
   };
 }

@@ -13,6 +13,7 @@ const STATUS_BY_ERROR: Record<MandateErrorCode, number> = {
   INVALID_MANDATE: 400,
   NOT_FOUND: 404,
   NOT_THE_PAYER: 403,
+  NOT_THE_DELEGATE: 403,
   INVALID_STATE: 409,
   PAYER_WALLET_NOT_CONFIGURED: 409,
   ASSET_MISMATCH: 409,
@@ -29,6 +30,8 @@ export type RuntimeFacts = {
   openPayments: "configured" | "not_configured";
   /** Whether a demo session may ask a payer's wallet for a grant. */
   payerGrants: "enabled" | "disabled_for_demo" | "not_configured";
+  /** Whether a demo session may spend a payer's grant through POST /purchases. */
+  purchases: "enabled" | "disabled_for_demo" | "not_configured";
 };
 
 export function isMandateApiPath(pathname: string): boolean {

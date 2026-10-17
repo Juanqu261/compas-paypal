@@ -9,6 +9,22 @@ export const DEMO_PARTY_IDS = {
   gladys: "demo-beneficiary-gladys",
 } as const;
 
+/**
+ * demo/test data: the merchants the backend's demo directory knows. A purchase
+ * names the merchant by id. The backend holds its wallet and resolves its
+ * categories, so nothing here is evidence.
+ */
+export const DEMO_MERCHANTS = {
+  drogueria: { id: "demo-merchant-drogueria-central", displayName: "Droguería Central" },
+  liquor: { id: "demo-merchant-liquor", displayName: "Licorera de ejemplo" },
+} as const;
+
+/** Which demo merchant charges in each scenario of `data/fixtures/demo/`. */
+export const DEMO_MERCHANT_BY_SCENARIO = {
+  "medication-pharmacy": DEMO_MERCHANTS.drogueria,
+  "alcohol-rejection": DEMO_MERCHANTS.liquor,
+} as const;
+
 export type ConsentReturn = { result: "granted" | "rejected" | "failed"; mandateId: string };
 
 /**

@@ -15,6 +15,7 @@ const FACTS: RuntimeFacts = {
   persistence: "IN_MEMORY_DEMO",
   openPayments: "configured",
   payerGrants: "enabled",
+  purchases: "disabled_for_demo",
 };
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
 

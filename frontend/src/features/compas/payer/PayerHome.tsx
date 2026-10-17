@@ -8,7 +8,16 @@ import { purposeTitle } from "../lib/labels";
 import { ActivityList } from "../ui/ActivityList";
 import { PlusIcon } from "../ui/icons";
 import { MandateCard } from "../ui/MandateCard";
-import { Button, DemoModeNote, EmptyState, ErrorState, LoadingState, ScreenHeading, SectionTitle } from "../ui/primitives";
+import {
+  Button,
+  DemoModeNote,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  ScreenHeading,
+  SectionTitle,
+  StaleDataNotice,
+} from "../ui/primitives";
 
 const ORDER: Record<MandateView["status"], number> = {
   ACTIVE: 0,
@@ -70,7 +79,7 @@ export function PayerHome({
   onCreate: () => void;
   onOpen: (id: string) => void;
 }) {
-  const { resource, reload } = useMandateList(partyId, "payer", active, openCount);
+  const { resource, reload, refreshError } = useMandateList(partyId, "payer", active, openCount);
   const mandates = resource.status === "ready" ? [...resource.data].sort((a, b) => ORDER[a.status] - ORDER[b.status]) : undefined;
   const recent = useRecentActivity(partyId, mandates, active);
   const capacity = mandates ? activeCapacity(mandates) : [];
@@ -108,6 +117,7 @@ export function PayerHome({
 
       <section aria-labelledby="payer-budgets" className="space-y-3">
         <SectionTitle id="payer-budgets">Mis presupuestos</SectionTitle>
+        {refreshError ? <StaleDataNotice error={refreshError} /> : null}
         {resource.status === "loading" ? <LoadingState label="Cargando tus presupuestos" /> : null}
         {resource.status === "error" ? <ErrorState error={resource.error} onRetry={reload} /> : null}
         {mandates && mandates.length === 0 ? (
