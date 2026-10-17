@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { purchaseUnderMandate } from "../../src/application/purchase-under-mandate.ts";
 import { buildSpendingReport } from "../../src/application/spending-report.ts";
+import { InMemoryMandateRepository } from "../../src/integrations/mandates/in-memory-mandate-repository.ts";
 import { InMemorySpendingLog } from "../../src/integrations/spending/in-memory-spending-log.ts";
 import { InMemoryGrantStore } from "../../src/integrations/open-payments/in-memory-grant-store.ts";
 import { computeInteractionHash } from "../../src/integrations/open-payments/interaction-hash.ts";
@@ -196,4 +197,53 @@ test("with the real adapter: ENFORCED liquor never reaches outgoingPayment.creat
     assert.equal(fake.callsTo("outgoingPayment.create").length, expectedCreates, enforcement);
     assert.equal(result.decision.outcome, enforcement === "ENFORCED" ? "DENY" : "ALLOW");
   }
+});
+
+test("with a mandate repository, an ALLOW reserves the quoted debit before it is recorded", async () => {
+  const { op, deps } = setup();
+  const mandates = new InMemoryMandateRepository();
+  await mandates.save(mandate("ENFORCED"));
+  const result = await purchaseUnderMandate(
+    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+    { ...deps, capacity: mandates },
+  );
+  assert.equal(result.decision.outcome, "ALLOW");
+  assert.equal(op.calls.outgoing.length, 1);
+  assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "2880");
+});
+
+test("when another purchase used the capacity first, the ALLOW becomes DENY BUDGET_EXCEEDED and nothing is paid", async () => {
+  const { op, spending, deps } = setup();
+  const mandates = new InMemoryMandateRepository();
+  // The caller's copy still says 4000, the repository only has 1000 left.
+  await mandates.save(mandate("ENFORCED", { remainingAuthorizedAmount: { value: "1000", assetCode: "USD", assetScale: 2 } }));
+  const result = await purchaseUnderMandate(
+    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+    { ...deps, capacity: mandates },
+  );
+  assert.equal(result.decision.outcome, "DENY");
+  assert.deepEqual(result.decision.reasons.map((r) => r.code), ["BUDGET_EXCEEDED"]);
+  assert.equal(op.calls.outgoing.length, 0);
+  assert.equal((await spending.listByMandate("demo-mandate-medication"))[0].decision.outcome, "DENY");
+  assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "1000");
+});
+
+test("if creating the outgoing payment throws, the reservation is given back", async () => {
+  const { op, deps } = setup();
+  const mandates = new InMemoryMandateRepository();
+  await mandates.save(mandate("ENFORCED"));
+  const failing = {
+    ...op.payments,
+    async createOutgoingPayment(): Promise<never> {
+      throw new Error("wallet unavailable");
+    },
+  };
+  await assert.rejects(
+    purchaseUnderMandate(
+      { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+      { ...deps, payments: failing, capacity: mandates },
+    ),
+    /wallet unavailable/,
+  );
+  assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "4000");
 });

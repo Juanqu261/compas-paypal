@@ -20,6 +20,11 @@
  * contradictory verified evidence, which is REVIEW for every purchase.
  *
  * Merchant evidence comes from the simulated Nequi Negocios seed (demo/test data).
+ *
+ * With DATABASE_URL, the mandate, the grant, the spending log and the
+ * observation log are written to Postgres, and the mandate's remaining
+ * capacity is reserved there. The two category trust logs stay in memory:
+ * one wallet playing two shops in one shared log would contradict itself.
  */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -36,6 +41,11 @@ import { createMerchantHistoryService } from "../src/integrations/merchant-histo
 import { createMerchantCategoryService } from "../src/integrations/merchant-registry/create-merchant-category-service.ts";
 import { createOpenPaymentsGateway } from "../src/integrations/open-payments/create-open-payments-gateway.ts";
 import { OpenPaymentsGatewayError } from "../src/integrations/open-payments/errors.ts";
+import { InMemoryMandateRepository } from "../src/integrations/mandates/in-memory-mandate-repository.ts";
+import { connectDatabase } from "../src/integrations/postgres/database.ts";
+import { PostgresGrantStore } from "../src/integrations/postgres/postgres-grant-store.ts";
+import { PostgresMandateRepository } from "../src/integrations/postgres/postgres-mandate-repository.ts";
+import { PostgresSpendingLog } from "../src/integrations/postgres/postgres-spending-log.ts";
 import { InMemorySpendingLog } from "../src/integrations/spending/in-memory-spending-log.ts";
 import type { MerchantRegistry } from "../src/ports/merchant-registry.ts";
 import type { OpenPaymentsGateway } from "../src/ports/open-payments-gateway.ts";
@@ -138,6 +148,8 @@ function loggingPayments(gateway: OpenPaymentsGateway): Pick<
   };
 }
 
+const database = connectDatabase();
+
 async function main(): Promise<void> {
   const enforcement = parseMode(args.mode);
   if (!["all", "pharmacy", "liquor"].includes(args.scenario)) {
@@ -147,7 +159,11 @@ async function main(): Promise<void> {
   const pharmacyWallet = requireEnv("DEMO_MERCHANT_WALLET_ADDRESS");
   const smokePort = Number(process.env.OP_SMOKE_PORT?.trim() || 4123);
 
-  const setup = await createOpenPaymentsGateway({ finishUri: `http://localhost:${smokePort}${FINISH_PATH}` });
+  console.log(database ? "storage: Postgres (DATABASE_URL)" : "storage: in memory");
+  const setup = await createOpenPaymentsGateway({
+    finishUri: `http://localhost:${smokePort}${FINISH_PATH}`,
+    ...(database ? { grants: new PostgresGrantStore(database) } : {}),
+  });
   if (!setup.configured) {
     throw new Error(`Open Payments client is not configured. Missing: ${setup.missing.join(", ")}`);
   }
@@ -224,6 +240,9 @@ async function main(): Promise<void> {
   console.log(`purpose     ${mandate.purposePolicy.eligibleCategories.join(", ")}, minimum merchant confidence ${mandate.purposePolicy.merchantConfidence.minimum}`);
   console.log(`enforcement ${enforcement}${enforcement === "MONITORED" ? '  (the payer ticked "allow even if not fully approved")' : ""}`);
   console.log(`budget      ${money(budget)}`);
+  // Saved before the consent: the grant is keyed by the mandate id.
+  const mandates = database ? new PostgresMandateRepository(database) : new InMemoryMandateRepository();
+  await mandates.save(mandate);
 
   step("4. Payer consent: outgoing-payment grant on the payer wallet (no receiver)");
   const listener = listenForFinishRedirect(smokePort, FINISH_PATH);
@@ -248,8 +267,8 @@ async function main(): Promise<void> {
   await gateway.finishPayerGrant({ grantKey: mandate.id, interactRef, hash });
   console.log("grant ACTIVE. Open Payments now caps every debit at the budget.");
 
-  const spending = new InMemorySpendingLog();
-  const history = await createMerchantHistoryService();
+  const spending = database ? new PostgresSpendingLog(database) : new InMemorySpendingLog();
+  const history = await createMerchantHistoryService(database ? { database } : {});
   const failures: string[] = [];
 
   try {
@@ -277,6 +296,7 @@ async function main(): Promise<void> {
             payments: loggingPayments(gateway),
             spending,
             history,
+            capacity: mandates,
           },
         );
       } catch (error) {
@@ -317,12 +337,9 @@ async function main(): Promise<void> {
         await spending.recordPayment(record.id, { outgoingPaymentUrl: outgoing.url, state: outgoing.state });
         console.log(`  [open payments] sender state=${outgoing.state} sent=${money(outgoing.sentAmount)}; receiver completed=${receiver.completed} received=${money(receiver.receivedAmount)}`);
 
-        // No mandate repository yet: the smoke test tracks remaining capacity itself.
-        if (record.debitAmount) {
-          const remaining = BigInt(mandate.remainingAuthorizedAmount.value) - BigInt(record.debitAmount.value);
-          mandate = { ...mandate, remainingAuthorizedAmount: { ...mandate.remainingAuthorizedAmount, value: remaining.toString() } };
-          console.log(`  [compas] remaining authorized amount ${money(mandate.remainingAuthorizedAmount)}`);
-        }
+        // The purchase reserved the debit in the mandate repository.
+        mandate = (await mandates.getById(mandate.id)) ?? mandate;
+        console.log(`  [compas] remaining authorized amount ${money(mandate.remainingAuthorizedAmount)}`);
       }
 
       const ok =
@@ -367,4 +384,4 @@ main().catch((error: unknown) => {
     console.error(`\n${error instanceof Error ? error.message : String(error)}`);
   }
   process.exitCode = 1;
-});
+}).finally(() => database?.end({ timeout: 5 }));

@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createMerchantCategoryService } from "../integrations/merchant-registry/create-merchant-category-service.ts";
 import { createOpenPaymentsGateway } from "../integrations/open-payments/create-open-payments-gateway.ts";
+import { connectDatabase } from "../integrations/postgres/database.ts";
+import { PostgresGrantStore } from "../integrations/postgres/postgres-grant-store.ts";
 import {
   BodyTooLargeError,
   CLAIM_SIGNATURE_HEADER,
@@ -23,7 +25,13 @@ const returnUrl =
 // Fail at startup, not inside a request, if the return URL is malformed.
 new URL(returnUrl);
 
-const openPayments = await createOpenPaymentsGateway();
+// With DATABASE_URL, grants and the trust log live in Supabase Postgres (data/migrations/).
+const database = connectDatabase();
+console.log(database ? "Storage: Postgres (DATABASE_URL)." : "Storage: in memory. A restart loses every log.");
+
+const openPayments = await createOpenPaymentsGateway(
+  database ? { grants: new PostgresGrantStore(database) } : {},
+);
 if (!openPayments.configured) {
   console.warn(
     `Open Payments is not configured (missing ${openPayments.missing.join(", ")}). Gateway calls will throw.`,
@@ -32,6 +40,7 @@ if (!openPayments.configured) {
 
 const merchantCategories = await createMerchantCategoryService({
   logWarning: (message) => console.warn(message),
+  ...(database ? { database } : {}),
 });
 if (merchantCategories.demoSubmissions > 0) {
   console.log(
@@ -83,6 +92,7 @@ const server = createServer(async (request, response) => {
       JSON.stringify({
         status: "ok",
         openPayments: openPayments.configured ? "configured" : "not_configured",
+        storage: database ? "postgres" : "memory",
       }),
     );
     return;

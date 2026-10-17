@@ -95,13 +95,19 @@ export async function seedDemoMerchantCategories(options: {
       : []),
   ]);
 
+  // Counts entries this start added. A persistent log keeps earlier ones.
+  let recorded = 0;
   for (const submission of submissions) {
     const body = new TextEncoder().encode(JSON.stringify(submission));
     const signature = sign(null, body, options.key.privateKey).toString("base64url");
     const result = await options.ingest({ body, signature, transport: "PUSH" });
+    // A persistent trust log already holds this submission from an earlier start,
+    // with an older observedAt. The first one stands.
+    if (!result.ok && result.code === "SUBMISSION_ID_REUSED") continue;
     if (!result.ok) {
       throw new Error(`Demo category seed rejected ${submission.submissionId}: ${result.code} ${result.message}`);
     }
+    if (!result.duplicate) recorded += 1;
   }
-  return submissions.length;
+  return recorded;
 }

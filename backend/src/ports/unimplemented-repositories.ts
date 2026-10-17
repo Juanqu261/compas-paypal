@@ -16,6 +16,14 @@ export class UnimplementedMandateRepository implements MandateRepository {
   save(): Promise<void> {
     return notImplemented("MandateRepository.save");
   }
+
+  reserveCapacity(): Promise<boolean> {
+    return notImplemented("MandateRepository.reserveCapacity");
+  }
+
+  releaseCapacity(): Promise<void> {
+    return notImplemented("MandateRepository.releaseCapacity");
+  }
 }
 
 export class UnimplementedAuditRepository implements AuditRepository {

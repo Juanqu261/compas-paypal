@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Mandate } from "../domain/mandate.ts";
+import type { MoneyAmount } from "../domain/money.ts";
 import type { MerchantCategoryResolution } from "../domain/merchant-category.ts";
 import type { PolicyDecision, PurposeCheck } from "../domain/policy-decision.ts";
 import type { PurchaseIntent } from "../domain/purchase.ts";
+import type { MandateRepository } from "../ports/mandate-repository.ts";
 import type { SpendingRecord } from "../domain/spending.ts";
 import type { MerchantRegistry } from "../ports/merchant-registry.ts";
 import type {
@@ -39,6 +41,11 @@ export type PurchaseUnderMandateDeps = {
   spending: SpendingLog;
   /** The observation log and the trust matrix. History is read at decision time and written after payment. */
   history: MerchantHistoryDeps;
+  /**
+   * Where the mandate's remaining capacity lives. With it, an ALLOW reserves
+   * the quoted debit before it is recorded. Without it, the caller tracks capacity.
+   */
+  capacity?: Pick<MandateRepository, "reserveCapacity" | "releaseCapacity">;
   now?: () => Date;
   newId?: () => string;
 };
@@ -64,7 +71,11 @@ export type PurchaseUnderMandateResult = {
  *
  * Every attempt is written to the spending log, allowed or not. A paid one is
  * also written to the observation log, so the payer can confirm it later.
- * Remaining capacity on the mandate is not updated here; that needs the mandate repository.
+ *
+ * With `capacity`, an ALLOW reserves the quoted debit before it is recorded.
+ * If another purchase used the capacity first, the decision becomes
+ * DENY BUDGET_EXCEEDED. If creating the outgoing payment throws, the
+ * reservation is given back.
  */
 export async function purchaseUnderMandate(
   input: PurchaseUnderMandateInput,
@@ -81,16 +92,28 @@ export async function purchaseUnderMandate(
       purposeCheck?: PurposeCheck;
       incoming?: IncomingPaymentRef;
       quote?: QuoteRef;
+      /** The debit to reserve if the decision is ALLOW. */
+      reserve?: MoneyAmount;
     },
   ) => {
-    const decision = composeDecision({
-      decisionId,
-      mandate,
-      intent,
-      hardReasons,
-      ...(context.purposeCheck ? { purposeCheck: context.purposeCheck } : {}),
-      evaluatedAt: now,
-    });
+    const decide = (reasons: Parameters<typeof composeDecision>[0]["hardReasons"]) =>
+      composeDecision({
+        decisionId,
+        mandate,
+        intent,
+        hardReasons: reasons,
+        ...(context.purposeCheck ? { purposeCheck: context.purposeCheck } : {}),
+        evaluatedAt: now,
+      });
+    let decision = decide(hardReasons);
+    if (decision.outcome === "ALLOW" && context.reserve && deps.capacity) {
+      if (!(await deps.capacity.reserveCapacity(mandate.id, context.reserve))) {
+        decision = decide([{
+          code: "BUDGET_EXCEEDED",
+          message: "The remaining authorized amount no longer covers the quoted debit.",
+        }]);
+      }
+    }
     const record: SpendingRecord = {
       id: decisionId,
       mandateId: mandate.id,
@@ -147,13 +170,20 @@ export async function purchaseUnderMandate(
     purposeCheck: applyConfidenceCap(mandate, purposeCheck, quote.debitAmount),
     incoming,
     quote,
+    reserve: quote.debitAmount,
   });
 
-  const payment = await createOutgoingPaymentIfAllowed(decision.outcome, deps.payments, {
-    grantKey: mandate.id,
-    quoteId: quote.id,
-    metadata: { compasMandateId: mandate.id, compasDecisionId: decision.id },
-  });
+  let payment: OutgoingPaymentRef | undefined;
+  try {
+    payment = await createOutgoingPaymentIfAllowed(decision.outcome, deps.payments, {
+      grantKey: mandate.id,
+      quoteId: quote.id,
+      metadata: { compasMandateId: mandate.id, compasDecisionId: decision.id },
+    });
+  } catch (error) {
+    if (decision.outcome === "ALLOW") await deps.capacity?.releaseCapacity(mandate.id, quote.debitAmount);
+    throw error;
+  }
   if (!payment) return { decision, record };
 
   const paidRecord = await deps.spending.recordPayment(record.id, {

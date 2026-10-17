@@ -59,6 +59,8 @@ export async function seedDemoMerchantHistory(options: {
     );
   }
 
+  // A persistent log already holds the history from an earlier start. Keep it.
+  if (await options.observations.findPaid(seeded[0].spendingRecordId)) return 0;
   for (const observation of seeded) await options.observations.append(observation);
   return seeded.length;
 }

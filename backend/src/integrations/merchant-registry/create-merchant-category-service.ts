@@ -7,6 +7,9 @@ import { normalizeWalletAddressUrl } from "../../domain/merchant-identifiers.ts"
 import type { CategorySource } from "../../domain/merchant-category.ts";
 import type { CategorySourceRegistry } from "../../ports/category-source-registry.ts";
 import type { MerchantRegistry } from "../../ports/merchant-registry.ts";
+import type { MerchantTrustLog } from "../../ports/merchant-trust-log.ts";
+import type { Database } from "../postgres/database.ts";
+import { PostgresTrustLog } from "../postgres/postgres-trust-log.ts";
 import { verifyClaimSignature } from "./claim-signature.ts";
 import { CATEGORY_MAPPINGS_DIR, DEMO_CATEGORY_SOURCES_FILE } from "./data-paths.ts";
 import {
@@ -17,7 +20,7 @@ import {
 import { InMemoryTrustLog } from "./in-memory-trust-log.ts";
 import { loadCategoryMappings } from "./json-category-mappings.ts";
 import { loadCategorySources, StaticCategorySourceRegistry } from "./static-source-registry.ts";
-import { createSubjectRefFn, ephemeralSubjectRefKey } from "./subject-ref.ts";
+import { createSubjectRefFn, subjectRefKey } from "./subject-ref.ts";
 import { TrustLogMerchantRegistry } from "./trust-log-merchant-registry.ts";
 
 export type MerchantCategoryService = {
@@ -34,10 +37,12 @@ export type CreateMerchantCategoryServiceOptions = {
   mappingsDir?: string;
   demoSourcesFile?: string;
   now?: () => Date;
+  /** With a database, the trust log is compas.trust_log_entries. Without one, it is in memory. */
+  database?: Database;
 };
 
 /**
- * Wires the in-memory merchant category service.
+ * Wires the merchant category service, on Postgres or in memory.
  * Mapping tables and source files are checked here, so a bad seed fails at startup.
  */
 export async function createMerchantCategoryService(
@@ -46,13 +51,12 @@ export async function createMerchantCategoryService(
   const env = options.env ?? process.env;
   const warn = options.logWarning ?? (() => {});
 
-  const hmacKey = env.MERCHANT_SUBJECT_HMAC_KEY?.trim();
-  if (!hmacKey) {
+  if (!options.database && !env.MERCHANT_SUBJECT_HMAC_KEY?.trim()) {
     warn(
       "MERCHANT_SUBJECT_HMAC_KEY is not set. Using a random key for this process. The trust log is in memory, so nothing outlives it anyway.",
     );
   }
-  const subjectRef = createSubjectRefFn(hmacKey || ephemeralSubjectRefKey());
+  const subjectRef = createSubjectRefFn(subjectRefKey(env, { persistent: Boolean(options.database) }));
 
   const demoSeedEnabled = env.MERCHANT_CATEGORY_DEMO_SEED?.trim().toLowerCase() !== "false";
   const demoKey = demoSeedEnabled ? generateDemoSigningKey() : undefined;
@@ -64,7 +68,9 @@ export async function createMerchantCategoryService(
     : [];
   const sources = new StaticCategorySourceRegistry(sourceList);
 
-  const trustLog = new InMemoryTrustLog();
+  const trustLog: MerchantTrustLog = options.database
+    ? new PostgresTrustLog(options.database)
+    : new InMemoryTrustLog();
   const mappings = loadCategoryMappings(options.mappingsDir ?? CATEGORY_MAPPINGS_DIR);
 
   const ingest = (input: IngestCategoryClaimInput) =>

@@ -1,3 +1,4 @@
+import type { GrantStore } from "../../ports/grant-store";
 import type { OpenPaymentsGateway } from "../../ports/open-payments-gateway";
 import { readOpenPaymentsConfig } from "./config.ts";
 import { InMemoryGrantStore } from "./in-memory-grant-store.ts";
@@ -19,7 +20,12 @@ export type OpenPaymentsGatewaySetup =
  * call, never a fake one.
  */
 export async function createOpenPaymentsGateway(
-  options: { env?: NodeJS.ProcessEnv; finishUri?: string } = {},
+  options: {
+    env?: NodeJS.ProcessEnv;
+    finishUri?: string;
+    /** Default: in memory, so a restart loses every grant. */
+    grants?: GrantStore;
+  } = {},
 ): Promise<OpenPaymentsGatewaySetup> {
   const result = readOpenPaymentsConfig(options.env);
   if (!result.configured) {
@@ -35,7 +41,7 @@ export async function createOpenPaymentsGateway(
     configured: true,
     gateway: new InterledgerOpenPaymentsGateway({
       sdk,
-      grants: new InMemoryGrantStore(),
+      grants: options.grants ?? new InMemoryGrantStore(),
       finishUri: options.finishUri ?? result.config.finishUri,
     }),
   };

@@ -9,15 +9,17 @@
     "op:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/op-smoke.ts",
     "compas:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/compas-smoke.ts",
     "registry:fetch": "node --experimental-strip-types scripts/fetch-rues-registry.ts",
+    "registry:load": "node --experimental-strip-types --env-file-if-exists=.env scripts/load-rues-registry.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/**/*.test.ts"
+    "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^22",
     "typescript": "^5"
   },
   "dependencies": {
-    "@interledger/open-payments": "7.4.0"
+    "@interledger/open-payments": "7.4.0",
+    "postgres": "3.4.9"
   },
   "engines": {
     "node": ">=22.9"

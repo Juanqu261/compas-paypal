@@ -19,3 +19,20 @@ export function createSubjectRefFn(key: string | Buffer): SubjectRefFn {
 export function ephemeralSubjectRefKey(): Buffer {
   return randomBytes(32);
 }
+
+/**
+ * The HMAC key for NIT and party refs. With persistent logs, refs made under
+ * a lost key never match again, so the key is required. In memory, a missing
+ * key gives a random one for the process.
+ */
+export function subjectRefKey(
+  env: Record<string, string | undefined>,
+  options: { persistent: boolean },
+): string | Buffer {
+  const key = env.MERCHANT_SUBJECT_HMAC_KEY?.trim();
+  if (key) return key;
+  if (options.persistent) {
+    throw new Error("MERCHANT_SUBJECT_HMAC_KEY is required when DATABASE_URL is set: stored refs must outlive the process.");
+  }
+  return ephemeralSubjectRefKey();
+}

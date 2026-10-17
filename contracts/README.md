@@ -2,6 +2,7 @@
 
 Cross-runtime contracts will live here: OpenAPI descriptions, JSON schemas, event schemas, and shared request or response shapes.
 
+- `data-model/`: what the database holds, which screen each table feeds, and the formats the frontend receives. Start here.
 - `merchant-categories/`: category claims and the merchant category view.
 - `merchant-history/`: the payer's verdict on a paid purchase.
 - `merchant-registry/`: PROVISIONAL shape of the Cámara de Comercio registry database.

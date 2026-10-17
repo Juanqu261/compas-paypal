@@ -15,10 +15,11 @@ src/domain/          Mandate, parties, money, decisions, audit events
 src/application/     Purchase flow on top of Open Payments, allow-gate, spending report, category ingestion
 src/policy/          Evaluation order, merchant category step
 src/ports/           Gateway, repositories, classifier, merchant category service
-src/integrations/    Open Payments adapter (real), merchant category service (in memory); other adapters throw
+src/integrations/    Open Payments adapter (real), merchant category service, Postgres adapters (postgres/), in-memory fallbacks
 src/audit/           Future audit writer
 src/api/             HTTP boundary. GET /health, GET /open-payments/finish, merchant category routes
 scripts/op-smoke.ts  End-to-end Open Payments run on the test network
+scripts/fetch-rues-registry.ts, load-rues-registry.ts  Cámara de Comercio extract: fetch it, load it into Postgres
 ```
 
 Future resources are listed in `src/api/README.md`. They are not implemented.
@@ -38,7 +39,17 @@ npm test
 npm start
 ```
 
-`npm run dev` and `npm start` listen on port 4000. They load `backend/.env` when it exists. `GET /health` returns `{ "status": "ok", "openPayments": "configured" | "not_configured" }`.
+`npm run dev` and `npm start` listen on port 4000. They load `backend/.env` when it exists. `GET /health` returns `{ "status": "ok", "openPayments": "configured" | "not_configured", "storage": "postgres" | "memory" }`.
+
+## Storage
+
+Without `DATABASE_URL` every log is in memory, as before. With it, the backend uses Supabase Postgres through `src/integrations/postgres/`. Schema and rules: `data/schema/README.md`.
+
+- The server stores the payer grants and the trust log there. `npm run compas:smoke` also stores the mandate, the spending log and the observation log, and reserves the mandate's capacity there. Its two category trust logs stay in memory, because one wallet plays both shops.
+- `MERCHANT_SUBJECT_HMAC_KEY` is then required, and must never change once data is stored.
+- The demo seeds are idempotent: a second start keeps the first start's entries. The demo tienda's purchase history is seeded only in memory. In Postgres, each observation needs a spending record.
+- `DATABASE_ADMIN_URL=… npm run registry:load` loads the 1,900 Cámara de Comercio shops into `compas.registry_*`.
+- `TEST_DATABASE_URL` (a member of `compas_backend`, schema applied) runs the Postgres adapter tests in `npm test`. Without it they are skipped.
 
 ## Open Payments
 
@@ -58,10 +69,10 @@ The smoke script checks the Open Payments leg only. It runs no COMPAS policy. Gr
 The merchant category service tells the policy engine what a merchant is and how well that is backed. It resolves a merchant's Open Payments wallet address to COMPAS categories and trust levels. Design: `docs/plans/merchant-category-service.md` and `docs/adr/0005-merchant-category-attestations.md`. Payloads: `contracts/merchant-categories/README.md`.
 
 - Evidence enters only through `ingestCategoryClaim` (`src/application/ingest-category-claim.ts`). Push sources sign the raw body with Ed25519.
-- The trust log is in memory. A restart loses it.
+- The trust log is in memory, or in `compas.trust_log_entries` with `DATABASE_URL`.
 - At startup the backend generates a throwaway Ed25519 key, registers the two simulated Nequi Negocios sources from `data/seeds/category-sources/demo-sources.json` and seeds the demo merchants. Droguería Central resolves to `MEDICATION` at `PROVIDER_VERIFIED`. The liquor store resolves to `ALCOHOL`/`TOBACCO`. When `DEMO_MERCHANT_WALLET_ADDRESS` is set, that test-network wallet gets Droguería Central's evidence too. `MERCHANT_CATEGORY_DEMO_SEED=false` turns the seed off.
-- `MERCHANT_SUBJECT_HMAC_KEY` (32+ characters) keys the HMAC that replaces NITs. Without it a random key is used for the process.
-- The Cámara de Comercio registry lookup and the health-registry feed throw `NotImplementedError`. `RegistryDbFeed` is ready for the registry database, against a provisional contract.
+- `MERCHANT_SUBJECT_HMAC_KEY` (32+ characters) keys the HMAC that replaces NITs. Without it and without a database, a random key is used for the process.
+- The Cámara de Comercio registry has two lookups for `RegistryDbFeed`: `JsonBusinessRegistryLookup` over the seed file and `PostgresBusinessRegistryLookup` over `compas.registry_establishments`. Nothing calls `refreshRegistryEvidence` yet. The health-registry feed throws `NotImplementedError`.
 
 ### Trust matrix
 

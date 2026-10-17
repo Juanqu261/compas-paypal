@@ -4,6 +4,8 @@
 
 Before it was applied, the migration passed 40 checks of its constraints, append-only triggers and grants on a throwaway Postgres 17 container with dummy rows. After it was applied, Supabase showed RLS on all 11 tables, no `compas` access for `anon` or `authenticated`, and no security advisor warnings.
 
+Frontend developers: read [`contracts/data-model/README.md`](../../contracts/data-model/README.md) instead.
+
 ## Tables
 
 Everything lives in the `compas` schema. The browser never queries it. The frontend calls the backend, and only the backend decides `ALLOW`, `DENY` or `REVIEW`.
@@ -48,12 +50,21 @@ These stay in `data/seeds/` as versioned files, because they are reviewed config
 - The backend connects with `DATABASE_URL` in `backend/.env` through the Supabase pooler (transaction mode, user `compas_api.<project-ref>`). It is never a `NEXT_PUBLIC_*` variable.
 - Grant tokens are stored in plain text inside the closed schema. Move them to Supabase Vault after the hackathon.
 
-## Before the backend can use it
+## Backend integration
 
-1. **A database driver.** The backend has no Postgres client. One dependency, such as `postgres`, plus one adapter per port.
-2. **A stable HMAC key.** Today a missing `MERCHANT_SUBJECT_HMAC_KEY` falls back to a random key per process. Once logs persist, refs made with a lost key no longer match, so a missing key must stop startup.
-3. **An idempotent demo seed.** `demo-category-seed.ts` stamps `observedAt` with the current time. On the second start, the same `submissionId` arrives with a different body, is refused as `SUBMISSION_ID_REUSED` and stops startup. Use a fixed `observedAt` or skip existing submissions.
-4. **Budget reservation.** `purchaseUnderMandate` doesn't decrease `remainingAuthorizedAmount` yet. Reserve before `createOutgoingPayment` with `update compas.mandates set remaining_value = remaining_value - $debit where id = $id and status = 'ACTIVE' and remaining_value >= $debit`, and release it if the payment fails.
-5. **Registry load.** A script that loads `rues-medellin.json` into the two registry tables, run as the owner role.
-6. **`purchase_intents` is new.** The domain has no pending-charge state yet. Clear line descriptions once a charge is decided, because they can name a medicine.
-7. **An ADR.** The schema is applied, but no ADR records Supabase Postgres as the persistence choice yet.
+Done on 2026-10-16. Each item was checked against a local Postgres 17 with this migration, connecting as a member of `compas_backend`:
+
+- **Adapters.** `backend/src/integrations/postgres/` has one adapter per port, on the `postgres` driver with prepared statements off for the pooler. They cover the trust log, observation log, spending log, grant store, mandates, audit and registry lookup.
+- **Wiring.** With `DATABASE_URL`, the server stores grants and the trust log here. `npm run compas:smoke` also stores the mandate, the spending and observation logs, and the mandate's capacity.
+- **HMAC key.** With a database, a missing `MERCHANT_SUBJECT_HMAC_KEY` stops startup.
+- **Idempotent demo seed.** A second start keeps the first start's entries.
+- **Budget reservation.** With a mandate repository, `purchaseUnderMandate` reserves the quoted debit with one conditional `UPDATE` before recording an `ALLOW`. If the reservation fails, the decision becomes `DENY BUDGET_EXCEEDED`. If creating the payment throws, the reservation is released.
+- **Registry load.** `DATABASE_ADMIN_URL=… npm run registry:load` loads 290 companies and 1,900 establishments.
+
+Still open:
+
+1. **The login role.** Create it in the Supabase SQL editor, never in git: `create role compas_api login password '…' in role compas_backend;`. Then set `DATABASE_URL` in `backend/.env`.
+2. **Demo history in Postgres.** `merchant_observations.spending_record_id` references `spending_records`. The demo tienda's seeded purchases have no spending record, so that seed runs only in memory. Either drop that foreign key or seed matching spending records. This is a team decision, because it changes the shared schema.
+3. **`purchase_intents`** has no domain type or route yet. Clear line descriptions once a charge is decided.
+4. **Grant tokens** are stored in plain text inside the closed schema. Move them to Supabase Vault after the hackathon.
+5. **An ADR.** No ADR records Supabase Postgres as the persistence choice yet.

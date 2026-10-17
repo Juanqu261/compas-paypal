@@ -235,6 +235,21 @@ Copy the template, fill it in, and link the prompt file under `prompts/`.
 - Prompt log: [prompts/013-supabase-schema.md](prompts/013-supabase-schema.md)
 - Human review: Pending team review. The schema is applied but empty. The backend has no database adapter yet.
 
+### 2026-10-16 — Claude Code — Postgres adapters and budget reservation
+
+- Tool: Claude Code (Claude Opus 5.5)
+- Role:
+  - added the `postgres` driver (3.4.9) and wrote the Postgres adapters in `backend/src/integrations/postgres/`
+  - wired them into the server, the category and history factories, the Open Payments gateway factory and `scripts/compas-smoke.ts`
+  - extended `MandateRepository` with `reserveCapacity`/`releaseCapacity`, added `InMemoryMandateRepository`, and made `purchaseUnderMandate` reserve the quoted debit before recording an `ALLOW`
+  - made the HMAC key required with a database, made the demo seeds idempotent, and wrote `scripts/load-rues-registry.ts` (`npm run registry:load`)
+  - fixed the `npm test` glob, which ran 18 of 27 test files. All 188 tests now run.
+  - wrote `tests/integrations/postgres/postgres-adapters.test.ts` and reservation tests in `tests/application/purchase-under-mandate.test.ts`, and updated `backend/README.md`, `backend/.env.example` and `data/schema/README.md`
+  - checked everything on a local Postgres 17 container. Nothing new was applied to Supabase.
+  - fixed the database user in the local `backend/.env`, generated its HMAC key, loaded the Cámara de Comercio registry into Supabase, and wrote `contracts/data-model/README.md` for the frontend team
+- Prompt log: [prompts/014-postgres-adapters.md](prompts/014-postgres-adapters.md)
+- Human review: Pending team review. The server was started once against Supabase, and the registry was loaded there. The adapter tests ran only on the local container. Dropping the observation→spending foreign key is left to the team.
+
 ## Entry template
 
 ### YYYY-MM-DD — Tool name
