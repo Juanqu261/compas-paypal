@@ -46,20 +46,18 @@ export function normalizeNit(raw: string): string | undefined {
 }
 
 /**
- * Same form the Open Payments adapter uses: a `$pointer` becomes https,
- * and the trailing slash is dropped. Query strings, fragments and
- * credentials are refused, so one wallet has one spelling.
+ * A PayPal account id, as PayPal names a payee (`payee.merchant_id`) or a
+ * payer (`payer.payer_id`): 13 characters from PayPal's alphabet, which
+ * leaves out 0, 1, I and O. For example "JYHT3DF634TAG".
  */
-export function normalizeWalletAddressUrl(raw: string): string | undefined {
-  const trimmed = raw.trim();
-  const candidate = trimmed.startsWith("$") ? `https://${trimmed.slice(1)}` : trimmed;
-  let parsed: URL;
-  try {
-    parsed = new URL(candidate);
-  } catch {
-    return undefined;
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return undefined;
-  if (parsed.search || parsed.hash || parsed.username || parsed.password) return undefined;
-  return parsed.toString().replace(/\/$/, "");
+const PAYPAL_ACCOUNT_ID = /^[2-9A-HJ-NP-Z]{13}$/;
+
+/**
+ * Trims and upper-cases, so one PayPal account has one spelling. A format
+ * check only: whether the account exists is PayPal's answer, when an order
+ * names it as the payee.
+ */
+export function normalizePayPalAccountId(raw: string): string | undefined {
+  const candidate = raw.trim().toUpperCase();
+  return PAYPAL_ACCOUNT_ID.test(candidate) ? candidate : undefined;
 }
