@@ -1,18 +1,14 @@
 /**
- * Terminal and consent helpers shared by the smoke scripts.
- * They only print, prompt and listen. They make no Open Payments call.
+ * Terminal and redirect helpers shared by the smoke scripts.
+ * They only print, prompt and listen. They make no PayPal call.
  */
 import { createServer } from "node:http";
 import { createInterface } from "node:readline/promises";
 import { formatMoneyAmount, type MoneyAmount } from "../../src/domain/money.ts";
-import type {
-  IncomingPaymentRef,
-  OutgoingPaymentRef,
-} from "../../src/ports/open-payments-gateway.ts";
 
-export const CONSENT_TIMEOUT_MS = 5 * 60_000;
-export const POLL_INTERVAL_MS = 2_000;
-export const POLL_ATTEMPTS = 30;
+export const APPROVAL_TIMEOUT_MS = 10 * 60_000;
+export const SMOKE_RETURN_PATH = "/smoke-return";
+export const SMOKE_CANCEL_PATH = "/smoke-cancel";
 
 export function step(title: string): void {
   console.log(`\n== ${title}`);
@@ -30,39 +26,46 @@ export function requireEnv(name: string): string {
   return value;
 }
 
-/** Listens once on the finish URI and resolves with the redirect's query. */
-export function listenForFinishRedirect(
-  port: number,
-  path: string,
-): { params: Promise<URLSearchParams>; close: () => void } {
-  let timer: NodeJS.Timeout | undefined;
-  const server = createServer();
-  const close = () => {
-    clearTimeout(timer);
-    server.close();
-  };
+export function smokePort(): number {
+  return Number(process.env.PAYPAL_SMOKE_PORT?.trim() || 4123);
+}
 
-  const params = new Promise<URLSearchParams>((resolve, reject) => {
-    server.on("request", (request, response) => {
-      const url = new URL(request.url ?? "/", `http://localhost:${port}`);
-      if (url.pathname !== path) {
-        response.writeHead(404).end();
-        return;
-      }
-      response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-      response.end("COMPAS smoke test: consent result received. Return to the terminal.");
-      close();
-      resolve(url.searchParams);
-    });
-    server.on("error", reject);
-    timer = setTimeout(() => {
-      close();
-      reject(new Error("Timed out waiting for the payer's consent redirect."));
-    }, CONSENT_TIMEOUT_MS);
-    server.listen(port);
+export type PayerReturn = { approved: boolean; orderId: string | null };
+
+/**
+ * Listens on the smoke return and cancel URLs and resolves with the first
+ * redirect PayPal sends the payer's browser to, for any order.
+ */
+export function listenForPayPalReturn(port: number): { next: () => Promise<PayerReturn>; close: () => void } {
+  const waiting: ((value: PayerReturn) => void)[] = [];
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", `http://localhost:${port}`);
+    if (url.pathname !== SMOKE_RETURN_PATH && url.pathname !== SMOKE_CANCEL_PATH) {
+      response.writeHead(404).end();
+      return;
+    }
+    response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+    response.end("COMPAS smoke test: PayPal sent you back. Return to the terminal.");
+    waiting.shift()?.({ approved: url.pathname === SMOKE_RETURN_PATH, orderId: url.searchParams.get("token") });
   });
+  server.listen(port);
 
-  return { params, close };
+  return {
+    next: () =>
+      new Promise<PayerReturn>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          const index = waiting.indexOf(done);
+          if (index >= 0) waiting.splice(index, 1);
+          reject(new Error("Timed out waiting for PayPal to send the payer back."));
+        }, APPROVAL_TIMEOUT_MS);
+        const done = (value: PayerReturn) => {
+          clearTimeout(timer);
+          resolve(value);
+        };
+        waiting.push(done);
+      }),
+    close: () => server.close(),
+  };
 }
 
 export async function confirm(question: string, assumeYes: boolean): Promise<boolean> {
@@ -71,8 +74,4 @@ export async function confirm(question: string, assumeYes: boolean): Promise<boo
   const answer = await rl.question(`${question} [y/N] `);
   rl.close();
   return answer.trim().toLowerCase() === "y";
-}
-
-export function isFinal(outgoing: OutgoingPaymentRef, incoming: IncomingPaymentRef): boolean {
-  return outgoing.state !== "PENDING" || incoming.completed;
 }
