@@ -28,4 +28,4 @@ The classifier must not call `OpenPaymentsGateway`, create a grant, or choose a 
 
 A future request should carry the merchant categories and trust levels resolved by `MerchantRegistry`, and the line descriptions on the purchase intent. It should not receive a medical history. The medication purpose can be evaluated from item and merchant categories without sending Gladys's diagnosis to a model or to Open Payments.
 
-Human review of AI-generated code, and of any future model output used in the demo, stays with the team. See [08-hackathon-compliance.md](08-hackathon-compliance.md).
+Human review of AI-generated code, and of any future model output used in the demo, stays with the team.

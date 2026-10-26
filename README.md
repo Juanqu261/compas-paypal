@@ -38,8 +38,7 @@ data/         Demo fixtures and future schemas
 contracts/    Future API and event contracts
 infra/        Future deployment material
 docs/         Product, architecture, and research
-prompts/      Exact AI coding prompts
-.AGENTS/      Shared instructions for coding agents
+AGENTS.md     Context for coding agents
 ```
 
 Details and diagrams: [docs/03-architecture.md](docs/03-architecture.md).
@@ -80,9 +79,9 @@ npm start
 
 Open Payments client settings belong in `backend/.env.example`. Leave them empty until a later task. Do not commit a private key, and do not expose those values to the frontend.
 
-## AI usage
+## Coding agents
 
-Disclosure: [AI_USAGE.md](AI_USAGE.md). Prompts: [prompts/](prompts/). Shared agent context: [AGENTS.md](AGENTS.md) and [.AGENTS/](.AGENTS/).
+Shared context for coding agents: [AGENTS.md](AGENTS.md).
 
 ## Research and prior art
 

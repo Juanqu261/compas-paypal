@@ -17,7 +17,7 @@ The repository is a general product monorepo:
 - One frontend still owns the ARQ, Nequi, and Nequi Negocios simulations.
 - The backend owns COMPAS domain, policy, payment orchestration, and the Open Payments gateway.
 - Tool-specific AI configuration stays local and untracked.
-- `.AGENTS/` contains shared AI-agent context, with `AGENTS.md` as the entry point.
+- The root `AGENTS.md` is the shared AI-agent context.
 
 This supersedes only the "no monorepo" repository constraint from the original foundation. ADR 0002 remains in force for the three surfaces inside `frontend/`.
 
