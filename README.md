@@ -1,16 +1,16 @@
 # COMPAS
 
-COMPAS is an embedded authorization and policy layer for purpose-restricted payments on existing wallets.
+COMPAS is an embedded authorization and policy layer for purpose-restricted payments, on PayPal.
 
 Money stays where it is. COMPAS moves permission, not money.
 
 ## The problem
 
-Pedro lives abroad and holds a USD wallet. He wants up to USD 40 available for medication for his grandmother Gladys in Colombia. Gladys does not use a wallet. Andrea, Pedro's sister, lives with Gladys and has a Nequi account. Pedro does not want to send Andrea USD 40 as unrestricted money. He wants Andrea to cause a payment only for Gladys's medication.
+Pedro lives abroad and pays with PayPal, in USD. He wants up to USD 40 available for medication for his grandmother Gladys in Colombia. Gladys does not use a wallet. Andrea, Pedro's sister, lives with Gladys and has a Nequi account. Pedro does not want to send Andrea USD 40 as unrestricted money. He wants Andrea to cause a payment only for Gladys's medication.
 
 ## The idea
 
-Pedro creates a mandate: Andrea may initiate payments, up to USD 40, for purpose `MEDICATION`, until the mandate expires. Andrea does not receive the funds. When she pays a pharmacy, the backend checks the mandate. If the decision is allow, Open Payments moves money from Pedro's wallet to the merchant. If she tries to buy alcohol, COMPAS denies the intent before any outgoing payment exists.
+Pedro creates a mandate: Andrea may initiate payments, up to USD 40, for purpose `MEDICATION`, until the mandate expires. Andrea does not receive the funds. When she pays a pharmacy, the backend checks the mandate. If the decision is allow, COMPAS creates a PayPal order for that exact cart, payable to the pharmacy. Pedro approves it in his PayPal, and the money goes straight from his PayPal to the pharmacy's. If she tries to buy alcohol, COMPAS denies the intent before any PayPal order exists.
 
 The same mandate can later express a business, NGO, or government allocation. The hackathon MVP implements the family story only. COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail.
 
@@ -33,7 +33,7 @@ These routes belong to the frontend. `/demo` is the pitch surface. ARQ, Nequi, a
 
 ```text
 frontend/     Next.js demo and wallet simulations
-backend/      COMPAS runtime, policy, and Open Payments boundary
+backend/      COMPAS runtime, policy, and PayPal boundary
 data/         Demo fixtures and future schemas
 contracts/    Future API and event contracts
 infra/        Future deployment material
@@ -43,9 +43,9 @@ AGENTS.md     Context for coding agents
 
 Details and diagrams: [docs/03-architecture.md](docs/03-architecture.md).
 
-## Open Payments
+## PayPal
 
-Open Payments is the payment layer: wallet addresses, grants, incoming payments, quotes, and outgoing payments. COMPAS is the purpose layer: mandate, delegate, beneficiary, merchant evidence, and the allow or deny decision. An outgoing-payment grant can exist before the pharmacy is known, which is what lets Pedro authorize a budget first. No Open Payments call is implemented yet. Mapping: [docs/04-open-payments-mapping.md](docs/04-open-payments-mapping.md).
+PayPal is the payment layer: the order, the payer's approval at PayPal, and the capture that pays the merchant directly. COMPAS is the purpose layer: mandate, delegate, beneficiary, budget, merchant evidence, and the allow or deny decision. Pedro authorizes a budget in COMPAS before the pharmacy is known, and approves each allowed purchase at PayPal. COMPAS runs on the PayPal sandbox only. Mapping: [docs/04-paypal-mapping.md](docs/04-paypal-mapping.md). Decision: [ADR 0008](docs/adr/0008-paypal-rail-per-order-approval.md).
 
 ## Development
 
@@ -73,11 +73,11 @@ npm test
 npm start
 ```
 
-`npm run dev` in `frontend/` serves the demo at [http://localhost:3000](http://localhost:3000). `npm run dev` in `backend/` serves `GET /health` and the Open Payments consent callback on port 4000. `npm run op:smoke` in `backend/` runs one real Open Payments payment on the test network. See `backend/README.md`.
+`npm run dev` in `frontend/` serves the demo at [http://localhost:3000](http://localhost:3000). `npm run dev` in `backend/` serves the COMPAS API and the PayPal return routes on port 4000. `npm run paypal:smoke` in `backend/` runs one real PayPal sandbox payment. See `backend/README.md`.
 
 ## Environment variables
 
-Open Payments client settings belong in `backend/.env.example`. Leave them empty until a later task. Do not commit a private key, and do not expose those values to the frontend.
+PayPal sandbox app credentials and the demo's sandbox accounts belong in `backend/.env`, from `backend/.env.example`.
 
 ## Coding agents
 
@@ -89,4 +89,4 @@ Purpose-bound money, ERC-7291, transfer design, and merchant inclusion are summa
 
 ## Disclaimer
 
-This is a hackathon proof of concept. ARQ, Nequi, and Nequi Negocios are simulated integration surfaces. The project is not affiliated with or endorsed by those companies. No production banking integration is implied.
+This is a hackathon proof of concept. The project is not affiliated with or endorsed by those companies. No production banking integration is implied.
