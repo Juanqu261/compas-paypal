@@ -12,10 +12,10 @@ export type PurchaseIntent = {
   mandateId: string;
   delegateId: string;
   /**
-   * The payee's Open Payments wallet address. COMPAS resolves the merchant's
+   * The payee's PayPal merchant id. COMPAS resolves the merchant's
    * categories from it. The intent never carries category evidence.
    */
-  merchantWalletAddressUrl: string;
+  paypalMerchantId: string;
   /** Display only. Not evidence. */
   merchantDisplayName?: string;
   lineItems: readonly PurchaseLineItem[];

@@ -1,4 +1,4 @@
-export type { AuditEvent, OpenPaymentsResourceRefs } from "./audit";
+export type { AuditEvent, PayPalResourceRefs } from "./audit";
 export type {
   Mandate,
   MandateStatus,
@@ -59,7 +59,8 @@ export type {
 } from "./policy-decision";
 export { POLICY_OUTCOMES, POLICY_REASON_CODES } from "./policy-decision";
 export type { PurchaseIntent, PurchaseLineItem } from "./purchase";
-export type { SpendingRecord } from "./spending";
+export type { PaymentFailureCode, PaymentState, SpendingRecord } from "./spending";
+export { PAYMENT_FAILURE_CODES, PAYMENT_STATES } from "./spending";
 export type {
   AcceptableConfidence,
   HistoryGrade,

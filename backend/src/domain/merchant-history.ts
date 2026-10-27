@@ -11,13 +11,13 @@ import type { CompasCategory } from "./merchant-category.ts";
 export const PURCHASE_VERDICTS = ["MATCH", "MISMATCH"] as const;
 export type PurchaseVerdict = (typeof PURCHASE_VERDICTS)[number];
 
-/** An outgoing payment was created at the merchant and had not failed. */
+/** PayPal captured an order at the merchant, or accepted its capture as pending. */
 export type PaidObservation = {
   type: "PAID";
   /** `${spendingRecordId}:paid` */
   id: string;
   spendingRecordId: string;
-  merchantWalletAddressUrl: string;
+  paypalMerchantId: string;
   payerRef: string;
   delegateRef: string;
   /** The mandate's eligible categories: what the purchase was for. */
@@ -37,7 +37,7 @@ export type VerdictObservation = {
   /** `${spendingRecordId}:verdict` */
   id: string;
   spendingRecordId: string;
-  merchantWalletAddressUrl: string;
+  paypalMerchantId: string;
   payerRef: string;
   verdict: PurchaseVerdict;
   observedAt: string;
@@ -51,7 +51,7 @@ export type MerchantObservation = PaidObservation | VerdictObservation;
  * replay the confidence without the observation log.
  */
 export type MerchantHistorySummary = {
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   category: CompasCategory;
   windowStart: string;
   asOf: string;

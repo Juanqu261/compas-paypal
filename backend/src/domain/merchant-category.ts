@@ -3,12 +3,9 @@ import type { MerchantTrustLevel } from "./merchant.ts";
 
 /**
  * External code systems COMPAS can receive.
- * MCC (ISO 18245) is out: COMPAS runs on wallets and has no card-network link.
  */
 export const CATEGORY_CODE_SYSTEMS = ["CIIU_REV4_AC"] as const;
 export type CategoryCodeSystem = (typeof CATEGORY_CODE_SYSTEMS)[number];
-
-/** RUES/RUT main activity vs one of up to three secondary activities. */
 export const CATEGORY_CODE_ROLES = ["PRIMARY", "SECONDARY"] as const;
 export type CategoryCodeRole = (typeof CATEGORY_CODE_ROLES)[number];
 
@@ -23,7 +20,6 @@ export type ExternalCategoryCode = {
 export const LICENSE_TYPES = ["CO_PHARMACY_ESTABLISHMENT"] as const;
 export type LicenseType = (typeof LICENSE_TYPES)[number];
 
-/** COMPAS purpose taxonomy. Not an Open Payments scope and not a CIIU code. */
 export const COMPAS_CATEGORIES = [
   "MEDICATION",
   "FOOD",
@@ -75,7 +71,7 @@ export type CategorySource = {
 };
 
 export type MerchantSubject =
-  | { kind: "WALLET_ADDRESS"; walletAddressUrl: string }
+  | { kind: "PAYPAL_MERCHANT"; paypalMerchantId: string }
   /** HMAC of the NIT. Never the raw NIT, which is a cédula for a sole proprietor. */
   | { kind: "TAX_ID"; subjectRef: string };
 
@@ -110,7 +106,7 @@ export type LicenseClaimEntry = TrustLogEntryBase & {
 
 export type IdentityBindingEntry = TrustLogEntryBase & {
   type: "IDENTITY_BINDING";
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   subject: Extract<MerchantSubject, { kind: "TAX_ID" }>;
   observedAt: string;
   validUntil?: string;
@@ -124,7 +120,7 @@ export type RevocationEntry = TrustLogEntryBase & {
 
 export type FlagEntry = TrustLogEntryBase & {
   type: "FLAG";
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   category: CompasCategory;
   note: string;
 };
@@ -162,7 +158,7 @@ export type CategoryFlag = {
  * - CONTRADICTED: the strongest independent evidence places the shop elsewhere.
  * - UNCORROBORATED: only the merchant says so, for example a tienda de barrio.
  * - REGISTRY_UNBOUND: a registry (or another verified source) agrees, but it is
- *   joined to the wallet only through a NIT the merchant typed itself.
+ *   joined to the PayPal account only through a NIT the merchant typed itself.
  * - PROVIDER_VERIFIED / EXTERNAL_VERIFIED: an independent source agrees.
  */
 export const CORROBORATION_TIERS = [
@@ -186,7 +182,7 @@ export type DeclaredCategory = {
 };
 
 export type MerchantCategoryResolution = {
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   categories: readonly ResolvedCategory[];
   /**
    * The merchant's own declarations. Only these can make a shop eligible.

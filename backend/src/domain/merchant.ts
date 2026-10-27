@@ -25,7 +25,7 @@ export function weakerTrustLevel(
  * A purchase intent never supplies it.
  */
 export type MerchantProfile = {
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   displayName?: string;
   categories: readonly ResolvedCategory[];
 };

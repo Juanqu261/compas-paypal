@@ -1,13 +1,10 @@
 /**
- * Open Payments resource URLs associated with a COMPAS decision.
+ * PayPal resource ids associated with a COMPAS decision.
  * Values are references, not copies of payment payloads.
  */
-export type OpenPaymentsResourceRefs = {
-  walletAddressUrl?: string;
-  grantUrl?: string;
-  incomingPaymentUrl?: string;
-  quoteUrl?: string;
-  outgoingPaymentUrl?: string;
+export type PayPalResourceRefs = {
+  orderId?: string;
+  captureId?: string;
 };
 
 export type AuditEvent = {
@@ -17,11 +14,6 @@ export type AuditEvent = {
   mandateId?: string;
   decisionId?: string;
   actorId?: string;
-  openPaymentsRefs?: OpenPaymentsResourceRefs;
-  /**
-   * Opaque operational fields only.
-   * Do not put diagnoses, medication names, or other health details here
-   * if the event may later be mapped into Open Payments metadata.
-   */
+  paypalRefs?: PayPalResourceRefs;
   payload: Readonly<Record<string, string>>;
 };
