@@ -22,7 +22,7 @@ COMPAS is not a wallet, a bank, a payment rail, a custody account, a token, a bl
 
 Demo story: Pedro is the payer. He pays with his PayPal, in USD, and wants up to USD 40 available for medication for his grandmother Gladys. Gladys is the beneficiary and does not manage a wallet. Andrea is the delegate. She lives with Gladys and must not receive the USD 40 as unrestricted money. A pharmacy purchase for `MEDICATION` is the allowed story: it becomes a PayPal order that Pedro approves. An alcohol purchase against the same mandate is rejected before any PayPal order exists.
 
-ARQ (Pedro), Nequi (Andrea) and Nequi Negocios (the pharmacy) are simulated embedding surfaces, not production integrations. The PayPal accounts are sandbox accounts.
+The PayPal app (Pedro), Nequi (Andrea) and Nequi Negocios (the pharmacy) are simulated embedding surfaces, not production integrations. Only the PayPal app's screens are simulated: Pedro approves each order at the real PayPal sandbox. The PayPal accounts are sandbox accounts.
 
 The same mandate can later describe a business, NGO, or government allocation. The demo implements the family story only. COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail. It does not solve corruption.
 
@@ -44,7 +44,7 @@ Terms:
 - Purpose categories belong to COMPAS.
 - PayPal must never be faked. An unimplemented or unconfigured gateway throws.
 - COMPAS talks to the PayPal sandbox only.
-- ARQ, Nequi, and Nequi Negocios surfaces are simulations.
+- The PayPal app, Nequi, and Nequi Negocios surfaces are simulations. The order approval is not: it happens at the PayPal sandbox.
 - The frontend and the backend do not import each other's source. Shared contracts belong in `contracts/`.
 
 ## Design decisions (do not re-litigate)
@@ -64,7 +64,7 @@ Terms:
 
 The repository is a product monorepo. The root is documentation and agent context. It is not an application and it has no workspace orchestrator.
 
-- `frontend/` is one Next.js app. `/arq`, `/nequi`, `/nequi-negocios`, and `/demo` are simulated wallet surfaces. `/demo` shows the three experiences in phone frames under one session. They are not separate apps.
+- `frontend/` is one Next.js app. `/paypal`, `/nequi`, `/nequi-negocios`, and `/demo` are simulated wallet surfaces. `/demo` shows the three experiences in phone frames under one session. They are not separate apps.
 - `backend/` owns the domain, policy gate, PayPal port, settlement, merchant registry, purpose classifier, audit, and the HTTP API. Ports live in `backend/src/ports/`, adapters in `backend/src/integrations/`.
 - `data/` holds fixtures, seeds, and the Postgres schema and migrations.
 - `contracts/` is where a shared API or event schema goes. There is no shared TypeScript package.
@@ -73,7 +73,7 @@ The repository is a product monorepo. The root is documentation and agent contex
 
 The frontend must not import `backend/src`. The backend must not import `frontend/src`. A browser result is not an authoritative `ALLOW`, `DENY`, or `REVIEW`. A `?paypalOrder=…` hint in a URL is not a payment result.
 
-Storage is in memory by default, and a restart loses it. With `DATABASE_URL` set, the backend uses Supabase Postgres through `backend/src/integrations/postgres/`. See `backend/.env.example`. The PayPal migration (`data/migrations/20261026120000_paypal_rail.sql`) is not applied to the team's project, and it empties the COMPAS runtime tables when it runs.
+Storage is in memory by default, and a restart loses it. With `DATABASE_URL` set, the backend uses Supabase Postgres through `backend/src/integrations/postgres/`. See `backend/.env.example`. The PayPal migration (`data/migrations/20261026120000_paypal_rail.sql`) was applied to the team's project on 2026-10-27. It empties the COMPAS runtime tables when it runs, so never run it again.
 
 Secrets (`PAYPAL_CLIENT_SECRET`, `DATABASE_URL`) stay in the backend environment. They must not be exposed as `NEXT_PUBLIC_*` variables.
 
@@ -127,7 +127,7 @@ There is no root `package.json`. Domain and policy tests live in `backend/tests`
 
 `frontend/AGENTS.md` is the Next.js agent note. `next dev` writes it, so leave it in place.
 
-The ARQ, Nequi and Nequi Negocios simulations imitate the real apps. COMPAS's own screens have their own look.
+The PayPal app, Nequi and Nequi Negocios simulations imitate the real apps, without their logos. COMPAS's own screens have their own look.
 
 Demo fixtures are labeled `demo/test data`. An unimplemented integration throws. It does not return a fake success. Do not claim a simulated provider integration is real.
 
@@ -150,7 +150,7 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 ## Pitch guardrails
 
 - Say plainly that purpose enforcement and the budget are COMPAS's job. PayPal enforces the payer's consent: Pedro approves every payment at PayPal.
-- ARQ, Nequi and Nequi Negocios are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
+- The PayPal app screens, Nequi and Nequi Negocios are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
 - The demo is in USD. COMPAS does not convert, and PayPal takes no COP. Any COP figure is labeled `demo/test data`.
 - Don't claim fraud that isn't documented, such as bonus resale. Do cite the documented problems in `docs/10-reference.md`.
 

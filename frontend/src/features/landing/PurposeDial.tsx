@@ -180,8 +180,8 @@ function DialFace({
 
 /**
  * The fixtures carry no category evidence; the backend resolves it from the
- * merchant's wallet. Its demo seed declares the same category as the first
- * line item, so the display reads the claim from there.
+ * merchant's PayPal merchant id. Its demo seed declares the same category as
+ * the first line item, so the display reads the claim from there.
  */
 function merchantClaim(scenario: DemoScenario): string | undefined {
   return scenario.purchaseIntent.lineItems[0]?.category;
@@ -202,9 +202,9 @@ function Readout({ scenario }: { scenario: DemoScenario }) {
         <p className="max-w-[34rem] text-lg leading-relaxed text-ink">
           {merchantDisplayName} claims {purposeName(claim)}, and{" "}
           {item?.description.toLowerCase()} is {purposeName(item?.category ?? claim)}.
-          The mandate allows {allowedNames}, so the payment goes ahead: a quote,
-          then {formatMoneyAmount(amount)} from Pedro’s wallet straight to the
-          pharmacy.
+          The mandate allows {allowedNames}, so the payment goes ahead: one
+          PayPal order, and once Pedro approves it, {formatMoneyAmount(amount)}
+          from Pedro’s PayPal straight to the pharmacy.
         </p>
       </div>
     );
@@ -219,7 +219,7 @@ function Readout({ scenario }: { scenario: DemoScenario }) {
       </p>
       <p className="max-w-[34rem] text-lg leading-relaxed text-ink">
         Purpose mismatch. {merchantDisplayName} claims {purposeName(claim)}, and
-        the mandate only allows {allowedNames}. No outgoing payment is created,
+        the mandate only allows {allowedNames}. No PayPal order is created,
         so none of the {formatMoneyAmount(amount)} moves.
       </p>
     </div>

@@ -53,16 +53,7 @@ export function usePayerNavigation(initial: readonly PayerRoute[] = [{ name: "ho
 
 export type PayerNavigation = ReturnType<typeof usePayerNavigation>;
 
-/** Only an https consent URL from the backend is followed. */
-function goToWallet(redirectUrl: string) {
-  try {
-    if (new URL(redirectUrl).protocol === "https:") window.location.assign(redirectUrl);
-  } catch {
-    // A malformed URL is ignored. The mandate stays waiting for authorization.
-  }
-}
-
-/** Pedro's COMPAS (payer). Rendered by the ARQ host inside its own shell. */
+/** Pedro's COMPAS (payer). Rendered by the PayPal app simulation inside its own shell. */
 export function PayerCompas({
   nav,
   active,
@@ -109,31 +100,28 @@ export function PayerCompas({
   }
 
   if (route.name === "create") {
-    if (me.resource.status === "error") return <ErrorState error={me.resource.error} onRetry={me.reload} />;
     if (participants.resource.status === "error") {
       return <ErrorState error={participants.resource.error} onRetry={participants.reload} />;
     }
-    if (me.resource.status !== "ready" || participants.resource.status !== "ready") {
+    if (participants.resource.status !== "ready") {
       return <LoadingState label="Preparando el formulario" />;
     }
     return (
       <CreateBudgetWizard
         partyId={partyId}
-        me={me.resource.data}
         participants={participants.resource.data.participants}
         draft={draft}
         onDraftChange={setDraft}
         step={step}
         onStepChange={setStep}
         focusOnMount={focusOnMount}
-        onAuthorizationStarted={(_id, redirectUrl) => goToWallet(redirectUrl)}
+        onAuthorized={(id) => {
+          resetWizard();
+          nav.reset([{ name: "home" }, { name: "detail", id, notice: { kind: "activated" } }]);
+        }}
         onCreatedWithoutConsent={(id, code) => {
           resetWizard();
           nav.reset([{ name: "home" }, { name: "detail", id, notice: { kind: "authorize-error", code } }]);
-        }}
-        onDraftSaved={(id, reason) => {
-          resetWizard();
-          nav.reset([{ name: "home" }, { name: "detail", id, notice: { kind: "draft-saved", reason } }]);
         }}
       />
     );
@@ -149,8 +137,7 @@ export function PayerCompas({
         focusOnMount={focusOnMount}
         notice={route.notice}
         onOpenHistory={() => nav.push({ name: "history", id: route.id })}
-        payerGrants={me.resource.status === "ready" ? me.resource.data.payerGrants : undefined}
-        onRedirectToWallet={goToWallet}
+        payerApproval={me.resource.status === "ready" ? me.resource.data.payerApproval : undefined}
       />
     );
   }

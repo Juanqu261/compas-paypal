@@ -83,7 +83,7 @@ function Chart({ layout, className }: { layout: ChartLayout; className: string }
       viewBox={layout.viewBox}
       className={className}
       role="img"
-      aria-label="The payment goes from Pedro’s wallet straight to the pharmacy’s wallet. COMPAS sits off that route: it checks the purchase before the payment and gives Andrea permission, never money."
+      aria-label="The payment goes from Pedro’s PayPal straight to the pharmacy’s PayPal. COMPAS sits off that route: it checks the purchase before the payment and gives Andrea permission, never money."
     >
       <defs>
         <marker
@@ -157,11 +157,11 @@ function Chart({ layout, className }: { layout: ChartLayout; className: string }
 
       <g className="font-site" fill="var(--color-ink)">
         <text x={labels.payer.x} y={labels.payer.y} textAnchor={labels.payer.anchor}>
-          <tspan className="font-display" fontSize="20">Pedro’s wallet</tspan>
-          <tspan x={labels.payer.x} dy="22" fontSize="14" fill="var(--color-ink-soft)">ARQ, simulated</tspan>
+          <tspan className="font-display" fontSize="20">Pedro’s PayPal</tspan>
+          <tspan x={labels.payer.x} dy="22" fontSize="14" fill="var(--color-ink-soft)">PayPal app, simulated</tspan>
         </text>
         <text x={labels.merchant.x} y={labels.merchant.y} textAnchor={labels.merchant.anchor}>
-          <tspan className="font-display" fontSize="20">Pharmacy’s wallet</tspan>
+          <tspan className="font-display" fontSize="20">Pharmacy’s PayPal</tspan>
           <tspan x={labels.merchant.x} dy="22" fontSize="14" fill="var(--color-ink-soft)">Nequi Negocios, simulated</tspan>
         </text>
         <text x={labels.compas.x} y={labels.compas.y}>

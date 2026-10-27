@@ -4,7 +4,7 @@ import { formatDate } from "../lib/dates";
 import { categoryList, CONFIDENCE_LABEL, ENFORCEMENT_LABEL } from "../lib/labels";
 import { Facts } from "./primitives";
 
-/** Everything the payer is about to authorize, before they go to their wallet. */
+/** Everything the payer is about to authorize, before they confirm it. */
 export function AuthorizationSummary(props: {
   payer: string;
   delegate: string;

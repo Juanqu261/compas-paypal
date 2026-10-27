@@ -13,7 +13,7 @@ import { purchaseStatus } from "../compas/lib/labels.ts";
  * this browser, through React state in /demo. Not NFC, not a sync between
  * devices and not stored by the backend: COMPAS has no merchant
  * authentication yet. Andrea's phone sends it as her purchase, and the backend
- * finds the merchant's wallet and categories itself. `result` is the
+ * finds the merchant's PayPal account and categories itself. `result` is the
  * backend's answer to Andrea, relayed here so the merchant phone can show it.
  */
 export type DemoCharge = {
@@ -26,7 +26,7 @@ export type DemoCharge = {
   /** Categories and amounts only. Product names stay on the merchant's phone. */
   lineItems: readonly ChargeLine[];
   createdAt: string;
-  /** PREVIEW is the backend's check before Open Payments, not a decision. */
+  /** PREVIEW is the backend's check before PayPal, not a decision. */
   result?:
     | { kind: "PREVIEW"; preview: PurchasePreview }
     | { kind: "PURCHASE"; purchase: PurchaseView }
@@ -77,8 +77,8 @@ export type MerchantChargeTone = "wait" | "ok" | "stop";
 
 /**
  * What the merchant's phone says about its charge. It follows the backend's
- * answer to the customer and never says "Pago realizado" before the wallet
- * confirmed a payment.
+ * answer to the customer and never says "Pago realizado" before PayPal
+ * captured the payment.
  */
 export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { title: string; tone: MerchantChargeTone } {
   const result = charge.result;
@@ -92,8 +92,11 @@ export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { titl
   }
   if (result.kind === "ERROR") {
     if (result.code === "PURCHASES_DISABLED_FOR_DEMO") return { title: "Pago desactivado en la demo", tone: "wait" };
-    if (result.code === "PAYMENT_OUTCOME_UNKNOWN") return { title: "Resultado incierto", tone: "wait" };
     return { title: "No se pudo completar", tone: "stop" };
+  }
+  const payment = result.purchase.payment;
+  if (payment.status === "CREATED" && payment.state === "AWAITING_PAYER_APPROVAL") {
+    return { title: "Esperando que quien paga lo apruebe", tone: "wait" };
   }
   const status = purchaseStatus(result.purchase);
   if (status.tone === "stop" && result.purchase.outcome === "ALLOW") return { title: "No se pudo completar", tone: "stop" };
@@ -102,7 +105,8 @@ export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { titl
 
 /**
  * Whether the merchant's phone may announce the payment: COMPAS allowed it and
- * the payer's wallet reports it COMPLETED. PENDING is not received money.
+ * PayPal captured it. An order waiting for the payer, or a pending capture,
+ * is not received money.
  */
 export function chargePaymentCompleted(charge: Pick<DemoCharge, "result"> | null): boolean {
   const result = charge?.result;

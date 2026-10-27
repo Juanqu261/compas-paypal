@@ -23,11 +23,11 @@ COMPAS is not a wallet, not a bank, and not a custodian of funds. It is not anot
 | Route | Who |
 | --- | --- |
 | `/demo` | All three phones, one shared scenario |
-| `/arq` | Pedro, payer |
+| `/paypal` | Pedro, payer |
 | `/nequi` | Andrea, delegate |
 | `/nequi-negocios` | Pharmacy, merchant |
 
-These routes belong to the frontend. `/demo` is the pitch surface. ARQ, Nequi, and Nequi Negocios are simulations of embedding, not live integrations.
+These routes belong to the frontend. `/demo` is the pitch surface. The PayPal app, Nequi, and Nequi Negocios screens are simulations of embedding, not live integrations. The PayPal orders behind them are real sandbox orders.
 
 ## Repository
 

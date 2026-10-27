@@ -2,11 +2,11 @@
 
 This is the only scenario the MVP needs to prove. Names and amounts below are the product story. Runnable demo data lives in `data/fixtures/demo/` and is labeled `demo/test data`.
 
-ARQ, Nequi, and Nequi Negocios are simulated wallet surfaces. They show how COMPAS could be embedded in existing apps. They are not production integrations with those companies.
+The PayPal app, Nequi, and Nequi Negocios screens are simulated wallet surfaces. They show how COMPAS could be embedded in existing apps. They are not production integrations with those companies. The PayPal orders are real sandbox orders: Pedro approves each one at the PayPal sandbox, outside the simulation.
 
 ## People
 
-- Pedro is the payer. He lives abroad and pays with his PayPal account, in USD. In the demo, his wallet surface is the ARQ simulation, and his PayPal is a sandbox personal account.
+- Pedro is the payer. He lives abroad and pays with his PayPal account, in USD. In the demo, his wallet surface is a simulation of the PayPal app, and his PayPal is a sandbox personal account.
 - Andrea is the delegate. She lives with Gladys and has a Nequi account. She does not receive Pedro's USD 40.
 - Gladys is the beneficiary. She does not manage a wallet.
 - The pharmacy is the merchant. Its surface is the Nequi Negocios simulation. Its PayPal business account is the payee.
@@ -47,7 +47,7 @@ If Andrea tries to use the same mandate at a liquor store, or for alcohol, COMPA
 
 ## What the audience sees
 
-`/demo` is the pitch surface: three phone frames, one shared scenario. `/arq`, `/nequi`, and `/nequi-negocios` render the same experience components alone. The audience should not have to visit those routes during the pitch.
+`/demo` is the pitch surface: three phone frames, one shared scenario. `/paypal`, `/nequi`, and `/nequi-negocios` render the same experience components alone. The audience should not have to visit those routes during the pitch.
 
 ## Out of the MVP UI
 

@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { formatMoneyAmount } from "@/lib/format-money";
 import { compasApi, errorCode } from "../api/client";
-import type { MandateView, SpendingResponse } from "../api/contracts";
+import type { MandateView, MeResponse, SpendingResponse } from "../api/contracts";
 import { useMandate, useSpending } from "../api/hooks";
+import type { PayPalReturn } from "../demo-identities";
 import { formatDate } from "../lib/dates";
 import { categoryList, ENFORCEMENT_LABEL, errorText, isAuthorized, payerStatusLabel } from "../lib/labels";
 import { ActivityList } from "../ui/ActivityList";
@@ -26,38 +27,52 @@ import {
 import { Avatar, CategoryStack } from "../ui/visuals";
 
 export type DetailNotice =
-  | { kind: "consent-return"; result: "granted" | "rejected" | "failed" }
+  | { kind: "paypal-return"; result: PayPalReturn["result"] }
   | { kind: "authorize-error"; code: string }
-  /** Saved as a draft on purpose: this environment can't ask the wallet for a grant. */
-  | { kind: "draft-saved"; reason: string };
+  | { kind: "activated" };
 
-function ConsentReturnNotice({ result, status }: { result: "granted" | "rejected" | "failed"; status: MandateView["status"] }) {
-  if (result === "granted") {
-    return status === "ACTIVE" ? (
-      <Notice title="Presupuesto activo">Tu billetera confirmó la autorización.</Notice>
-    ) : (
-      <Notice tone="warn" title="Confirmando tu autorización">
-        Tu billetera respondió. Esta pantalla se actualiza sola.
-      </Notice>
-    );
+/** What PayPal's redirect said, as a hint. The activity below is the backend's record. */
+function PayPalReturnNotice({ result }: { result: PayPalReturn["result"] }) {
+  switch (result) {
+    case "completed":
+      return <Notice title="Pago aprobado y realizado">PayPal cobró la compra y le pagó al comercio.</Notice>;
+    case "pending":
+      return (
+        <Notice tone="warn" title="Pago en proceso">
+          PayPal aceptó el cobro y aún no lo completa. Esta pantalla se actualiza sola.
+        </Notice>
+      );
+    case "waiting":
+      return (
+        <Notice tone="warn" title="El pago aún no está aprobado">
+          Cuando lo apruebes en PayPal, COMPAS lo cobra. Nada se cobra antes.
+        </Notice>
+      );
+    case "cancelled":
+      return (
+        <Notice tone="warn" title="Cancelaste el pago en PayPal">
+          No se cobró nada.
+        </Notice>
+      );
+    case "unconfirmed":
+      return (
+        <Notice tone="warn" title="Confirmando con PayPal">
+          PayPal no confirmó el resultado todavía. Esta pantalla se actualiza sola.
+        </Notice>
+      );
+    case "failed":
+      return (
+        <Notice tone="danger" title="El pago no se realizó">
+          No se cobró nada. El motivo está en los movimientos.
+        </Notice>
+      );
   }
-  if (result === "rejected") {
-    return (
-      <Notice tone="warn" title="No autorizaste el presupuesto">
-        Puedes intentarlo de nuevo cuando quieras.
-      </Notice>
-    );
-  }
-  return (
-    <Notice tone="danger" title="No pudimos completar la autorización">
-      La respuesta de tu billetera no se pudo verificar. El presupuesto no quedó activo.
-    </Notice>
-  );
 }
 
 function Totals({ mandate, spending }: { mandate: MandateView; spending?: SpendingResponse }) {
   const totals = spending?.activity.totals;
   const authorized = isAuthorized(mandate);
+  const waiting = totals ? totals.inProgressCount + totals.awaitingApprovalCount : 0;
   return (
     <Facts
       rows={[
@@ -75,16 +90,8 @@ function Totals({ mandate, spending }: { mandate: MandateView; spending?: Spendi
         ...(authorized
           ? [
               { label: "Pagado", value: totals ? formatMoneyAmount(totals.completed) : "…" },
-              ...(totals && totals.inProgressCount > 0
-                ? [{ label: `En proceso (${totals.inProgressCount})`, value: formatMoneyAmount(totals.inProgress) }]
-                : []),
-              ...(spending?.providerSpentAvailable
-                ? [
-                    {
-                      label: "Debitado según tu billetera",
-                      value: formatMoneyAmount(spending.providerSpent ?? { ...mandate.budget, value: "0" }),
-                    },
-                  ]
+              ...(totals && waiting > 0
+                ? [{ label: `Por aprobar o en proceso (${waiting})`, value: formatMoneyAmount(totals.inProgress) }]
                 : []),
             ]
           : []),
@@ -102,8 +109,7 @@ export function PayerMandateDetail({
   focusOnMount,
   notice,
   onOpenHistory,
-  onRedirectToWallet,
-  payerGrants,
+  payerApproval,
 }: {
   partyId: string;
   id: string;
@@ -111,9 +117,8 @@ export function PayerMandateDetail({
   focusOnMount: boolean;
   notice?: DetailNotice;
   onOpenHistory: () => void;
-  onRedirectToWallet: (redirectUrl: string) => void;
-  /** Whether this session may ask the wallet for a grant. Unknown until /me answers. */
-  payerGrants?: "enabled" | "disabled_for_demo" | "not_configured";
+  /** Whether only Pedro's own PayPal account can approve. Unknown until /me answers. */
+  payerApproval?: MeResponse["payerApproval"];
 }) {
   const mandate = useMandate(partyId, id, active);
   const spending = useSpending(partyId, id, active);
@@ -134,12 +139,13 @@ export function PayerMandateDetail({
     setBusy("authorize");
     setActionError(null);
     try {
-      const { redirectUrl } = await compasApi.authorize(partyId, id);
-      onRedirectToWallet(redirectUrl);
+      await compasApi.authorize(partyId, id);
+      setAuthorizeError(null);
     } catch (error) {
       setAuthorizeError(errorCode(error));
-      mandate.reload();
+    } finally {
       setBusy(null);
+      mandate.reload();
     }
   }
 
@@ -159,8 +165,8 @@ export function PayerMandateDetail({
   }
 
   const draftOnly = view.status === "DRAFT";
-  const cancellationPending = view.status === "REVOKED" && auth?.grantCancellation === "PENDING";
   const entries = spendingData?.activity.entries ?? [];
+  const toApprove = entries.filter((entry) => entry.approvalUrl);
 
   return (
     <div className="space-y-5">
@@ -172,21 +178,16 @@ export function PayerMandateDetail({
         </div>
       </div>
 
-      {notice?.kind === "consent-return" ? <ConsentReturnNotice result={notice.result} status={view.status} /> : null}
-      {notice?.kind === "draft-saved" && view.status === "DRAFT" ? (
-        <Notice tone="warn" title="Borrador guardado, sin autorizar">
-          {errorText(notice.reason)} {view.delegate.displayName} aún no lo ve.
+      {notice?.kind === "paypal-return" ? <PayPalReturnNotice result={notice.result} /> : null}
+      {notice?.kind === "activated" && view.status === "ACTIVE" ? (
+        <Notice title="Presupuesto activo">
+          {view.delegate.displayName} ya puede usarlo. Cada compra permitida te llegará para aprobarla en PayPal.
         </Notice>
       ) : null}
       {mandate.refreshError ? <StaleDataNotice error={mandate.refreshError} /> : null}
       {authorizeError && auth?.canAuthorize ? (
-        <Notice tone="danger" title="La autorización no empezó">
+        <Notice tone="danger" title="El presupuesto no quedó activo">
           {errorText(authorizeError)}
-        </Notice>
-      ) : null}
-      {cancellationPending ? (
-        <Notice tone="warn" title="Revocado, falta confirmar en tu billetera">
-          Ya no se puede pagar con este presupuesto. Reintenta la cancelación abajo.
         </Notice>
       ) : null}
 
@@ -194,44 +195,52 @@ export function PayerMandateDetail({
         <CapacityRoute mandate={view} />
       </div>
 
-      {auth?.canAuthorize && payerGrants && payerGrants !== "enabled" && notice?.kind !== "draft-saved" ? (
-        <p className="flex gap-2 rounded-(--cx-radius) bg-(--cx-card) p-3 text-[13px] text-(--cx-muted)">
-          <ShieldIcon className="mt-px size-[18px] shrink-0" />
-          {errorText(payerGrants === "not_configured" ? "OPEN_PAYMENTS_NOT_CONFIGURED" : "PAYER_GRANTS_DISABLED_FOR_DEMO")}
-        </p>
-      ) : null}
-      {auth?.canAuthorize && payerGrants === "enabled" ? (
+      {auth?.canAuthorize ? (
         <div className="space-y-2">
           <Button onClick={authorize} disabled={busy !== null}>
             <ShieldIcon className="size-5" />
-            {busy === "authorize"
-              ? "Abriendo tu billetera…"
-              : view.status === "PENDING_AUTHORIZATION"
-                ? "Reintentar autorización"
-                : "Autorizar en mi billetera"}
+            {busy === "authorize" ? "Activando…" : "Autorizar presupuesto"}
           </Button>
-          <p className="text-center text-[12px] text-(--cx-muted)">Aprobarás un permiso de hasta {formatMoneyAmount(view.budget)}.</p>
+          <p className="text-center text-[12px] text-(--cx-muted)">
+            Hasta {formatMoneyAmount(view.budget)}. Aprobarás cada pago en PayPal.
+          </p>
         </div>
+      ) : null}
+
+      {toApprove.length > 0 ? (
+        <section aria-labelledby="detail-approve" className="space-y-1 rounded-(--cx-radius) border border-(--cx-route)/40 p-3.5">
+          <SectionTitle id="detail-approve">Por aprobar en PayPal</SectionTitle>
+          <p className="text-[13px] text-(--cx-muted)">
+            {view.delegate.displayName} hizo una compra que cumple tus reglas. Apruébala para pagarle al comercio.
+          </p>
+          <ActivityList entries={toApprove} />
+        </section>
       ) : null}
 
       {spendingData && !spendingData.activity.totals.capacityReconciled ? (
         <Notice tone="warn" title="La capacidad aún no descuenta todas las compras">
-          Tu billetera sigue limitando el gasto total a {formatMoneyAmount(view.budget)}.
+          Cada pago igual necesita tu aprobación en PayPal.
         </Notice>
       ) : null}
 
       <p className="flex gap-2 text-[13px] leading-snug text-(--cx-ink)">
         <WalletIcon className="mt-px size-[18px] shrink-0 text-(--cx-route)" />
         {isAuthorized(view)
-          ? "Es una autorización, no un saldo: el dinero sigue en tu billetera."
+          ? "Es una autorización, no un saldo: el dinero sigue en tu PayPal hasta que apruebes cada pago."
           : `Aún no autoriza nada. Tu dinero no se mueve.`}
       </p>
+      {isAuthorized(view) && payerApproval === "ANY_ACCOUNT" ? (
+        <p className="text-[12px] text-(--cx-muted)">
+          En esta demostración, cualquier cuenta de PayPal de prueba puede aprobar los pagos.
+        </p>
+      ) : null}
 
       <section aria-labelledby="detail-activity" className="space-y-1">
         <SectionTitle id="detail-activity">Movimientos</SectionTitle>
         {entries.length > 0 ? (
           <>
-            <ActivityList entries={entries.slice(0, 3)} />
+            {/* The approve button is in "Por aprobar" above, once. */}
+            <ActivityList entries={entries.slice(0, 3)} approvals={false} />
             <button
               type="button"
               onClick={onOpenHistory}
@@ -265,14 +274,8 @@ export function PayerMandateDetail({
 
       {auth?.canRevoke ? (
         <div className="space-y-2">
-          <Button variant="danger" onClick={() => (cancellationPending ? revoke() : setConfirming(true))} disabled={busy !== null}>
-            {cancellationPending
-              ? busy === "revoke"
-                ? "Reintentando…"
-                : "Reintentar cancelación"
-              : draftOnly
-                ? "Descartar borrador"
-                : "Revocar autorización"}
+          <Button variant="danger" onClick={() => setConfirming(true)} disabled={busy !== null}>
+            {draftOnly ? "Descartar borrador" : "Revocar autorización"}
           </Button>
           {actionError ? <Notice tone="danger">{actionError}</Notice> : null}
         </div>
@@ -288,7 +291,7 @@ export function PayerMandateDetail({
       >
         {draftOnly
           ? "No se podrá autorizar después."
-          : `${view.delegate.displayName} ya no podrá pagar con este presupuesto. Las compras ya pagadas no se revierten.`}
+          : `${view.delegate.displayName} ya no podrá pagar con este presupuesto, y un pago por aprobar ya no se cobrará. Las compras ya pagadas no se revierten.`}
       </ConfirmDialog>
     </div>
   );

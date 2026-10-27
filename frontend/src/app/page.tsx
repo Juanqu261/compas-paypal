@@ -8,16 +8,16 @@ import { surfaces } from "@/features/site/story";
 
 const steps = [
   {
-    who: "Pedro grants once.",
-    what: "In his own wallet he approves an Open Payments grant capped at USD 40, for medication for Gladys.",
+    who: "Pedro sets the purpose once.",
+    what: "In his PayPal app he authorizes up to USD 40 for medication for Gladys. Nothing leaves his PayPal yet.",
   },
   {
     who: "Andrea asks to pay.",
     what: "At the counter, from Nequi. COMPAS checks the merchant and every item against the mandate’s purpose.",
   },
   {
-    who: "Only an Allow moves money.",
-    what: "A quote, then one outgoing payment from Pedro’s wallet to the pharmacy’s. Anything else stops before payment.",
+    who: "Only an Allow reaches PayPal.",
+    what: "One PayPal order for that exact cart, payable to the pharmacy. Pedro approves it at PayPal and the money goes straight from his PayPal to the pharmacy’s. Anything else stops before PayPal.",
   },
 ];
 
@@ -35,7 +35,7 @@ export default function Home() {
                 </h1>
                 <p className="max-w-[36rem] text-lg leading-relaxed text-ink-soft sm:text-xl">
                   Pedro, abroad, lets Andrea buy medication for Gladys with up
-                  to USD 40 from his own wallet. Andrea never holds that money,
+                  to USD 40 from his own PayPal. Andrea never holds that money,
                   and it can only pay for what Pedro allowed.
                 </p>
               </div>
@@ -77,8 +77,8 @@ export default function Home() {
         <section className="border-t border-ink/15 py-16 sm:py-24">
           <blockquote className="max-w-[52rem]">
             <p className="font-display text-3xl leading-snug text-ink sm:text-[2.75rem] sm:leading-[1.2]">
-              Open Payments enforces the consent and the cap. COMPAS enforces
-              the purpose.
+              PayPal enforces the consent: Pedro approves every payment.
+              COMPAS enforces the purpose and the budget.
             </p>
           </blockquote>
 
@@ -123,9 +123,10 @@ export default function Home() {
 
         <footer className="border-t border-ink/15 py-8 text-sm text-ink-soft">
           <p className="max-w-[48rem]">
-            ARQ, Nequi and Nequi Negocios are simulations built for this demo,
-            not integrations. Amounts are demo/test data. Built for the Open
-            Payments Hackathon, Medellín 2026.
+            The PayPal app, Nequi and Nequi Negocios screens are simulations
+            built for this demo, not integrations. Orders are approved in the
+            PayPal sandbox. Amounts are demo/test data. Built for the PayPal
+            Hackathon, Medellín 2026.
           </p>
         </footer>
       </main>

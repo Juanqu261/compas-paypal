@@ -9,7 +9,7 @@ import { AlertIcon, InfoIcon } from "./icons";
 
 /**
  * Building blocks for COMPAS screens inside a host app. Colors come from the
- * host through `--cx-*` custom properties, so ARQ and Nequi keep their own
+ * host through `--cx-*` custom properties, so PayPal and Nequi keep their own
  * look. `--cx-route` is COMPAS's own: the color of granted permission.
  */
 

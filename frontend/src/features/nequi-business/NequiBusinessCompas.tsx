@@ -19,7 +19,7 @@ const focusRing =
 const steps = [
   { title: "Generas el cobro", body: "Monto y qué compra el cliente." },
   { title: "El cliente lo revisa en Nequi", body: "Con el presupuesto que le autorizaron." },
-  { title: "COMPAS decide y la billetera paga", body: "Solo si la compra cumple las reglas." },
+  { title: "COMPAS decide y PayPal paga", body: "Solo si la compra cumple las reglas y quien paga la aprueba." },
 ];
 
 /** A section that starts closed, so it never competes with charging. */

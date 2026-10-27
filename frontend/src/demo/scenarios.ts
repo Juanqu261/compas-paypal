@@ -19,7 +19,7 @@ export type DemoScenario = {
     budget: MoneyView;
   };
   purchaseIntent: {
-    /** Display only. Category evidence is resolved by the backend from the wallet address. */
+    /** Display only. Category evidence is resolved by the backend from the PayPal merchant id. */
     merchantDisplayName: string;
     lineItems: {
       id: string;

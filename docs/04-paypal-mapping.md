@@ -103,7 +103,7 @@ In both modes, policy returns `ALLOW` before any PayPal order, and the payer sti
 
 **Currency.** The order is in the charge's currency, which must be the budget's: COMPAS does not convert. PayPal handles the payer's funding currency at approval. A budget in a currency PayPal doesn't take, such as COP, is refused when it is created.
 
-This prototype does not integrate Nequi, ARQ, Daviplata, Bre-B or ACH. Those names in the UI are simulated embedding surfaces.
+This prototype does not integrate Nequi, Daviplata, Bre-B or ACH. Those names in the UI, and the PayPal app screens, are simulated embedding surfaces. The PayPal orders, approvals and captures are real sandbox calls.
 
 ## Client configuration
 

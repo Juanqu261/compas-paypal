@@ -3,14 +3,14 @@
 import { startTransition, ViewTransition, type ReactNode } from "react";
 import { PhoneFrame } from "@/components/phone/PhoneFrame";
 import type { DemoScenario } from "@/demo/scenarios";
-import { ArqExperience } from "@/features/arq/ArqExperience";
 import { DemoSessionProvider, useDemoSession } from "@/features/demo/DemoSession";
 import { NequiBusinessExperience } from "@/features/nequi-business/NequiBusinessExperience";
 import { NequiExperience } from "@/features/nequi/NequiExperience";
+import { PayPalExperience } from "@/features/paypal/PayPalExperience";
 import { surfaces, type SurfaceId } from "@/features/site/story";
 
 const experiences: Record<SurfaceId, ReactNode> = {
-  arq: <ArqExperience />,
+  paypal: <PayPalExperience />,
   nequi: <NequiExperience />,
   "nequi-negocios": <NequiBusinessExperience />,
 };
@@ -18,10 +18,10 @@ const experiences: Record<SurfaceId, ReactNode> = {
 function expectedText(scenario: DemoScenario): string {
   const { outcome, reason } = scenario.expectedPolicyResult;
   if (outcome === "ALLOW") {
-    return "Expected: Allow, then a quote and one outgoing payment.";
+    return "Expected: Allow, then one PayPal order that Pedro approves.";
   }
   if (reason === "PURPOSE_MISMATCH") {
-    return "Expected: Deny for purpose mismatch. No outgoing payment.";
+    return "Expected: Deny for purpose mismatch. No PayPal order.";
   }
   return `Expected: ${outcome.charAt(0)}${outcome.slice(1).toLowerCase()}.`;
 }
@@ -84,26 +84,33 @@ function ScenarioPicker() {
 }
 
 const GUIDE = [
-  { app: "ARQ", text: "Pedro creates a budget for a contact" },
-  { app: "ARQ", text: "He authorizes it at his wallet, if this backend allows it" },
+  { app: "PayPal", text: "Pedro creates a budget for a contact" },
+  { app: "PayPal", text: "He authorizes it. Nothing is charged yet" },
   { app: "Nequi", text: "The contact sees what they can spend" },
   { app: "Nequi Negocios", text: "The pharmacy charges with COMPAS" },
   { app: "Nequi", text: "The contact reviews the purchase" },
-  { app: "COMPAS", text: "The backend checks the rules" },
-  { app: "All three", text: "The real result, or this environment's limit" },
+  { app: "COMPAS", text: "The backend checks the rules. ALLOW creates a PayPal order" },
+  { app: "PayPal", text: "Pedro approves that exact order at PayPal" },
+  { app: "All three", text: "PayPal pays the pharmacy, or this environment's limit" },
 ] as const;
 
 /**
- * The live walk-through. Steps 4 to 7 follow the shared charge; steps 1 to 3
+ * The live walk-through. Steps 4 to 8 follow the shared charge; steps 1 to 3
  * happen on the backend and are not tracked here, so they are never ticked.
  */
 function DemoGuide() {
   const { charge } = useDemoSession();
   const result = charge?.result;
   const finished =
-    result?.kind === "PURCHASE" || (result?.kind === "PREVIEW" && result.preview.next !== "QUOTE") || result?.kind === "ERROR";
+    (result?.kind === "PURCHASE" && !(result.purchase.payment.status === "CREATED" && result.purchase.payment.state === "AWAITING_PAYER_APPROVAL")) ||
+    (result?.kind === "PREVIEW" && result.preview.next !== "ORDER") ||
+    result?.kind === "ERROR";
+  const ordered = result?.kind === "PURCHASE" && result.purchase.payment.status === "CREATED";
   const done = (index: number) =>
-    (index === 3 && charge !== null) || ((index === 4 || index === 5) && result !== undefined) || (index === 6 && finished);
+    (index === 3 && charge !== null) ||
+    ((index === 4 || index === 5) && result !== undefined) ||
+    (index === 6 && ordered && finished) ||
+    (index === 7 && finished);
 
   return (
     <details className="group mt-6 rounded-lg border border-ink/15 bg-paper/70 [&_summary::-webkit-details-marker]:hidden">
@@ -145,7 +152,7 @@ function DemoPhones() {
             <p className="leading-snug">
               <span className="font-semibold text-ink">{surface.person}</span>
               <span className="block text-sm text-ink-soft">
-                {surface.role} on {surface.app}, simulated
+                {surface.role} · {surface.app} app, simulated
               </span>
             </p>
           </div>

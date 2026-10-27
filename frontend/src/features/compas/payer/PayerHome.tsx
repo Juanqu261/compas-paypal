@@ -21,7 +21,6 @@ import {
 
 const ORDER: Record<MandateView["status"], number> = {
   ACTIVE: 0,
-  PENDING_AUTHORIZATION: 1,
   DRAFT: 2,
   EXHAUSTED: 3,
   EXPIRED: 4,
@@ -104,7 +103,7 @@ export function PayerHome({
             </p>
           ))}
           <p className="mt-1 text-[12px] opacity-80">
-            {activeCount === 1 ? "En 1 presupuesto activo" : `En ${activeCount} presupuestos activos`}. Sigue en tu billetera.
+            {activeCount === 1 ? "En 1 presupuesto activo" : `En ${activeCount} presupuestos activos`}. Sigue en tu PayPal.
           </p>
         </div>
       ) : null}

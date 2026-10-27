@@ -35,7 +35,7 @@ export function MandateHistory({
             ]}
           />
           <p className="text-[12px] leading-snug text-(--cx-muted)">
-            Un pago en proceso aún no está confirmado. Un intento rechazado o fallido no debitó nada. Por privacidad, no
+            Un pago por aprobar o en proceso aún no está cobrado. Un intento rechazado, cancelado o fallido no cobró nada. Por privacidad, no
             mostramos los productos de cada compra.
           </p>
           {resource.data.activity.entries.length === 0 ? (

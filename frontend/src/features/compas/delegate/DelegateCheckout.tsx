@@ -1,10 +1,19 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import type { DemoCharge } from "@/features/demo/DemoSession";
 import { formatMoneyAmount } from "@/lib/format-money";
 import { CompasApiError, compasApi, errorCode, newIdempotencyKey } from "../api/client";
-import type { CompasCategory, MandateView, PolicyReasonCode, PurchaseBody, PurchasePreview, PurchaseView } from "../api/contracts";
+import type {
+  ActivityKind,
+  CompasCategory,
+  MandateView,
+  PaymentState,
+  PolicyReasonCode,
+  PurchaseBody,
+  PurchasePreview,
+  PurchaseView,
+} from "../api/contracts";
 import { CATEGORY_LABEL, categoryList, errorText, purchaseStatus, type PurchaseTone, reasonText } from "../lib/labels";
 import { AlertIcon, CheckIcon, ClockIcon, ReceiptIcon, StopIcon, StoreIcon } from "../ui/icons";
 import { Button, Notice } from "../ui/primitives";
@@ -14,10 +23,26 @@ type ChargeResult = NonNullable<DemoCharge["result"]>;
 
 export const PAY_STEPS = ["Presupuesto", "Cobro", "Revisión", "Pago"] as const;
 
-/** A failure that may have left a payment behind. Only the same idempotency key may ask again. */
+/**
+ * The connection dropped mid-request, so the backend may have recorded the
+ * attempt. Only the same idempotency key may ask again: it replays the first
+ * attempt instead of creating a second PayPal order.
+ */
 function outcomeUnknown(code: string, status: number): boolean {
-  return code === "PAYMENT_OUTCOME_UNKNOWN" || status === 0 || (status >= 500 && code === "BACKEND_UNAVAILABLE");
+  return status === 0 || (status >= 500 && code === "BACKEND_UNAVAILABLE");
 }
+
+/** How often Andrea's screen reads the record while Pedro approves at PayPal. */
+const FOLLOW_INTERVAL_MS = 4000;
+
+/** The PayPal state behind each activity kind of an allowed purchase. */
+const STATE_BY_KIND: Partial<Record<ActivityKind, PaymentState>> = {
+  COMPLETED: "COMPLETED",
+  PENDING: "PENDING",
+  AWAITING_APPROVAL: "AWAITING_PAYER_APPROVAL",
+  CANCELLED: "CANCELLED",
+  FAILED: "FAILED",
+};
 
 const MERCHANT_CODES: readonly PolicyReasonCode[] = [
   "MERCHANT_NOT_ELIGIBLE",
@@ -52,7 +77,7 @@ function Check({ state, title, detail }: { state: CheckState; title: string; det
   );
 }
 
-/** What the backend checked before Open Payments, one row per rule. The backend decided each row. */
+/** What the backend checked before PayPal, one row per rule. The backend decided each row. */
 function PreviewChecks({ preview, payer }: { preview: PurchasePreview; payer: string }) {
   const codes = preview.purposeCheck?.reasonCodes ?? [];
   const enforced = preview.purposeCheck?.enforced ?? true;
@@ -60,6 +85,7 @@ function PreviewChecks({ preview, payer }: { preview: PurchasePreview; payer: st
   const merchantCode = codes.find((code) => MERCHANT_CODES.includes(code));
   const lineCode = codes.find((code) => LINE_CODES.includes(code));
   const ruleCode = preview.mandateRules.reasonCodes[0];
+  const budgetCode = preview.budget?.reasonCodes[0];
   return (
     <ul className="divide-y divide-(--cx-line)">
       <Check
@@ -84,8 +110,15 @@ function PreviewChecks({ preview, payer }: { preview: PurchasePreview; payer: st
           ) : null}
         </>
       ) : null}
-      {preview.next === "QUOTE" ? (
-        <Check state="later" title="Monto dentro del presupuesto" detail="Se confirma con la cotización, al pagar." />
+      {preview.budget ? (
+        <Check
+          state={preview.budget.passed ? "pass" : "fail"}
+          title="Monto dentro del presupuesto"
+          detail={budgetCode ? reasonText(budgetCode) : undefined}
+        />
+      ) : null}
+      {preview.next === "ORDER" ? (
+        <Check state="later" title={`Aprobación de ${payer} en PayPal`} detail="Se cobra solo cuando la apruebe." />
       ) : null}
     </ul>
   );
@@ -97,7 +130,7 @@ const TONE_LOOK: Record<PurchaseTone, { Icon: typeof CheckIcon; tile: string }> 
   stop: { Icon: StopIcon, tile: "bg-(--cx-danger)/12 text-(--cx-danger)" },
 };
 
-/** The one result that matters, large. Only a confirmed payment says "Pago realizado". */
+/** The one result that matters, large. Only a payment PayPal captured says "Pago realizado". */
 function ResultCard({ tone, title, children }: { tone: PurchaseTone; title: string; children?: ReactNode }) {
   const look = TONE_LOOK[tone];
   return (
@@ -118,22 +151,32 @@ function PurchaseResult({ purchase, payer }: { purchase: PurchaseView; payer: st
       {purchase.outcome !== "ALLOW" ? (
         <>
           <p>{purchase.reasonCodes[0] ? reasonText(purchase.reasonCodes[0]) : null}</p>
-          <p className="mt-1">El dinero sigue en la billetera de {payer}.</p>
+          <p className="mt-1">El dinero sigue en el PayPal de {payer}.</p>
         </>
       ) : purchase.payment.status === "CREATED" ? (
         <p className="tabular-nums">
-          {formatMoneyAmount(purchase.debitAmount ?? purchase.requestedAmount)} desde la billetera de {payer}
-          {purchase.payment.state === "PENDING" ? ". La billetera aún no lo confirma." : "."}
+          {purchase.payment.state === "AWAITING_PAYER_APPROVAL"
+            ? `${payer} debe aprobar ${formatMoneyAmount(purchase.requestedAmount)} en PayPal. No se cobra nada antes.`
+            : purchase.payment.state === "COMPLETED"
+              ? `${formatMoneyAmount(purchase.requestedAmount)} desde el PayPal de ${payer}.`
+              : purchase.payment.state === "PENDING"
+                ? `${formatMoneyAmount(purchase.requestedAmount)} desde el PayPal de ${payer}. PayPal aún no lo confirma.`
+                : purchase.payment.state === "CANCELLED"
+                  ? `${payer} lo canceló en PayPal. No se cobró nada.`
+                  : "No se cobró nada."}
         </p>
-      ) : null}
+      ) : (
+        <p>No se cobró nada.</p>
+      )}
     </ResultCard>
   );
 }
 
 /**
- * Andrea pays a charge under one budget. The backend checks it, then pays it
- * only if the operator enabled demo purchases. The browser decides nothing.
- * The charge is simulated and arrives from the merchant's phone in this browser.
+ * Andrea pays a charge under one budget. The backend checks it and, on ALLOW,
+ * creates a PayPal order that Pedro approves at PayPal, only if the operator
+ * enabled demo purchases. The browser decides nothing. The charge is
+ * simulated and arrives from the merchant's phone in this browser.
  */
 export function DelegateCheckout({
   partyId,
@@ -161,6 +204,37 @@ export function DelegateCheckout({
   const preview = charge && checked?.chargeId === charge.id ? checked.preview : undefined;
   const purchase = shown?.result.kind === "PURCHASE" ? shown.result.purchase : undefined;
   const current = !charge ? 1 : purchase ? 4 : preview ? 3 : 2;
+
+  // Pedro approves at PayPal, in his own app. Until PayPal settles the order,
+  // this screen follows the backend's record and relays it to the merchant's phone.
+  const recordedState = purchase?.payment.status === "CREATED" ? purchase.payment.state : undefined;
+  const followedDecision =
+    purchase && (recordedState === "AWAITING_PAYER_APPROVAL" || recordedState === "PENDING") ? purchase.decisionId : undefined;
+  const relay = useEffectEvent((state: PaymentState) => {
+    if (!charge || !purchase || purchase.payment.status !== "CREATED" || purchase.payment.state === state) return;
+    const result: ChargeResult = { kind: "PURCHASE", purchase: { ...purchase, payment: { status: "CREATED", state } } };
+    setLocal({ chargeId: charge.id, result });
+    onResult(charge.id, result);
+  });
+  useEffect(() => {
+    if (!followedDecision) return;
+    let stopped = false;
+    const timer = setInterval(() => {
+      compasApi.spending(partyId, mandate.id).then(
+        ({ activity }) => {
+          const entry = activity.entries.find((item) => item.id === followedDecision);
+          const state = entry ? STATE_BY_KIND[entry.kind] : undefined;
+          if (!stopped && state) relay(state);
+        },
+        // A failed read waits for the next one.
+        () => {},
+      );
+    }, FOLLOW_INTERVAL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [followedDecision, partyId, mandate.id]);
 
   const budgetRow = (
     <div className="flex items-center gap-3 rounded-(--cx-radius) bg-(--cx-card) px-3 py-2.5">
@@ -250,8 +324,8 @@ export function DelegateCheckout({
 
   const error = shown?.result.kind === "ERROR" ? shown.result : undefined;
   // Asking again with the same key is safe: the backend replays the first attempt.
-  const canAskAgain = error !== undefined && (shown?.uncertain === true || error.code === "PAYMENT_NOT_STARTED");
-  const canPay = preview !== undefined && preview.execution === "ENABLED" && preview.next === "QUOTE";
+  const canAskAgain = error !== undefined && shown?.uncertain === true;
+  const canPay = preview !== undefined && preview.execution === "ENABLED" && preview.next === "ORDER";
 
   return (
     <div className="space-y-5">
@@ -289,16 +363,16 @@ export function DelegateCheckout({
 
       {!purchase && preview ? (
         <div className="space-y-3">
-          {preview.next === "QUOTE" ? (
+          {preview.next === "ORDER" ? (
             <ResultCard tone="ok" title="Cumple las reglas">
-              Aún no es un pago.
+              Aún no es un pago: {mandate.payer.displayName} lo aprueba en PayPal.
             </ResultCard>
           ) : (
             <ResultCard
               tone={preview.next === "STOP_DENY" ? "stop" : "wait"}
               title={preview.next === "STOP_DENY" ? "Compra no permitida" : "Compra retenida para revisión"}
             >
-              No se pidió ningún pago a la billetera de {mandate.payer.displayName}.
+              No se creó ningún pago en el PayPal de {mandate.payer.displayName}.
             </ResultCard>
           )}
           <PreviewChecks preview={preview} payer={mandate.payer.displayName} />
@@ -306,9 +380,9 @@ export function DelegateCheckout({
       ) : null}
 
       {error ? (
-        <Notice tone={shown?.uncertain ? "warn" : "danger"} title={shown?.uncertain ? "No sabemos si se pagó" : "No se pudo completar"}>
-          {shown?.uncertain && error.code !== "PAYMENT_OUTCOME_UNKNOWN"
-            ? "Se perdió la conexión mientras se procesaba. Consulta de nuevo: no se pagará dos veces."
+        <Notice tone={shown?.uncertain ? "warn" : "danger"} title={shown?.uncertain ? "No sabemos si se registró" : "No se pudo completar"}>
+          {shown?.uncertain
+            ? "Se perdió la conexión mientras se procesaba. Consulta de nuevo: no se creará un segundo pago."
             : errorText(error.code)}
         </Notice>
       ) : null}
@@ -325,13 +399,11 @@ export function DelegateCheckout({
               {busy === "pay"
                 ? "Procesando…"
                 : canAskAgain
-                  ? shown?.uncertain
-                    ? "Consultar de nuevo"
-                    : "Intentar de nuevo"
-                  : `Confirmar pago de ${formatMoneyAmount(activeCharge.amount)}`}
+                  ? "Consultar de nuevo"
+                  : `Pedir pago de ${formatMoneyAmount(activeCharge.amount)}`}
             </Button>
           ) : null}
-          {preview && preview.next === "QUOTE" && preview.execution !== "ENABLED" ? (
+          {preview && preview.next === "ORDER" && preview.execution !== "ENABLED" ? (
             <Notice tone="warn" title="Pago desactivado en esta demostración">
               {errorText(preview.execution)}
             </Notice>

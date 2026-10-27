@@ -47,7 +47,7 @@ export function ExperienceCard({ surface, person, role }: ExperienceCardProps) {
         </div>
       </dl>
       <p className="text-xs text-neutral-500">
-        {scenario.dataLabel}. Not a live payment and not an Open Payments
+        {scenario.dataLabel}. Not a live payment and not a PayPal
         response. Authorization capacity is not a balance held by COMPAS.
       </p>
     </article>

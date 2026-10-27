@@ -132,7 +132,7 @@ export const compasApi = {
     request<RevokeResponse>(partyId, `/mandates/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
   spending: (partyId: string, id: string) =>
     request<SpendingResponse>(partyId, `/mandates/${encodeURIComponent(id)}/spending`),
-  /** The checks before Open Payments. Writes nothing and moves no money. */
+  /** Every check before PayPal. Writes nothing and moves no money. */
   previewPurchase: (partyId: string, body: PurchaseBody) =>
     request<{ preview: PurchasePreview }>(partyId, "/purchases/preview", { method: "POST", body }).then((result) => result.preview),
   /**

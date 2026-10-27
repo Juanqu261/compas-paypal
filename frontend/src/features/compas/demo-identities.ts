@@ -11,26 +11,28 @@ export const DEMO_PARTY_IDS = {
 
 /**
  * demo/test data: the merchants the backend's demo directory knows. A purchase
- * names the merchant by id. The backend holds its wallet and resolves its
- * categories, so nothing here is evidence.
+ * names the merchant by id. The backend holds its PayPal account and resolves
+ * its categories, so nothing here is evidence.
  */
 export const DEMO_MERCHANTS = {
   drogueria: { id: "demo-merchant-drogueria-central", displayName: "Droguería Central" },
   liquor: { id: "demo-merchant-liquor", displayName: "Licorera de ejemplo" },
 } as const;
 
-export type ConsentReturn = { result: "granted" | "rejected" | "failed"; mandateId: string };
+export const PAYPAL_RETURN_RESULTS = ["completed", "pending", "waiting", "cancelled", "failed", "unconfirmed"] as const;
+export type PayPalReturn = { result: (typeof PAYPAL_RETURN_RESULTS)[number]; mandateId: string };
 
 /**
- * Reads the hint the backend adds when the payer comes back from their wallet
- * (`?payerAuthorization=…&grantKey=…`). It is a hint only: the screen then
- * reads the mandate's real status from the backend.
+ * Reads the hint the backend adds when the payer comes back from PayPal after
+ * approving or cancelling an order (`?paypalOrder=…&mandateId=…`). It is a
+ * hint only: the backend captured or closed the order itself, and the screen
+ * then reads the budget's real activity from the backend.
  */
-export function readConsentReturn(search: string): ConsentReturn | null {
+export function readPayPalReturn(search: string): PayPalReturn | null {
   const params = new URLSearchParams(search);
-  const result = params.get("payerAuthorization");
-  const mandateId = params.get("grantKey");
+  const result = params.get("paypalOrder");
+  const mandateId = params.get("mandateId");
   if (!mandateId || !/^mandate-[A-Za-z0-9-]{1,80}$/.test(mandateId)) return null;
-  if (result !== "granted" && result !== "rejected" && result !== "failed") return null;
-  return { result, mandateId };
+  if (!(PAYPAL_RETURN_RESULTS as readonly (string | null)[]).includes(result)) return null;
+  return { result: result as PayPalReturn["result"], mandateId };
 }

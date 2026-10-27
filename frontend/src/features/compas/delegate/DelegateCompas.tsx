@@ -46,7 +46,7 @@ function NotYourMoney({ payer }: { payer?: string }) {
   return (
     <p className="flex items-center gap-2 text-[13px] text-(--cx-muted)">
       <WalletIcon className="size-[18px] shrink-0 text-(--cx-route)" />
-      {payer ? `Pagas desde la billetera de ${payer}. No llega a tu Nequi.` : "Pagas desde la billetera de quien te autorizó."}
+      {payer ? `Pagas desde el PayPal de ${payer}, que aprueba cada pago. No llega a tu Nequi.` : "Pagas desde el PayPal de quien te autorizó."}
     </p>
   );
 }
@@ -112,7 +112,7 @@ function DelegateList({
         {resource.status === "error" ? <ErrorState error={resource.error} onRetry={reload} /> : null}
         {mandates && usable.length === 0 ? (
           <EmptyState title="Aún no tienes presupuestos">
-            Cuando alguien te autorice uno y lo apruebe en su billetera, aparecerá aquí.
+            Cuando alguien te autorice uno, aparecerá aquí.
           </EmptyState>
         ) : null}
         {usable.map((mandate) => (

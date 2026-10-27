@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readConsentReturn } from "../../src/features/compas/demo-identities.ts";
+import { readPayPalReturn } from "../../src/features/compas/demo-identities.ts";
 import { minorGreaterThan, parseAmountInput, shareOf } from "../../src/features/compas/lib/amounts.ts";
 import { endOfDayIso, startOfDayIso, windowProblem } from "../../src/features/compas/lib/dates.ts";
 import {
@@ -11,6 +11,7 @@ import {
   isAuthorized,
   errorText,
   payerStatusLabel,
+  payPalApprovalUrl,
   reasonText,
   REASON_TEXT,
 } from "../../src/features/compas/lib/labels.ts";
@@ -163,7 +164,9 @@ test("activity labels never call a pending payment paid", () => {
   assert.equal(activityLabel("COMPLETED", false), "Pago realizado");
   assert.equal(activityLabel("COMPLETED", true), "Pago realizado, con aviso");
   assert.equal(activityLabel("DENIED", false), "Compra no permitida");
-  assert.equal(activityLabel("FAILED", false), "Pago fallido");
+  assert.equal(activityLabel("FAILED", false), "Pago no realizado");
+  assert.equal(activityLabel("AWAITING_APPROVAL", false), "Por aprobar en PayPal");
+  assert.equal(activityLabel("CANCELLED", false), "Cancelado en PayPal");
   assert.equal(activityLabel("REVIEW", false), "Retenida para revisión");
   assert.equal(
     activityReason("COMPLETED", ["MERCHANT_NOT_ELIGIBLE", "PAYER_MONITORED_EXCEPTION"]),
@@ -171,24 +174,43 @@ test("activity labels never call a pending payment paid", () => {
   );
   assert.equal(activityReason("COMPLETED", []), undefined);
   assert.equal(activityReason("DENIED", ["PURPOSE_MISMATCH"]), "Los productos no corresponden al propósito");
+  assert.match(activityReason("AWAITING_APPROVAL", []) ?? "", /hasta que se apruebe/);
+  assert.match(activityReason("FAILED", [], "PAYER_ACCOUNT_MISMATCH") ?? "", /otra cuenta de PayPal/);
+  assert.match(activityReason("FAILED", []) ?? "", /No se cobró nada/);
+  assert.match(activityReason("CANCELLED", []) ?? "", /No se cobró nada/);
 });
 
-test("a revoked budget whose wallet cancellation is pending says so", () => {
-  assert.equal(payerStatusLabel({ status: "REVOKED", authorization: { consent: "GRANTED", grantCancellation: "PENDING", canAuthorize: false, canRevoke: true } }), "Revocado, falta confirmar en tu billetera");
-  assert.equal(payerStatusLabel({ status: "REVOKED", authorization: { consent: "GRANTED", grantCancellation: "DONE", canAuthorize: false, canRevoke: false } }), "Revocado");
+test("only a PayPal page is opened for the payer", () => {
+  assert.equal(
+    payPalApprovalUrl("https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T"),
+    "https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T",
+  );
+  for (const href of [
+    undefined,
+    "",
+    "http://www.sandbox.paypal.com/checkoutnow",
+    "https://paypal.com.evil.example/checkoutnow",
+    "https://evilpaypal.com/checkoutnow",
+    "javascript:alert(1)",
+    "not a url",
+  ]) {
+    assert.equal(payPalApprovalUrl(href), undefined, String(href));
+  }
+});
+
+test("statuses and environment errors are said plainly", () => {
+  assert.equal(payerStatusLabel({ status: "REVOKED" }), "Revocado");
   assert.equal(categoryList(["MEDICATION", "FOOD", "TOBACCO"]), "Medicamentos, alimentación y tabaco");
-  assert.match(errorText("OPEN_PAYMENTS_NOT_CONFIGURED"), /Open Payments/);
-  assert.match(errorText("PAYER_GRANTS_DISABLED_FOR_DEMO"), /sin activar/);
+  assert.match(errorText("PAYPAL_NOT_CONFIGURED"), /PayPal/);
 });
 
-test("a budget authorizes nothing until the payer consented", () => {
-  const payer = (status: "DRAFT" | "PENDING_AUTHORIZATION" | "ACTIVE" | "EXHAUSTED" | "EXPIRED" | "REVOKED", consent: "NOT_STARTED" | "WAITING_FOR_PAYER" | "GRANTED") => ({
+test("a budget authorizes nothing until the payer confirmed it", () => {
+  const payer = (status: "DRAFT" | "ACTIVE" | "EXHAUSTED" | "EXPIRED" | "REVOKED", consent: "NOT_STARTED" | "GRANTED") => ({
     status,
     viewerRole: "PAYER" as const,
     authorization: { consent, canAuthorize: false, canRevoke: false },
   });
   assert.equal(isAuthorized(payer("DRAFT", "NOT_STARTED")), false);
-  assert.equal(isAuthorized(payer("PENDING_AUTHORIZATION", "WAITING_FOR_PAYER")), false);
   assert.equal(isAuthorized(payer("ACTIVE", "GRANTED")), true);
   assert.equal(isAuthorized(payer("REVOKED", "NOT_STARTED")), false, "a discarded draft never authorized anything");
   assert.equal(isAuthorized(payer("REVOKED", "GRANTED")), true);
@@ -198,13 +220,15 @@ test("a budget authorizes nothing until the payer consented", () => {
   assert.equal(capacityLabel(payer("REVOKED", "NOT_STARTED")), "Descartado sin autorizarse");
 });
 
-test("the consent return hint is read strictly", () => {
-  assert.deepEqual(readConsentReturn("?payerAuthorization=granted&grantKey=mandate-abc-1"), {
-    result: "granted",
+test("the PayPal return hint is read strictly", () => {
+  assert.deepEqual(readPayPalReturn("?paypalOrder=completed&mandateId=mandate-abc-1"), {
+    result: "completed",
     mandateId: "mandate-abc-1",
   });
-  assert.equal(readConsentReturn("?payerAuthorization=granted"), null);
-  assert.equal(readConsentReturn("?payerAuthorization=maybe&grantKey=mandate-abc-1"), null);
-  assert.equal(readConsentReturn("?payerAuthorization=granted&grantKey=../../x"), null);
-  assert.equal(readConsentReturn(""), null);
+  assert.equal(readPayPalReturn("?paypalOrder=cancelled&mandateId=mandate-abc-1")?.result, "cancelled");
+  assert.equal(readPayPalReturn("?paypalOrder=completed"), null);
+  assert.equal(readPayPalReturn("?paypalOrder=maybe&mandateId=mandate-abc-1"), null);
+  assert.equal(readPayPalReturn("?paypalOrder=completed&mandateId=../../x"), null);
+  assert.equal(readPayPalReturn("?payerAuthorization=granted&grantKey=mandate-abc-1"), null, "the old authorization hint is ignored");
+  assert.equal(readPayPalReturn(""), null);
 });

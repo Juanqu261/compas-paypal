@@ -18,11 +18,11 @@ const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-blue)";
 
 /**
- * The shop charges in COP, the asset of its test-network wallet. A charge in
- * another asset can't become an incoming payment there. demo/test data: there
- * is no wallet lookup here.
+ * The shop charges in USD, the demo budget's asset: the PayPal order is in the
+ * charge's currency, PayPal takes no COP, and COMPAS does not convert.
+ * demo/test data: there is no PayPal lookup here.
  */
-const CHARGE_ASSET = { assetCode: "COP", assetScale: 2 } as const;
+const CHARGE_ASSET = { assetCode: "USD", assetScale: 2 } as const;
 
 function Chip({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "ok" | "sim" }) {
   const look = {
@@ -197,7 +197,7 @@ function minorToInput(value: string, scale: number): string {
 /**
  * The charge form: what the customer buys and how much, line by line. The
  * total is the sum of the lines, as the backend checks. The merchant is this
- * shop, named by its directory id; the backend finds its wallet and categories.
+ * shop, named by its directory id; the backend finds its PayPal account and categories.
  */
 export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const { scenario, createCharge } = useDemoSession();

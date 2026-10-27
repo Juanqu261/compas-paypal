@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { formatMoneyAmount } from "@/lib/format-money";
 import { CompasApiError, compasApi, errorCode } from "../api/client";
-import type { MeResponse, PartyView } from "../api/contracts";
+import type { PartyView } from "../api/contracts";
 import { parseAmountInput } from "../lib/amounts";
 import { addDays, endOfDayIso, formatDate, startOfDayIso, toDateInput } from "../lib/dates";
 import { categoryList, CONFIDENCE_LABEL, ENFORCEMENT_LABEL, errorText } from "../lib/labels";
@@ -30,14 +30,12 @@ const STEP_TITLE: Record<WizardStep, string> = {
   confirm: "Revisa y autoriza",
 };
 
-/** When the wallet's asset can't be read, the budget uses USD and the wallet checks it at consent. */
-const FALLBACK_ASSET: Asset = { assetCode: "USD", assetScale: 2 };
-
-export function walletAsset(me: MeResponse | undefined): Asset {
-  return me?.payerWallet.status === "RESOLVED"
-    ? { assetCode: me.payerWallet.assetCode, assetScale: me.payerWallet.assetScale }
-    : FALLBACK_ASSET;
-}
+/**
+ * Budgets are in USD: every PayPal order COMPAS creates is in the budget's
+ * currency, and COMPAS does not convert. Pedro's PayPal handles his own
+ * funding currency when he approves an order.
+ */
+export const BUDGET_ASSET: Asset = { assetCode: "USD", assetScale: 2 };
 
 function SummaryRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
@@ -50,46 +48,33 @@ function SummaryRow({ icon, children }: { icon: ReactNode; children: ReactNode }
 
 export function CreateBudgetWizard({
   partyId,
-  me,
   participants,
   draft,
   onDraftChange,
   step,
   onStepChange,
   focusOnMount,
-  onAuthorizationStarted,
+  onAuthorized,
   onCreatedWithoutConsent,
-  onDraftSaved,
 }: {
   partyId: string;
-  me: MeResponse;
   participants: readonly PartyView[];
   draft: WizardDraft;
   onDraftChange: (next: WizardDraft) => void;
   step: WizardStep;
   onStepChange: (next: WizardStep) => void;
   focusOnMount: boolean;
-  /** The backend created the draft and the payer's wallet gave a consent URL. */
-  onAuthorizationStarted: (mandateId: string, redirectUrl: string) => void;
-  /** The draft exists, but authorization could not start. */
+  /** The backend created the budget and activated it. Each purchase still waits for Pedro's PayPal approval. */
+  onAuthorized: (mandateId: string) => void;
+  /** The draft exists, but it could not be activated. */
   onCreatedWithoutConsent: (mandateId: string, errorCode: string) => void;
-  /** This environment can't ask the wallet for a grant, so only the draft was saved, on purpose. */
-  onDraftSaved: (mandateId: string, reason: string) => void;
 }) {
   const [showIssues, setShowIssues] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [serverIssues, setServerIssues] = useState<readonly { field: string; message: string }[]>([]);
 
-  const asset = walletAsset(me);
-  const assetConfirmed = me.payerWallet.status === "RESOLVED";
-  // Only ask the wallet when the backend says this session may. Otherwise save a draft and say so.
-  const draftOnlyReason =
-    me.payerGrants === "enabled"
-      ? null
-      : me.payerGrants === "not_configured"
-        ? "OPEN_PAYMENTS_NOT_CONFIGURED"
-        : "PAYER_GRANTS_DISABLED_FOR_DEMO";
+  const asset = BUDGET_ASSET;
   // The wizard only renders after the person opened it, never during prerender.
   const [today] = useState(() => new Date());
   const index = WIZARD_STEPS.indexOf(step);
@@ -131,14 +116,10 @@ export function CreateBudgetWizard({
       setSubmitError(errorText(errorCode(error)));
       return;
     }
-    if (draftOnlyReason) {
-      setBusy(false);
-      onDraftSaved(mandateId, draftOnlyReason);
-      return;
-    }
     try {
-      const { redirectUrl } = await compasApi.authorize(partyId, mandateId);
-      onAuthorizationStarted(mandateId, redirectUrl);
+      await compasApi.authorize(partyId, mandateId);
+      setBusy(false);
+      onAuthorized(mandateId);
     } catch (error) {
       setBusy(false);
       onCreatedWithoutConsent(mandateId, errorCode(error));
@@ -195,11 +176,6 @@ export function CreateBudgetWizard({
               <span className="text-[16px] font-semibold text-(--cx-muted)">{asset.assetCode}</span>
             </div>
             <FieldIssue message={issueFor("amount")} />
-            {!assetConfirmed ? (
-              <p className="mt-1.5 text-[12px] text-(--cx-warn)">
-                Moneda sin confirmar: tu billetera la revisará al autorizar.
-              </p>
-            ) : null}
           </div>
 
           <div>
@@ -317,21 +293,12 @@ export function CreateBudgetWizard({
 
           <p className="flex gap-2 text-[13px] leading-snug text-(--cx-ink)">
             <WalletIcon className="mt-px size-[18px] shrink-0 text-(--cx-route)" />
-            El dinero sigue en tu billetera. {contact.displayName} podrá usar esta autorización para pagar compras
-            permitidas.
+            El dinero sigue en tu PayPal. {contact.displayName} podrá pedir compras permitidas con esta
+            autorización, y tú apruebas cada pago en PayPal.
           </p>
-          {draftOnlyReason ? (
-            <Notice tone="warn" title="Se guardará como borrador">
-              {errorText(draftOnlyReason)}
-            </Notice>
-          ) : (
-            <p className="text-[13px] text-(--cx-muted)">Te llevaremos a tu billetera de prueba para aprobarlo.</p>
-          )}
-          {!assetConfirmed ? (
-            <Notice tone="warn">
-              COMPAS no convierte monedas. Si tu billetera no usa {asset.assetCode}, rechazará la autorización.
-            </Notice>
-          ) : null}
+          <p className="text-[13px] text-(--cx-muted)">
+            Cada compra permitida te llegará como un pago de PayPal por ese monto exacto, para el comercio.
+          </p>
           {submitError ? <Notice tone="danger">{submitError}</Notice> : null}
         </div>
       ) : null}
@@ -339,7 +306,7 @@ export function CreateBudgetWizard({
       <div className="space-y-2 pt-1">
         {step === "confirm" ? (
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Creando…" : draftOnlyReason ? "Guardar borrador" : "Crear y autorizar"}
+            {busy ? "Creando…" : "Crear y autorizar"}
           </Button>
         ) : (
           <Button onClick={next} disabled={step === "contact" && !draft.contactId}>

@@ -9,7 +9,7 @@ The three wallet simulations remain one Next.js app inside `frontend/`. Domain c
 ```mermaid
 flowchart TB
   subgraph frontendApp ["frontend"]
-    arq["ARQ simulation"]
+    paypalApp["PayPal app simulation"]
     nequi["Nequi simulation"]
     business["Nequi Negocios simulation"]
   end
@@ -35,7 +35,7 @@ flowchart TB
   gateway -->|"order only after ALLOW, capture only after the payer approved"| paypal
 ```
 
-ARQ, Nequi, and Nequi Negocios are UX simulations inside the frontend. PayPal is the payment layer. COMPAS never sits in the path as a custodian.
+The PayPal app, Nequi, and Nequi Negocios screens are UX simulations inside the frontend. The PayPal REST API, in the sandbox, is the payment layer. COMPAS never sits in the path as a custodian.
 
 ## Backend components
 
@@ -82,17 +82,17 @@ The frontend does not import these modules. It calls the backend over HTTP, thro
 flowchart TB
   demo["/demo"]
   session["DemoSessionProvider"]
-  arq["ArqExperience"]
+  paypalApp["PayPalExperience"]
   nequi["NequiExperience"]
   business["NequiBusinessExperience"]
   frame["PhoneFrame"]
 
   demo --> session
   session --> frame
-  frame --> arq
+  frame --> paypalApp
   frame --> nequi
   frame --> business
-  arqRoute["/arq"] --> arq
+  paypalRoute["/paypal"] --> paypalApp
   nequiRoute["/nequi"] --> nequi
   businessRoute["/nequi-negocios"] --> business
 ```

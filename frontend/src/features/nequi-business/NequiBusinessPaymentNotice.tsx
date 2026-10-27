@@ -11,8 +11,8 @@ const VISIBLE_MS = 8000;
 
 /**
  * A push-style notice at the top of the merchant's phone, once per charge,
- * when the payer's wallet reports the COMPAS payment COMPLETED. Never for a
- * PENDING payment. The amount is the shop's own charge, in its asset.
+ * when PayPal captured the COMPAS payment. Never for an order still waiting
+ * for the payer, or a pending capture. The amount is the shop's own charge.
  */
 export function NequiBusinessPaymentNotice() {
   const { charge } = useDemoSession();
@@ -40,7 +40,7 @@ export function NequiBusinessPaymentNotice() {
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-bold">Pago recibido</p>
           <p className="text-[13px] leading-snug">
-            Recibiste {formatMoneyAmount(shown.amount)} en {shown.merchantDisplayName} con COMPAS. La billetera
+            Recibiste {formatMoneyAmount(shown.amount)} en {shown.merchantDisplayName} con COMPAS. PayPal
             confirmó el pago.
           </p>
         </div>

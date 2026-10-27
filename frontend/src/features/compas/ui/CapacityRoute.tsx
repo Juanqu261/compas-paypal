@@ -7,7 +7,7 @@ import { capacityLabel, isAuthorized } from "../lib/labels";
  * COMPAS's signature: the authorized capacity drawn as a route on a chart.
  * The solid magenta stretch is permission still available. It is permission,
  * never a balance, so the label says "capacidad", not "saldo". Before the
- * payer consents, nothing is drawn as available: the route is only dotted.
+ * payer confirms, nothing is drawn as available: the route is only dotted.
  * Built from spans so it is valid inside a button.
  */
 export function CapacityRoute({ mandate }: { mandate: Pick<MandateView, "status" | "viewerRole" | "authorization" | "budget" | "remainingAuthorizedAmount"> }) {
@@ -17,7 +17,7 @@ export function CapacityRoute({ mandate }: { mandate: Pick<MandateView, "status"
   const amount = authorized ? mandate.remainingAuthorizedAmount : mandate.budget;
   const caption = authorized
     ? `de ${formatMoneyAmount(mandate.budget)} autorizados`
-    : "Aún no hay permiso: falta aprobarlo en la billetera";
+    : "Aún no hay permiso: falta autorizarlo";
   const description = authorized
     ? `Quedan ${formatMoneyAmount(mandate.remainingAuthorizedAmount)} de ${formatMoneyAmount(mandate.budget)} autorizados`
     : `${formatMoneyAmount(mandate.budget)} sin autorizar`;

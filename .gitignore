@@ -28,7 +28,7 @@ yarn-error.log*
 # a local credentials file saved without its leading dot
 backend/env
 
-# local Open Payments private keys
+# local private keys
 private.key
 *.key
 

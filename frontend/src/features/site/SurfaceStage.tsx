@@ -37,10 +37,7 @@ export function SurfaceStage({
             </p>
           </div>
           <p className="text-lg leading-relaxed text-ink">{surface.summary}</p>
-          <p className="text-sm text-ink-soft italic">
-            {surface.app} here is a simulation for the COMPAS demo, not an
-            integration.
-          </p>
+          <p className="text-sm text-ink-soft italic">{surface.simulation}</p>
           <nav aria-label="Story" className="flex flex-col gap-2 border-t border-ink/15 pt-5">
             {previous ? (
               <StoryLink href={previous.href} className="text-ink-soft underline decoration-ink/30 underline-offset-4 hover:text-ink">
@@ -70,8 +67,7 @@ export function SurfaceStage({
             </div>
           </div>
           <p className="mt-4 hidden text-center text-sm text-ink-soft sm:block lg:hidden">
-            {surface.person}, {surface.role.toLowerCase()}. {surface.app} is
-            simulated for the COMPAS demo.
+            {surface.person}, {surface.role.toLowerCase()}. {surface.simulation}
           </p>
         </div>
       </main>

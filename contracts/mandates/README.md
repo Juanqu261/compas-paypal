@@ -1,6 +1,6 @@
 # Mandate contracts
 
-The HTTP API the ARQ (payer) and Nequi (delegate) simulations use to create, read, authorize and revoke mandates. The source of truth is `MandateService` in `backend/src/application/mandates.ts` and the handlers in `backend/src/api/mandates.ts`. The frontend mirrors these shapes in `frontend/src/features/compas/api/contracts.ts` and never imports `backend/src`.
+The HTTP API the PayPal app (payer) and Nequi (delegate) simulations use to create, read, authorize and revoke mandates. The source of truth is `MandateService` in `backend/src/application/mandates.ts` and the handlers in `backend/src/api/mandates.ts`. The frontend mirrors these shapes in `frontend/src/features/compas/api/contracts.ts` and never imports `backend/src`.
 
 A response never carries a PayPal account id, an order or capture id, a token or a raw PayPal payload. The one PayPal value a response may carry is the link that approves an order, in the payer's activity only.
 
@@ -76,7 +76,7 @@ POST /mandates
 
 | Field | Rule |
 | --- | --- |
-| `delegateId`, `beneficiaryId` | Known parties. The delegate is not the payer. The beneficiary needs no PayPal account. They may be the same party: the ARQ wizard asks for one contact and sends it as both |
+| `delegateId`, `beneficiaryId` | Known parties. The delegate is not the payer. The beneficiary needs no PayPal account. They may be the same party: the payer's wizard in the PayPal app asks for one contact and sends it as both |
 | `categories` | One or more of `MEDICATION`, `FOOD`, `PERSONAL_CARE`, `ALCOHOL`, `TOBACCO`. Duplicates are dropped |
 | `budget.value` | A positive integer string, at most 10,000 whole units of the asset |
 | `budget.assetCode`, `assetScale` | A currency PayPal takes in an order, at PayPal's scale: USD/2, EUR/2, JPY/0 and so on (`ASSET_NOT_SUPPORTED` otherwise, for example COP). Every order under the mandate is in this asset: COMPAS does not convert |

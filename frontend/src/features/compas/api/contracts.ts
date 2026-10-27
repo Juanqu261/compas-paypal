@@ -11,7 +11,6 @@ export type CompasCategory = (typeof COMPAS_CATEGORIES)[number];
 
 export const MANDATE_STATUSES = [
   "DRAFT",
-  "PENDING_AUTHORIZATION",
   "ACTIVE",
   "EXHAUSTED",
   "EXPIRED",
@@ -42,10 +41,9 @@ export type PolicyReasonCode = (typeof POLICY_REASON_CODES)[number];
 
 export type PartyView = { id: string; displayName: string };
 
+/** GRANTED: the payer confirmed the budget. Each purchase still needs their approval at PayPal. */
 export type MandateAuthorizationView = {
-  consent: "NOT_STARTED" | "WAITING_FOR_PAYER" | "GRANTED";
-  grantCancellation?: "NOT_NEEDED" | "PENDING" | "DONE";
-  lastError?: { operation: "AUTHORIZE" | "CANCEL"; code: string };
+  consent: "NOT_STARTED" | "GRANTED";
   canAuthorize: boolean;
   canRevoke: boolean;
 };
@@ -73,18 +71,32 @@ export type MandateView = {
   authorization?: MandateAuthorizationView;
 };
 
-export type ActivityKind = "COMPLETED" | "PENDING" | "FAILED" | "DENIED" | "REVIEW";
+/** Where the PayPal side of an allowed purchase stands. Only COMPLETED means the merchant was paid. */
+export type PaymentState = "AWAITING_PAYER_APPROVAL" | "PENDING" | "COMPLETED" | "CANCELLED" | "FAILED";
+
+export type ActivityKind = "COMPLETED" | "PENDING" | "AWAITING_APPROVAL" | "CANCELLED" | "FAILED" | "DENIED" | "REVIEW";
+
+export type PaymentFailureCode =
+  | "MANDATE_NOT_USABLE"
+  | "ORDER_MISMATCH"
+  | "PAYER_ACCOUNT_MISMATCH"
+  | "CAPTURE_DECLINED"
+  | "ORDER_EXPIRED";
 
 export type ActivityEntry = {
   id: string;
   recordedAt: string;
   kind: ActivityKind;
   merchantDisplayName?: string;
+  /** What the merchant charged. An allowed purchase's PayPal order is for exactly this. */
   requestedAmount: Money;
-  debitAmount?: Money;
   monitoredException: boolean;
   purposeMatched?: boolean;
   reasonCodes: readonly PolicyReasonCode[];
+  /** Why a FAILED attempt was not paid. */
+  failureCode?: PaymentFailureCode;
+  /** The payer's view only: where to approve this order at PayPal, while it waits. */
+  approvalUrl?: string;
 };
 
 export type MandateActivity = {
@@ -96,6 +108,8 @@ export type MandateActivity = {
     attempts: number;
     completedCount: number;
     inProgressCount: number;
+    awaitingApprovalCount: number;
+    cancelledCount: number;
     failedCount: number;
     deniedCount: number;
     reviewCount: number;
@@ -107,26 +121,18 @@ export type MandateActivity = {
   entries: readonly ActivityEntry[];
 };
 
-export type SpendingResponse = {
-  activity: MandateActivity;
-  providerSpentAvailable: boolean;
-  providerSpent?: Money;
-};
-
-export type PayerWallet =
-  | { status: "RESOLVED"; assetCode: string; assetScale: number }
-  | { status: "NOT_CONFIGURED" | "OPEN_PAYMENTS_NOT_CONFIGURED" | "UNAVAILABLE" };
+export type SpendingResponse = { activity: MandateActivity };
 
 export type MeResponse = {
   party: PartyView;
-  payerWallet: PayerWallet;
   identity: "DEMO";
   /** IN_MEMORY_DEMO: a backend restart loses every budget. POSTGRES: kept in the database. */
   persistence: "IN_MEMORY_DEMO" | "POSTGRES";
-  openPayments: "configured" | "not_configured";
-  /** Whether this demo session may ask the payer's wallet for a grant. */
-  payerGrants: "enabled" | "disabled_for_demo" | "not_configured";
-  /** Whether this demo session may spend a payer's grant through POST /purchases. */
+  /** COMPAS only ever talks to the PayPal sandbox. */
+  paypal: "sandbox" | "not_configured";
+  /** PINNED: only the payer's own PayPal account can approve an order COMPAS captures. */
+  payerApproval: "PINNED" | "ANY_ACCOUNT";
+  /** Whether this demo session may create PayPal orders through POST /purchases. */
   purchases: "enabled" | "disabled_for_demo" | "not_configured";
 };
 
@@ -146,13 +152,10 @@ export type CreateMandateBody = {
 
 export type FieldError = { field: string; code: string; message: string };
 
-export type AuthorizeResponse = { mandateId: string; redirectUrl: string; mandate: MandateView };
+/** Authorizing activates the budget at once: nothing is asked of PayPal until a purchase. */
+export type AuthorizeResponse = { mandateId: string; mandate: MandateView };
 
-export type RevokeResponse = {
-  mandate: MandateView;
-  alreadyRevoked: boolean;
-  grantCancellation: "NOT_NEEDED" | "PENDING" | "DONE";
-};
+export type RevokeResponse = { mandate: MandateView; alreadyRevoked: boolean };
 
 // ---------------------------------------------------------------------------
 // Purchases (`contracts/purchases/README.md`) and merchant categories
@@ -166,7 +169,7 @@ export type Corroboration = "CONTRADICTED" | "UNCORROBORATED" | "REGISTRY_UNBOUN
 /** A charge as the delegate sends it. Categories and amounts only, never product names. */
 export type PurchaseBody = {
   mandateId: string;
-  /** An id from the backend's merchant directory. The wallet never comes from the browser. */
+  /** An id from the backend's merchant directory. The PayPal payee never comes from the browser. */
   merchantId: string;
   amount: Money;
   lineItems: readonly { category?: CompasCategory; amount: Money }[];
@@ -182,20 +185,21 @@ export type PurposeCheckView = {
   merchantConfidence?: string;
 };
 
-/** The checks before Open Payments. Not a decision and not a payment. */
+/** Every check before PayPal. Not a decision and not a payment. */
 export type PurchasePreview = {
   mandateId: string;
   merchant: { id: string; displayName: string };
   requestedAmount: Money;
   mandateRules: { passed: boolean; reasonCodes: readonly PolicyReasonCode[] };
+  budget?: { passed: boolean; reasonCodes: readonly PolicyReasonCode[] };
   purposeCheck?: PurposeCheckView;
   merchantCategories: readonly { category: CompasCategory; trustLevel: TrustLevel }[];
-  next: "STOP_DENY" | "STOP_REVIEW" | "QUOTE";
-  pendingChecks: readonly ("BUDGET" | "CONFIDENCE_CAP")[];
-  execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" | "OPEN_PAYMENTS_NOT_CONFIGURED";
+  /** ORDER: COMPAS would allow it and create a PayPal order for the payer to approve. */
+  next: "STOP_DENY" | "STOP_REVIEW" | "ORDER";
+  execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED";
 };
 
-/** One recorded purchase attempt. ALLOW is a decision; `payment` says what Open Payments did. */
+/** One recorded purchase attempt. ALLOW is a decision; `payment` says what PayPal did. */
 export type PurchaseView = {
   decisionId: string;
   mandateId: string;
@@ -205,8 +209,7 @@ export type PurchaseView = {
   purposeCheck?: PurposeCheckView;
   monitoredException: boolean;
   requestedAmount: Money;
-  debitAmount?: Money;
-  payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: "PENDING" | "COMPLETED" | "FAILED" };
+  payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: PaymentState };
   recordedAt: string;
 };
 

@@ -15,17 +15,17 @@ const shared = {
 };
 
 export const COMPAS_THEME = {
-  arq: {
+  paypal: {
     ...shared,
-    "--cx-accent": "#09482D",
+    "--cx-accent": "#002991",
     "--cx-on-accent": "#FFFFFF",
-    "--cx-ink": "#17201B",
-    "--cx-muted": "#5F6662",
-    "--cx-line": "#E4E6E1",
-    "--cx-line-strong": "#C9CDC6",
-    "--cx-card": "#F0F1EE",
-    "--cx-focus": "#09482D",
-    "--cx-radius": "14px",
+    "--cx-ink": "#001435",
+    "--cx-muted": "#5E6271",
+    "--cx-line": "#E8E9ED",
+    "--cx-line-strong": "#CDD0D8",
+    "--cx-card": "#F1F2F4",
+    "--cx-focus": "#0070E0",
+    "--cx-radius": "16px",
   },
   nequi: {
     ...shared,

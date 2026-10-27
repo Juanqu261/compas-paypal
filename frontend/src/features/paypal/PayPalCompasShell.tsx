@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type RefObject } from "react";
-import type { ConsentReturn } from "@/features/compas/demo-identities";
+import type { PayPalReturn } from "@/features/compas/demo-identities";
 import {
   PAYER_ROUTE_TITLE,
   PayerCompas,
@@ -7,34 +7,34 @@ import {
   usePayerNavigation,
 } from "@/features/compas/payer/PayerCompas";
 import { compasTheme } from "@/features/compas/theme";
-import { ArrowLeftIcon } from "./ArqIcons";
-import { ArqStatusBar } from "./ArqTopBar";
+import { ArrowLeftIcon } from "./PayPalIcons";
+import { PayPalStatusBar } from "./PayPalTopBar";
 
 /**
- * COMPAS inside the ARQ host, for Pedro (payer). The shell keeps ARQ's slide,
- * status bar and back arrow. The arrow steps back inside COMPAS first and
- * closes it from the COMPAS home. Mandates, consent and revocation are the
+ * COMPAS inside the simulated PayPal app, for Pedro (payer). The shell keeps
+ * the host's slide, status bar, round back button and heavy title. The arrow steps back inside COMPAS first and
+ * closes it from the COMPAS home. Mandates, approvals and revocation are the
  * backend's: this shell only shows them.
  */
-export function ArqCompasShell({
+export function PayPalCompasShell({
   open,
   onBack,
   backButtonRef,
   openCount,
-  consentReturn,
+  paypalReturn,
 }: {
   open: boolean;
   onBack: () => void;
   backButtonRef: RefObject<HTMLButtonElement | null>;
   openCount: number;
-  /** Set when Pedro just came back from his wallet's consent screen. */
-  consentReturn?: ConsentReturn | null;
+  /** Set when Pedro just came back from approving or cancelling an order at PayPal. */
+  paypalReturn?: PayPalReturn | null;
 }) {
   const titleId = useId();
-  const initial: PayerRoute[] = consentReturn
+  const initial: PayerRoute[] = paypalReturn
     ? [
         { name: "home" },
-        { name: "detail", id: consentReturn.mandateId, notice: { kind: "consent-return", result: consentReturn.result } },
+        { name: "detail", id: paypalReturn.mandateId, notice: { kind: "paypal-return", result: paypalReturn.result } },
       ]
     : [{ name: "home" }];
   const nav = usePayerNavigation(initial);
@@ -51,7 +51,7 @@ export function ArqCompasShell({
     <section
       aria-labelledby={titleId}
       inert={!open}
-      style={compasTheme("arq")}
+      style={compasTheme("paypal")}
       onKeyDown={(event) => {
         if (event.key === "Escape" && !event.defaultPrevented) back();
       }}
@@ -62,18 +62,18 @@ export function ArqCompasShell({
           : "invisible translate-x-full transition-[transform,visibility]"
       }`}
     >
-      <ArqStatusBar tone="dark" />
-      <header className="flex items-center gap-1 px-2 pb-2">
+      <PayPalStatusBar />
+      <header className="flex items-center gap-2 px-3 pb-2">
         <button
           ref={backButtonRef}
           type="button"
           onClick={back}
           aria-label={nav.canGoBack ? "Volver" : "Volver al inicio"}
-          className="grid size-11 place-items-center rounded-full text-neutral-900 transition-colors hover:bg-neutral-100 active:bg-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--arq-forest)"
+          className="grid size-10 place-items-center rounded-full bg-(--pp-chip) text-(--pp-ink) transition-colors hover:bg-(--pp-chip-strong) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)"
         >
-          <ArrowLeftIcon className="size-6" />
+          <ArrowLeftIcon className="size-5" />
         </button>
-        <h2 id={titleId} className="text-[17px] font-semibold text-neutral-900">
+        <h2 id={titleId} className="text-[20px] font-extrabold tracking-[-0.01em] text-(--pp-ink)">
           {PAYER_ROUTE_TITLE[nav.current.name]}
         </h2>
       </header>

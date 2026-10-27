@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { readConsentReturn } from "@/features/compas/demo-identities";
-import { ArqCompasShell } from "./ArqCompasShell";
-import { ArqHome } from "./ArqHome";
+import { readPayPalReturn } from "@/features/compas/demo-identities";
+import { PayPalCompasShell } from "./PayPalCompasShell";
+import { PayPalHome } from "./PayPalHome";
 
 const noSubscription = () => () => {};
 
@@ -12,36 +12,38 @@ function useLocationSearch(): string {
   return useSyncExternalStore(noSubscription, () => window.location.search, () => "");
 }
 
-/** ARQ simulation palette, scoped to this surface. */
-const arqTheme = {
-  "--arq-ink": "#002F1B",
-  "--arq-forest": "#09482D",
-  "--arq-sage": "#718D85",
-  "--arq-mint": "#78E2B1",
-  "--arq-page": "#F9F9F8",
-  "--arq-card": "#F0F1EE",
-  "--arq-line": "#E4E6E1",
-  "--arq-muted": "#5F6662",
+/** PayPal app simulation palette, scoped to this surface. */
+const paypalTheme = {
+  "--pp-ink": "#001435",
+  "--pp-navy": "#002991",
+  "--pp-blue": "#0070E0",
+  "--pp-sky": "#60CDFF",
+  "--pp-chip": "#F1F2F4",
+  "--pp-chip-strong": "#E3E5E9",
+  "--pp-line": "#E8E9ED",
+  "--pp-muted": "#5E6271",
+  "--pp-green": "#0D8040",
 } as CSSProperties;
 
-type ArqView = "home" | "compas";
+type PayPalView = "home" | "compas";
 
 /**
- * Pedro's simulated ARQ wallet (payer). It fills its container, so the same
- * component works full-screen at /arq and inside a PhoneFrame at /demo.
+ * Pedro's simulated PayPal app (payer). It fills its container, so the same
+ * component works full-screen at /paypal and inside a PhoneFrame at /demo.
+ * Only the home is simulated: approving an order opens the real PayPal sandbox.
  * The home/COMPAS view is local UI state, not shared demo state. When Pedro
- * comes back from his wallet's consent screen, COMPAS opens on that budget.
+ * comes back from approving an order at PayPal, COMPAS opens on that budget.
  */
-export function ArqExperience() {
-  const [view, setView] = useState<ArqView>("home");
+export function PayPalExperience() {
+  const [view, setView] = useState<PayPalView>("home");
   const [openCount, setOpenCount] = useState(0);
-  const [consentReturnDismissed, setConsentReturnDismissed] = useState(false);
+  const [paypalReturnDismissed, setPayPalReturnDismissed] = useState(false);
   const hasNavigated = useRef(false);
   const compasRowRef = useRef<HTMLButtonElement>(null);
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const search = useLocationSearch();
-  const consentReturn = consentReturnDismissed ? null : readConsentReturn(search);
-  const compasOpen = view === "compas" || consentReturn !== null;
+  const paypalReturn = paypalReturnDismissed ? null : readPayPalReturn(search);
+  const compasOpen = view === "compas" || paypalReturn !== null;
 
   useEffect(() => {
     if (!hasNavigated.current) return;
@@ -49,15 +51,15 @@ export function ArqExperience() {
     target.current?.focus({ preventScroll: true });
   }, [view]);
 
-  function navigate(next: ArqView) {
+  function navigate(next: PayPalView) {
     hasNavigated.current = true;
     if (next === "compas") setOpenCount((n) => n + 1);
-    if (next === "home" && consentReturn) {
+    if (next === "home" && paypalReturn) {
       // The return hint has been shown. Drop it from the URL so a reload starts clean.
-      setConsentReturnDismissed(true);
+      setPayPalReturnDismissed(true);
       const url = new URL(window.location.href);
-      url.searchParams.delete("payerAuthorization");
-      url.searchParams.delete("grantKey");
+      url.searchParams.delete("paypalOrder");
+      url.searchParams.delete("mandateId");
       window.history.replaceState(window.history.state, "", url);
     }
     setView(next);
@@ -65,8 +67,8 @@ export function ArqExperience() {
 
   return (
     <div
-      style={arqTheme}
-      className="@container relative isolate h-full w-full overflow-hidden bg-(--arq-page) font-sans text-neutral-900"
+      style={paypalTheme}
+      className="@container relative isolate h-full w-full overflow-hidden bg-white font-sans text-(--pp-ink)"
     >
       <div
         inert={compasOpen}
@@ -74,7 +76,7 @@ export function ArqExperience() {
           compasOpen ? "-translate-x-1/4" : "translate-x-0"
         }`}
       >
-        <ArqHome
+        <PayPalHome
           onOpenCompas={() => navigate("compas")}
           compasRowRef={compasRowRef}
         />
@@ -85,13 +87,13 @@ export function ArqExperience() {
           compasOpen ? "opacity-100" : "opacity-0"
         }`}
       />
-      <ArqCompasShell
-        key={consentReturn ? `consent-return:${consentReturn.mandateId}` : "compas"}
+      <PayPalCompasShell
+        key={paypalReturn ? `paypal-return:${paypalReturn.mandateId}` : "compas"}
         open={compasOpen}
         onBack={() => navigate("home")}
         backButtonRef={backButtonRef}
         openCount={openCount}
-        consentReturn={consentReturn}
+        paypalReturn={paypalReturn}
       />
     </div>
   );

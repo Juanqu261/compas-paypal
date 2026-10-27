@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 type PhoneFrameProps = {
-  /** Names the device for assistive technology, e.g. "Pedro's phone, ARQ". */
+  /** Names the device for assistive technology, e.g. "Pedro's phone, PayPal". */
   label: string;
   /**
    * Gives the child an unpadded, device-height screen. Use it for a surface

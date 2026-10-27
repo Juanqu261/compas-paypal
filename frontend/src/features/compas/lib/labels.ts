@@ -6,6 +6,7 @@ import type {
   Enforcement,
   MandateStatus,
   MandateView,
+  PaymentFailureCode,
   PolicyReasonCode,
   PurchaseView,
   TrustLevel,
@@ -18,7 +19,6 @@ import type {
 
 export const STATUS_LABEL: Record<MandateStatus, string> = {
   DRAFT: "Borrador",
-  PENDING_AUTHORIZATION: "Por autorizar",
   ACTIVE: "Activo",
   EXHAUSTED: "Agotado",
   EXPIRED: "Vencido",
@@ -28,19 +28,18 @@ export const STATUS_LABEL: Record<MandateStatus, string> = {
 /** A tone for the badge. The label always carries the meaning too. */
 export function statusTone(status: MandateStatus): "ok" | "wait" | "off" | "draft" {
   if (status === "ACTIVE") return "ok";
-  if (status === "PENDING_AUTHORIZATION") return "wait";
   if (status === "DRAFT") return "draft";
   return "off";
 }
 
 /**
- * Whether the payer ever granted this permission at their wallet. A draft or
- * a budget waiting for consent authorizes nothing yet, so its amount is
- * "por autorizar", never "autorizado". A delegate only ever sees consented ones.
+ * Whether the payer ever confirmed this permission. A draft authorizes
+ * nothing yet, so its amount is "por autorizar", never "autorizado". A
+ * delegate only ever sees confirmed ones.
  */
 export function isAuthorized(mandate: Pick<MandateView, "status" | "viewerRole" | "authorization">): boolean {
   if (mandate.status === "ACTIVE" || mandate.status === "EXHAUSTED") return true;
-  if (mandate.status === "DRAFT" || mandate.status === "PENDING_AUTHORIZATION") return false;
+  if (mandate.status === "DRAFT") return false;
   return mandate.viewerRole === "DELEGATE" || mandate.authorization?.consent === "GRANTED";
 }
 
@@ -50,7 +49,6 @@ export function capacityLabel(mandate: Pick<MandateView, "status" | "viewerRole"
     case "ACTIVE":
       return "Disponible para pagar";
     case "DRAFT":
-    case "PENDING_AUTHORIZATION":
       return "Monto por autorizar";
     case "EXHAUSTED":
       return "Capacidad agotada";
@@ -61,11 +59,8 @@ export function capacityLabel(mandate: Pick<MandateView, "status" | "viewerRole"
   }
 }
 
-/** The status as the payer reads it, including a cancellation still pending at the wallet. */
-export function payerStatusLabel(mandate: Pick<MandateView, "status" | "authorization">): string {
-  if (mandate.status === "REVOKED" && mandate.authorization?.grantCancellation === "PENDING") {
-    return "Revocado, falta confirmar en tu billetera";
-  }
+/** The status as the payer reads it. */
+export function payerStatusLabel(mandate: Pick<MandateView, "status">): string {
   return STATUS_LABEL[mandate.status];
 }
 
@@ -149,8 +144,12 @@ export function activityLabel(kind: ActivityKind, monitoredException: boolean): 
       return monitoredException ? "Pago realizado, con aviso" : "Pago realizado";
     case "PENDING":
       return "Pago en proceso";
+    case "AWAITING_APPROVAL":
+      return "Por aprobar en PayPal";
+    case "CANCELLED":
+      return "Cancelado en PayPal";
     case "FAILED":
-      return "Pago fallido";
+      return "Pago no realizado";
     case "DENIED":
       return "Compra no permitida";
     case "REVIEW":
@@ -158,31 +157,50 @@ export function activityLabel(kind: ActivityKind, monitoredException: boolean): 
   }
 }
 
+/** Why COMPAS did not, or PayPal could not, capture an allowed purchase. Nothing was charged in any of them. */
+export const FAILURE_TEXT: Record<PaymentFailureCode, string> = {
+  MANDATE_NOT_USABLE: "El presupuesto ya no estaba activo cuando se aprobó. No se cobró nada.",
+  ORDER_MISMATCH: "El pedido de PayPal no coincidía con la compra. No se cobró nada.",
+  PAYER_ACCOUNT_MISMATCH: "Lo aprobó otra cuenta de PayPal. No se cobró nada.",
+  CAPTURE_DECLINED: "PayPal rechazó el cobro. No se cobró nada.",
+  ORDER_EXPIRED: "El pedido venció sin aprobarse. No se cobró nada.",
+};
+
 /** The one reason worth showing next to an attempt that did not pay normally. */
-export function activityReason(kind: ActivityKind, codes: readonly string[]): string | undefined {
-  if (kind === "COMPLETED" || kind === "PENDING") {
+export function activityReason(kind: ActivityKind, codes: readonly string[], failureCode?: PaymentFailureCode): string | undefined {
+  if (kind === "COMPLETED" || kind === "PENDING" || kind === "AWAITING_APPROVAL") {
     const purposeCode = codes.find((code) => code !== "PAYER_MONITORED_EXCEPTION");
-    return codes.includes("PAYER_MONITORED_EXCEPTION") && purposeCode ? reasonText(purposeCode) : undefined;
+    if (codes.includes("PAYER_MONITORED_EXCEPTION") && purposeCode) return reasonText(purposeCode);
+    return kind === "AWAITING_APPROVAL" ? "No se cobra nada hasta que se apruebe en PayPal." : undefined;
   }
-  if (kind === "FAILED") return "La billetera no completó el pago. No se debitó nada.";
+  if (kind === "CANCELLED") return "Se canceló en PayPal. No se cobró nada.";
+  if (kind === "FAILED") return failureCode ? FAILURE_TEXT[failureCode] : "PayPal no completó el pago. No se cobró nada.";
   return codes.length > 0 ? reasonText(codes[0]) : undefined;
+}
+
+/**
+ * Only a PayPal page is ever opened for the payer: https on paypal.com or one
+ * of its subdomains, such as www.sandbox.paypal.com. Anything else is dropped.
+ */
+export function payPalApprovalUrl(href: string | undefined): string | undefined {
+  if (!href) return undefined;
+  try {
+    const url = new URL(href);
+    const host = url.hostname;
+    return url.protocol === "https:" && (host === "paypal.com" || host.endsWith(".paypal.com")) ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** API error codes, said plainly with what to do next. */
 export function errorText(code: string): string {
   switch (code) {
-    case "OPEN_PAYMENTS_NOT_CONFIGURED":
+    case "PAYPAL_NOT_CONFIGURED":
     case "NOT_CONFIGURED":
-      return "Este entorno no tiene Open Payments configurado, así que no se puede pedir la autorización a tu billetera.";
-    case "PAYER_GRANTS_DISABLED_FOR_DEMO":
-      return "En esta demostración no se pide autorización a una billetera real. El presupuesto queda guardado sin activar.";
-    case "PAYER_WALLET_NOT_CONFIGURED":
-      return "Tu billetera de Open Payments no está configurada en este entorno.";
-    case "AUTHORIZATION_FAILED":
+      return "Este entorno no tiene PayPal configurado, así que no se pueden crear pagos.";
     case "UPSTREAM":
-      return "Tu billetera no respondió a la solicitud. Intenta de nuevo en unos minutos.";
-    case "ASSET_MISMATCH":
-      return "El presupuesto no está en la moneda de tu billetera.";
+      return "PayPal no respondió. Intenta de nuevo en unos minutos.";
     case "INVALID_STATE":
       return "Este presupuesto ya no admite esa acción.";
     case "NOT_THE_PAYER":
@@ -206,14 +224,10 @@ export function errorText(code: string): string {
       return "Este comercio no recibe pagos con COMPAS en este entorno.";
     case "INVALID_PURCHASE":
       return "El cobro no es válido. Pide al comercio que lo genere de nuevo.";
-    case "GRANT_NOT_ACTIVE":
-      return "La billetera de quien paga no tiene un permiso activo para este presupuesto. No se pagó nada.";
     case "IDEMPOTENCY_KEY_REUSED":
       return "Este intento ya se usó para otra compra. Genera el cobro de nuevo.";
     case "PAYMENT_NOT_STARTED":
-      return "La compra se detuvo antes de pedir el pago. No se pagó nada. Puedes intentarlo de nuevo.";
-    case "PAYMENT_OUTCOME_UNKNOWN":
-      return "Pedimos el pago, pero la billetera no confirmó qué pasó. No lo repitas: revisa los movimientos del presupuesto.";
+      return "La compra se detuvo antes de crear el pago en PayPal. No se cobró nada. Genera el cobro de nuevo.";
     default:
       return "Algo salió mal. Intenta de nuevo.";
   }
@@ -237,15 +251,24 @@ export type PurchaseTone = "ok" | "wait" | "stop";
 
 /**
  * Where a purchase stands, without ever calling a decision a payment: only a
- * payment the wallet confirmed is "realizado".
+ * payment PayPal captured is "realizado".
  */
 export function purchaseStatus(purchase: Pick<PurchaseView, "outcome" | "payment">): { title: string; tone: PurchaseTone } {
   if (purchase.outcome === "DENY") return { title: "Compra no permitida", tone: "stop" };
   if (purchase.outcome === "REVIEW") return { title: "Compra retenida para revisión", tone: "wait" };
   if (purchase.payment.status === "NOT_CREATED") return { title: "No se pudo crear el pago", tone: "stop" };
-  if (purchase.payment.state === "COMPLETED") return { title: "Pago realizado", tone: "ok" };
-  if (purchase.payment.state === "FAILED") return { title: "Pago fallido", tone: "stop" };
-  return { title: "Pago en proceso", tone: "wait" };
+  switch (purchase.payment.state) {
+    case "COMPLETED":
+      return { title: "Pago realizado", tone: "ok" };
+    case "AWAITING_PAYER_APPROVAL":
+      return { title: "Esperando aprobación en PayPal", tone: "wait" };
+    case "CANCELLED":
+      return { title: "Pago cancelado en PayPal", tone: "stop" };
+    case "FAILED":
+      return { title: "Pago no realizado", tone: "stop" };
+    case "PENDING":
+      return { title: "Pago en proceso", tone: "wait" };
+  }
 }
 
 export function purchaseStatusLabel(purchase: Pick<PurchaseView, "outcome" | "payment">): string {

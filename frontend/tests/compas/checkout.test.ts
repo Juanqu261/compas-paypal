@@ -4,7 +4,7 @@ import type { DemoScenario } from "../../src/demo/scenarios.ts";
 import { DEMO_MERCHANTS } from "../../src/features/compas/demo-identities.ts";
 import { errorText, purchaseStatusLabel } from "../../src/features/compas/lib/labels.ts";
 import { merchantCompasCategories } from "../../src/features/nequi-business/nequi-business-compas-demo.ts";
-import { COMPAS_CATEGORIES } from "../../src/features/compas/api/contracts.ts";
+import { COMPAS_CATEGORIES, type PaymentState } from "../../src/features/compas/api/contracts.ts";
 import { buildCharge, chargePaymentCompleted, merchantChargeStatus, scenarioLines } from "../../src/features/demo/demo-charge.ts";
 
 const USD = (value: string) => ({ value, assetCode: "USD", assetScale: 2 });
@@ -46,8 +46,8 @@ test("a line with a category COMPAS doesn't know goes without one, so the backen
   assert.deepEqual(scenarioLines(scenario("medication-pharmacy", "VITAMINS")), [{ amount: USD("1500") }]);
 });
 
-test("the merchant phone never says paid before the wallet confirmed it", () => {
-  const preview = (next: "STOP_DENY" | "STOP_REVIEW" | "QUOTE", execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" = "ENABLED") => ({
+test("the merchant phone never says paid before PayPal captured it", () => {
+  const preview = (next: "STOP_DENY" | "STOP_REVIEW" | "ORDER", execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" = "ENABLED") => ({
     kind: "PREVIEW" as const,
     preview: {
       mandateId: "m",
@@ -56,11 +56,10 @@ test("the merchant phone never says paid before the wallet confirmed it", () => 
       mandateRules: { passed: true, reasonCodes: [] },
       merchantCategories: [],
       next,
-      pendingChecks: [],
       execution,
     },
   });
-  const purchase = (outcome: "ALLOW" | "DENY", payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: "PENDING" | "COMPLETED" | "FAILED" }) => ({
+  const purchase = (outcome: "ALLOW" | "DENY", payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: PaymentState }) => ({
     kind: "PURCHASE" as const,
     purchase: {
       decisionId: "d",
@@ -76,13 +75,18 @@ test("the merchant phone never says paid before the wallet confirmed it", () => 
   });
   assert.equal(merchantChargeStatus({}).title, "Esperando al cliente");
   assert.equal(merchantChargeStatus({ result: preview("STOP_DENY") }).title, "Compra no permitida");
-  assert.equal(merchantChargeStatus({ result: preview("QUOTE") }).title, "Pendiente de confirmación");
-  assert.match(merchantChargeStatus({ result: preview("QUOTE", "PURCHASES_DISABLED_FOR_DEMO") }).title, /desactivado/);
+  assert.equal(merchantChargeStatus({ result: preview("ORDER") }).title, "Pendiente de confirmación");
+  assert.match(merchantChargeStatus({ result: preview("ORDER", "PURCHASES_DISABLED_FOR_DEMO") }).title, /desactivado/);
+  assert.equal(
+    merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "AWAITING_PAYER_APPROVAL" }) }).title,
+    "Esperando que quien paga lo apruebe",
+  );
+  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "CANCELLED" }) }).title, "No se pudo completar");
   assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "PENDING" }) }).title, "Pago en proceso");
   assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "COMPLETED" }) }).title, "Pago realizado");
   assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "NOT_CREATED" }) }).title, "No se pudo completar");
   assert.equal(merchantChargeStatus({ result: purchase("DENY", { status: "NOT_CREATED" }) }).title, "Compra no permitida");
-  assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "PAYMENT_OUTCOME_UNKNOWN" } }).title, "Resultado incierto");
+  assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "PAYMENT_NOT_STARTED" } }).title, "No se pudo completar");
 });
 
 test("a decision is never shown as a completed payment", () => {
@@ -91,7 +95,12 @@ test("a decision is never shown as a completed payment", () => {
   assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "NOT_CREATED" } }), "No se pudo crear el pago");
   assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "PENDING" } }), "Pago en proceso");
   assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "COMPLETED" } }), "Pago realizado");
-  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "FAILED" } }), "Pago fallido");
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "FAILED" } }), "Pago no realizado");
+  assert.equal(
+    purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "AWAITING_PAYER_APPROVAL" } }),
+    "Esperando aprobación en PayPal",
+  );
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "CANCELLED" } }), "Pago cancelado en PayPal");
 });
 
 test("every purchase error code has its own plain explanation", () => {
@@ -101,15 +110,14 @@ test("every purchase error code has its own plain explanation", () => {
     "PURCHASES_DISABLED_FOR_DEMO",
     "UNKNOWN_MERCHANT",
     "INVALID_PURCHASE",
-    "GRANT_NOT_ACTIVE",
+    "PAYPAL_NOT_CONFIGURED",
     "IDEMPOTENCY_KEY_REUSED",
     "PAYMENT_NOT_STARTED",
-    "PAYMENT_OUTCOME_UNKNOWN",
     "TIMEOUT",
   ]) {
     assert.notEqual(errorText(code), fallback, code);
   }
-  assert.match(errorText("PAYMENT_OUTCOME_UNKNOWN"), /No lo repitas/);
+  assert.match(errorText("PAYMENT_NOT_STARTED"), /No se cobró nada/);
 });
 
 test("the merchant's category options are COMPAS categories", () => {
@@ -118,12 +126,17 @@ test("the merchant's category options are COMPAS categories", () => {
   }
 });
 
-test("the merchant announces a payment only when COMPAS allowed it and the wallet completed it", () => {
-  const purchase = (outcome: "ALLOW" | "DENY", payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: "PENDING" | "COMPLETED" | "FAILED" }) => ({
+test("the merchant announces a payment only when COMPAS allowed it and PayPal captured it", () => {
+  const purchase = (outcome: "ALLOW" | "DENY", payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: PaymentState }) => ({
     result: { kind: "PURCHASE" as const, purchase: { outcome, payment } as never },
   });
   assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "COMPLETED" })), true);
   assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "PENDING" })), false, "PENDING is not received money");
+  assert.equal(
+    chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "AWAITING_PAYER_APPROVAL" })),
+    false,
+    "an order the payer has not approved is not received money",
+  );
   assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "CREATED", state: "FAILED" })), false);
   assert.equal(chargePaymentCompleted(purchase("ALLOW", { status: "NOT_CREATED" })), false);
   assert.equal(chargePaymentCompleted(purchase("DENY", { status: "NOT_CREATED" })), false);
