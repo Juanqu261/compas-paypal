@@ -14,5 +14,5 @@ export interface MerchantObservationLog {
   findPaid(spendingRecordId: string): Promise<PaidObservation | undefined>;
   findVerdict(spendingRecordId: string): Promise<VerdictObservation | undefined>;
   /** Observations at the merchant recorded after `since`. */
-  listByMerchant(walletAddressUrl: string, since: Date): Promise<readonly MerchantObservation[]>;
+  listByMerchant(paypalMerchantId: string, since: Date): Promise<readonly MerchantObservation[]>;
 }

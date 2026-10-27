@@ -6,8 +6,12 @@
 export type DirectoryParty = {
   id: string;
   displayName: string;
-  /** The Open Payments wallet a payer consents on. Delegates and beneficiaries need none. */
-  walletAddressUrl?: string;
+  /**
+   * The only PayPal account allowed to approve orders under this payer's
+   * mandates. Without it, COMPAS captures an order whoever approved it at
+   * PayPal. Delegates and beneficiaries need none.
+   */
+  paypalPayerId?: string;
 };
 
 export interface PartyDirectory {

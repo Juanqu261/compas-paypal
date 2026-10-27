@@ -5,5 +5,5 @@ import type { MerchantCategoryResolution } from "../domain/merchant-category.ts"
  * The policy engine calls it at decision time, so a revocation applies to the next purchase.
  */
 export interface MerchantRegistry {
-  resolve(walletAddressUrl: string): Promise<MerchantCategoryResolution>;
+  resolve(paypalMerchantId: string): Promise<MerchantCategoryResolution>;
 }

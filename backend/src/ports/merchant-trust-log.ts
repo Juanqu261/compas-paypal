@@ -18,11 +18,11 @@ export interface MerchantTrustLog {
   append(entry: TrustLogEntry): Promise<TrustLogAppendResult>;
   getById(id: string): Promise<TrustLogEntry | undefined>;
   findBySubmission(sourceId: string, submissionId: string): Promise<TrustLogEntry | undefined>;
-  /** Claims about the wallet, bindings to it and flags on it. */
-  listByWalletAddress(walletAddressUrl: string): Promise<readonly TrustLogEntry[]>;
+  /** Claims about the PayPal merchant, bindings to it and flags on it. */
+  listByPayPalMerchant(paypalMerchantId: string): Promise<readonly TrustLogEntry[]>;
   /** Claims about a TAX_ID subject. */
   listBySubjectRef(subjectRef: string): Promise<readonly TrustLogEntry[]>;
-  /** Bindings of a TAX_ID subject to any wallet. Shows a NIT claimed by more than one wallet. */
+  /** Bindings of a TAX_ID subject to any PayPal merchant. Shows a NIT claimed by more than one account. */
   listBindingsBySubjectRef(subjectRef: string): Promise<readonly TrustLogEntry[]>;
   /** REVOCATION entries that target any of the given entry ids. */
   listRevocationsFor(entryIds: readonly string[]): Promise<readonly TrustLogEntry[]>;
