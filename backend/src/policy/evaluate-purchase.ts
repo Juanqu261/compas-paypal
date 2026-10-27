@@ -19,7 +19,7 @@ import {
  * Mandate rules always deny, whatever the enforcement mode.
  * Purpose checks (merchant category and line items) deny or hold in ENFORCED
  * mode. In MONITORED mode they are recorded on the decision and the outcome
- * is ALLOW. Open Payments still caps the spend through the payer's grant.
+ * is ALLOW. The payer still approves every PayPal order before money moves.
  */
 
 /** Status, validity window and delegate. Each failure is a hard DENY. */
@@ -45,19 +45,20 @@ export function checkMandateRules(
 }
 
 /**
- * Compares the quoted debit with the remaining authorization capacity.
- * Different assets cannot be compared, so they fail closed. Never a balance check.
+ * Compares the order amount with the remaining authorization capacity. The
+ * PayPal order is for exactly this amount, in this asset. Different assets
+ * cannot be compared, so they fail closed. Never a balance check.
  */
-export function checkBudget(mandate: Mandate, debitAmount: MoneyAmount): PolicyReason[] {
+export function checkBudget(mandate: Mandate, amount: MoneyAmount): PolicyReason[] {
   const remaining = mandate.remainingAuthorizedAmount;
-  if (debitAmount.assetCode !== remaining.assetCode || debitAmount.assetScale !== remaining.assetScale) {
+  if (amount.assetCode !== remaining.assetCode || amount.assetScale !== remaining.assetScale) {
     return [{
       code: "BUDGET_EXCEEDED",
-      message: `The debit is in ${debitAmount.assetCode}/${debitAmount.assetScale}, the mandate in ${remaining.assetCode}/${remaining.assetScale}. COMPAS does not convert.`,
+      message: `The charge is in ${amount.assetCode}/${amount.assetScale}, the mandate in ${remaining.assetCode}/${remaining.assetScale}. COMPAS does not convert.`,
     }];
   }
-  if (BigInt(debitAmount.value) > BigInt(remaining.value)) {
-    return [{ code: "BUDGET_EXCEEDED", message: "The quoted debit exceeds the remaining authorized amount." }];
+  if (BigInt(amount.value) > BigInt(remaining.value)) {
+    return [{ code: "BUDGET_EXCEEDED", message: "The charge exceeds the remaining authorized amount." }];
   }
   return [];
 }
@@ -113,21 +114,20 @@ export function evaluatePurposeCheck(
 
 /**
  * The mandate's optional per-purchase cap for a merchant that passed below
- * HIGH confidence. It reads the quoted debit, like the budget, because only
- * the quote knows the debit in the payer's asset. A different asset fails
- * closed. It is a purpose check, so MONITORED records it without blocking.
+ * HIGH confidence. It reads the order amount, like the budget. A different
+ * asset fails closed. It is a purpose check, so MONITORED records it without blocking.
  */
 export function applyConfidenceCap(
   mandate: Mandate,
   check: PurposeCheck,
-  debitAmount: MoneyAmount,
+  amount: MoneyAmount,
 ): PurposeCheck {
   const cap = mandate.purposePolicy.merchantConfidence.maxDebitBelowHigh;
   const passedBelowHigh = check.matchedCategories.length > 0 && check.merchantConfidence?.confidence !== "HIGH";
   if (!cap || !passedBelowHigh) return check;
 
-  const sameAsset = debitAmount.assetCode === cap.assetCode && debitAmount.assetScale === cap.assetScale;
-  if (sameAsset && BigInt(debitAmount.value) <= BigInt(cap.value)) return check;
+  const sameAsset = amount.assetCode === cap.assetCode && amount.assetScale === cap.assetScale;
+  if (sameAsset && BigInt(amount.value) <= BigInt(cap.value)) return check;
   return {
     ...check,
     outcome: worst(check.outcome, "REVIEW"),
@@ -136,8 +136,8 @@ export function applyConfidenceCap(
       {
         code: "MERCHANT_CONFIDENCE_LIMIT_EXCEEDED",
         message: sameAsset
-          ? `The merchant has ${check.merchantConfidence?.confidence} confidence, and the debit exceeds this mandate's cap for such merchants.`
-          : `The debit is in ${debitAmount.assetCode}/${debitAmount.assetScale}, the cap in ${cap.assetCode}/${cap.assetScale}. COMPAS does not convert.`,
+          ? `The merchant has ${check.merchantConfidence?.confidence} confidence, and the charge exceeds this mandate's cap for such merchants.`
+          : `The charge is in ${amount.assetCode}/${amount.assetScale}, the cap in ${cap.assetCode}/${cap.assetScale}. COMPAS does not convert.`,
       },
     ],
   };
@@ -189,20 +189,21 @@ export function composeDecision(input: {
   };
 }
 
-/** The whole policy in one pure call, for a caller that already holds the quote. */
+/**
+ * The whole policy in one pure call. The budget and the cap read the intent's
+ * amount: the PayPal order, if any, is for exactly that.
+ */
 export function evaluatePurchase(input: {
   decisionId: string;
   mandate: Mandate;
   intent: PurchaseIntent;
-  /** From the Open Payments quote, in the payer wallet's asset. */
-  debitAmount: MoneyAmount;
   merchantResolution: MerchantCategoryResolution;
   merchantHistory: MerchantHistoryInput;
   now: Date;
 }): PolicyDecision {
   const hardReasons = [
     ...checkMandateRules(input.mandate, input.intent, input.now),
-    ...checkBudget(input.mandate, input.debitAmount),
+    ...checkBudget(input.mandate, input.intent.amount),
   ];
   return composeDecision({
     decisionId: input.decisionId,
@@ -214,7 +215,7 @@ export function evaluatePurchase(input: {
           purposeCheck: applyConfidenceCap(
             input.mandate,
             evaluatePurposeCheck(input.mandate, input.intent, input.merchantResolution, input.merchantHistory),
-            input.debitAmount,
+            input.intent.amount,
           ),
         }
       : {}),

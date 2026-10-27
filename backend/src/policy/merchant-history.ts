@@ -23,19 +23,19 @@ export function historyWindowStart(asOf: Date, matrix: TrustMatrix): Date {
  */
 export function summarizeMerchantHistory(input: {
   observations: readonly MerchantObservation[];
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   category: CompasCategory;
   asOf: Date;
   matrix: TrustMatrix;
 }): MerchantHistorySummary {
-  const { walletAddressUrl, category, asOf, matrix } = input;
+  const { paypalMerchantId, category, asOf, matrix } = input;
   const start = historyWindowStart(asOf, matrix).getTime();
   const end = asOf.getTime();
   const incompatible = new Set(matrix.incompatible[category] ?? []);
 
   const atMerchant = input.observations.filter(
     (observation) =>
-      observation.merchantWalletAddressUrl === walletAddressUrl && Date.parse(observation.observedAt) <= end,
+      observation.paypalMerchantId === paypalMerchantId && Date.parse(observation.observedAt) <= end,
   );
   const verdicts = new Map<string, VerdictObservation>();
   for (const observation of atMerchant) {
@@ -69,7 +69,7 @@ export function summarizeMerchantHistory(input: {
   }
 
   return {
-    walletAddressUrl,
+    paypalMerchantId,
     category,
     windowStart: new Date(start).toISOString(),
     asOf: asOf.toISOString(),

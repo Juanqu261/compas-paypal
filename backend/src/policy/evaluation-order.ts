@@ -1,6 +1,7 @@
 /**
  * Planned evaluation order. This is not an evaluator.
- * Open Payments starts only after a COMPAS decision of ALLOW.
+ * A PayPal order exists only after a COMPAS decision of ALLOW, and money moves
+ * only when the payer approves that order at PayPal and COMPAS captures it.
  */
 export const POLICY_EVALUATION_ORDER = [
   "payment_intent",
@@ -13,7 +14,9 @@ export const POLICY_EVALUATION_ORDER = [
   "item_category_evidence",
   "ai_classifier_if_ambiguous",
   "policy_decision",
-  "open_payments_only_if_allow",
+  "paypal_order_only_if_allow",
+  "payer_approves_at_paypal",
+  "capture_after_mandate_recheck",
 ] as const;
 
 export type PolicyEvaluationStep = (typeof POLICY_EVALUATION_ORDER)[number];

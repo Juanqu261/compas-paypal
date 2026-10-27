@@ -81,8 +81,8 @@ export function evaluateMerchantCategoryEvidence(
 
   const records = candidates.map((declared): MerchantConfidenceRecord => {
     const summary = history.summaries.find((candidate) => candidate.category === declared.category);
-    if (!summary || summary.walletAddressUrl !== resolution.walletAddressUrl) {
-      throw new Error(`No history summary for ${declared.category} at ${resolution.walletAddressUrl}.`);
+    if (!summary || summary.paypalMerchantId !== resolution.paypalMerchantId) {
+      throw new Error(`No history summary for ${declared.category} at ${resolution.paypalMerchantId}.`);
     }
     const historyGrade = gradeMerchantHistory(summary, history.matrix);
     return {
