@@ -36,6 +36,7 @@ export const POLICY_REASON_CODES = [
   "MERCHANT_CONFIDENCE_LIMIT_EXCEEDED",
   "DELEGATE_NOT_AUTHORIZED",
   "PAYER_MONITORED_EXCEPTION",
+  "ERRAND_MISMATCH",
 ] as const;
 export type PolicyReasonCode = (typeof POLICY_REASON_CODES)[number];
 

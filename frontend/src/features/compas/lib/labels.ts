@@ -132,6 +132,7 @@ export const REASON_TEXT: Record<PolicyReasonCode, string> = {
   MERCHANT_CONFIDENCE_LIMIT_EXCEEDED: "La compra supera tu límite para comercios con menos confianza",
   DELEGATE_NOT_AUTHORIZED: "Esta autorización pertenece a otra persona",
   PAYER_MONITORED_EXCEPTION: "Compra realizada bajo supervisión",
+  ERRAND_MISMATCH: "La compra no coincide con el encargo confirmado",
 };
 
 export function reasonText(code: string): string {
