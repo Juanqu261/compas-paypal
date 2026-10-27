@@ -48,8 +48,6 @@ npm start
 
 ## Storage
 
-Without `DATABASE_URL` every log is in memory, as before. With it, the backend uses Supabase Postgres through `src/integrations/postgres/`. Schema and rules: `data/schema/README.md`. The PayPal migration (`data/migrations/20261026120000_paypal_rail.sql`) is not applied to the team's project yet, and it empties the COMPAS runtime tables when it runs.
-
 - The server stores the trust log and the COMPAS mandates with their spending records and audit events there. `npm run compas:smoke` also stores the mandate, the spending log and the observation log, and reserves the mandate's capacity there. Its two category trust logs stay in memory, because one PayPal account plays both shops.
 - `MERCHANT_SUBJECT_HMAC_KEY` is then required, and must never change once data is stored.
 - The demo seeds are idempotent: a second start keeps the first start's entries, and completes a seed that stopped halfway. In Postgres, the demo tienda's history also writes the 12 food mandates and spending records behind it (`demo-food-mandate-N`, `demo-tienda-purchase-N`). The server seeds it at startup.
