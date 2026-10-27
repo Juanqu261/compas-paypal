@@ -5,7 +5,7 @@ import type { SpendingRecord } from "../../domain/spending.ts";
 import type { MandateRepository } from "../../ports/mandate-repository.ts";
 import type { MerchantObservationLog } from "../../ports/merchant-observation-log.ts";
 import type { SpendingLog } from "../../ports/spending-log.ts";
-import { DEMO_TIENDA_WALLET } from "../merchant-registry/demo-category-seed.ts";
+import { DEMO_TIENDA_PAYPAL_ID } from "../merchant-registry/demo-category-seed.ts";
 import type { PartyRefFn } from "./party-ref.ts";
 
 /**
@@ -20,8 +20,7 @@ const FIRST_PURCHASE_DAYS_AGO = 90;
 const DAYS_BETWEEN_PAYERS = 7;
 const TIENDA_NAME = "Tienda Doña Gloria";
 const BUDGET: MoneyAmount = { value: "2000", assetCode: "USD", assetScale: 2 };
-const DEBIT: MoneyAmount = { value: "500", assetCode: "USD", assetScale: 2 };
-const REQUESTED: MoneyAmount = { value: "20000", assetCode: "COP", assetScale: 0 };
+const PAID: MoneyAmount = { value: "500", assetCode: "USD", assetScale: 2 };
 
 /**
  * Where a persistent database keeps the purchases behind the history. Each
@@ -42,7 +41,7 @@ function demoPurchase(index: number, recordId: string, paidAt: Date): { mandate:
     delegate: { id: `demo-food-delegate-${n}`, displayName: `Demo food delegate ${n}`, role: "DELEGATE" },
     beneficiary: { id: `demo-food-beneficiary-${n}`, displayName: `Demo food beneficiary ${n}`, role: "BENEFICIARY" },
     budget: BUDGET,
-    remainingAuthorizedAmount: { ...BUDGET, value: (BigInt(BUDGET.value) - BigInt(DEBIT.value)).toString() },
+    remainingAuthorizedAmount: { ...BUDGET, value: (BigInt(BUDGET.value) - BigInt(PAID.value)).toString() },
     purposePolicy: {
       id: "demo-food-policy",
       allowedPurposes: ["FOOD"],
@@ -59,18 +58,19 @@ function demoPurchase(index: number, recordId: string, paidAt: Date): { mandate:
     id: recordId,
     mandateId: mandate.id,
     purchaseIntentId: `${recordId}-intent`,
-    merchantWalletAddressUrl: DEMO_TIENDA_WALLET,
+    paypalMerchantId: DEMO_TIENDA_PAYPAL_ID,
     merchantDisplayName: TIENDA_NAME,
-    requestedAmount: REQUESTED,
-    debitAmount: DEBIT,
+    requestedAmount: PAID,
     decision: { outcome: "ALLOW", reasons: [] },
     purposeCheck: { outcome: "ALLOW", reasons: [], matchedCategories: ["FOOD"], enforced: false },
     merchantCategories: [{ category: "FOOD", trustLevel: "SELF_DECLARED" }],
+    lineCategories: ["FOOD"],
+    hasUncategorizedLines: false,
     monitoredException: false,
-    openPayments: {
-      incomingPaymentUrl: `${DEMO_TIENDA_WALLET}/incoming-payments/${recordId}`,
-      quoteId: `https://wallet.example/demo-food-payer-${n}/quotes/${recordId}`,
-      outgoingPaymentUrl: `https://wallet.example/demo-food-payer-${n}/outgoing-payments/${recordId}`,
+    // Not PayPal orders: references that name no PayPal resource.
+    paypal: {
+      orderId: `DEMOTIENDA${String(n).padStart(4, "0")}`,
+      captureId: `DEMOTIENDACAPTURE${String(n).padStart(4, "0")}`,
       state: "COMPLETED",
     },
     recordedAt: paidAt.toISOString(),
@@ -105,7 +105,7 @@ export async function seedDemoMerchantHistory(options: {
         type: "PAID",
         id: `${recordId}:paid`,
         spendingRecordId: recordId,
-        merchantWalletAddressUrl: DEMO_TIENDA_WALLET,
+        paypalMerchantId: DEMO_TIENDA_PAYPAL_ID,
         payerRef,
         delegateRef: options.partyRef(`demo-food-delegate-${index + 1}`),
         mandateCategories: ["FOOD"],
@@ -119,7 +119,7 @@ export async function seedDemoMerchantHistory(options: {
         type: "PAYER_VERDICT",
         id: `${recordId}:verdict`,
         spendingRecordId: recordId,
-        merchantWalletAddressUrl: DEMO_TIENDA_WALLET,
+        paypalMerchantId: DEMO_TIENDA_PAYPAL_ID,
         payerRef,
         verdict: "MATCH",
         observedAt: new Date(paidAt.getTime() + DAY_MS).toISOString(),

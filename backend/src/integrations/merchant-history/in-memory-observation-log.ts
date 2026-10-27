@@ -32,11 +32,11 @@ export class InMemoryObservationLog implements MerchantObservationLog {
     );
   }
 
-  async listByMerchant(walletAddressUrl: string, since: Date): Promise<readonly MerchantObservation[]> {
+  async listByMerchant(paypalMerchantId: string, since: Date): Promise<readonly MerchantObservation[]> {
     const after = since.getTime();
     return this.#observations.filter(
       (observation) =>
-        observation.merchantWalletAddressUrl === walletAddressUrl && Date.parse(observation.observedAt) > after,
+        observation.paypalMerchantId === paypalMerchantId && Date.parse(observation.observedAt) > after,
     );
   }
 }

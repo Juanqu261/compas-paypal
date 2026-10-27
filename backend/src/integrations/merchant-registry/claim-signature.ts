@@ -6,7 +6,6 @@ export const CLAIM_SIGNATURE_HEADER = "compas-signature";
 /**
  * Checks an Ed25519 signature over the exact submission bytes.
  * Signing raw bytes avoids JSON canonicalization.
- * Ed25519 is the key type Open Payments clients already use.
  */
 export function verifyClaimSignature(
   body: Uint8Array,

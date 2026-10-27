@@ -1,5 +1,5 @@
 import type { MerchantCategoryResolution } from "../../domain/merchant-category.ts";
-import { normalizeWalletAddressUrl } from "../../domain/merchant-identifiers.ts";
+import { normalizePayPalAccountId } from "../../domain/merchant-identifiers.ts";
 import {
   loadMerchantCategoryResolution,
   type LoadMerchantCategoriesDeps,
@@ -14,10 +14,10 @@ export class TrustLogMerchantRegistry implements MerchantRegistry {
     this.#deps = deps;
   }
 
-  resolve(walletAddressUrl: string): Promise<MerchantCategoryResolution> {
-    const normalized = normalizeWalletAddressUrl(walletAddressUrl);
+  resolve(paypalMerchantId: string): Promise<MerchantCategoryResolution> {
+    const normalized = normalizePayPalAccountId(paypalMerchantId);
     if (!normalized) {
-      return Promise.reject(new Error(`Not a wallet address URL: ${walletAddressUrl}`));
+      return Promise.reject(new Error(`Not a PayPal merchant id: ${paypalMerchantId}`));
     }
     return loadMerchantCategoryResolution(normalized, this.#deps);
   }

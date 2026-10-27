@@ -3,7 +3,7 @@ import {
   type IngestCategoryClaimInput,
   type IngestionResult,
 } from "../../application/ingest-category-claim.ts";
-import { normalizeWalletAddressUrl } from "../../domain/merchant-identifiers.ts";
+import { normalizePayPalAccountId } from "../../domain/merchant-identifiers.ts";
 import type { CategorySource } from "../../domain/merchant-category.ts";
 import type { CategorySourceRegistry } from "../../ports/category-source-registry.ts";
 import type { MerchantRegistry } from "../../ports/merchant-registry.ts";
@@ -89,17 +89,17 @@ export async function createMerchantCategoryService(
 
   let demoSubmissions = 0;
   if (demoKey) {
-    const wallet = (name: string) => {
+    const account = (name: string) => {
       const configured = env[name]?.trim();
-      return configured ? normalizeWalletAddressUrl(configured) : undefined;
+      return configured ? normalizePayPalAccountId(configured) : undefined;
     };
-    const testNetworkMerchantWallet = wallet("DEMO_MERCHANT_WALLET_ADDRESS");
-    const testNetworkLiquorWallet = wallet("DEMO_LIQUOR_WALLET_ADDRESS");
+    const sandboxMerchantId = account("DEMO_MERCHANT_PAYPAL_ID");
+    const sandboxLiquorId = account("DEMO_LIQUOR_PAYPAL_ID");
     demoSubmissions = await seedDemoMerchantCategories({
       ingest,
       key: demoKey,
-      ...(testNetworkMerchantWallet ? { testNetworkMerchantWallet } : {}),
-      ...(testNetworkLiquorWallet ? { testNetworkLiquorWallet } : {}),
+      ...(sandboxMerchantId ? { sandboxMerchantId } : {}),
+      ...(sandboxLiquorId ? { sandboxLiquorId } : {}),
       ...(options.now ? { now: options.now() } : {}),
     });
   }

@@ -5,11 +5,13 @@ import type {
 } from "../../application/ingest-category-claim.ts";
 
 /**
- * demo/test data. Wallets on the reserved example domain. They are not real wallets.
- * The medication and alcohol fixtures in data/fixtures/demo use these addresses.
+ * demo/test data. PayPal merchant ids in PayPal's format that name no PayPal
+ * account: COMPAS can evaluate a purchase there, but PayPal refuses the order
+ * (PAYEE_ACCOUNT_INVALID). The medication and alcohol fixtures in
+ * data/fixtures/demo use these ids.
  */
-export const DEMO_DROGUERIA_WALLET = "https://wallet.example/demo-drogueria-central";
-export const DEMO_LIQUOR_WALLET = "https://wallet.example/demo-example-liquor";
+export const DEMO_DROGUERIA_PAYPAL_ID = "DEMPHARMACY22";
+export const DEMO_LIQUOR_PAYPAL_ID = "DEMLAGERBAR22";
 
 export const DEMO_KEY_REF = "nequi-negocios-sim";
 const MERCHANT_SOURCE = "nequi-negocios-sim/merchant";
@@ -24,22 +26,22 @@ export function generateDemoSigningKey(): DemoSigningKey {
 }
 
 /** A tienda de barrio: self-declared only, no registry, no KYB. Its history is in demo-history-seed.ts. */
-export const DEMO_TIENDA_WALLET = "https://wallet.example/demo-tienda-dona-gloria";
+export const DEMO_TIENDA_PAYPAL_ID = "DEMTENDAGLRA2";
 
 /**
- * A configured wallet can change between starts. A persistent trust log keeps
- * the first body under a submission id, so the slug names the wallet: a new
- * wallet gets its own submissions instead of being refused as a reused id.
+ * A configured sandbox account can change between starts. A persistent trust
+ * log keeps the first body under a submission id, so the slug names the
+ * account: a new one gets its own submissions instead of being refused as a reused id.
  */
-function testNetworkSlug(prefix: string, walletAddressUrl: string): string {
-  return `${prefix}-${createHash("sha256").update(walletAddressUrl).digest("hex").slice(0, 12)}`;
+function sandboxSlug(prefix: string, paypalMerchantId: string): string {
+  return `${prefix}-${createHash("sha256").update(paypalMerchantId).digest("hex").slice(0, 12)}`;
 }
 
 type DemoMerchant = {
   slug: string;
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   declared: string;
-  /** Absent: the wallet attests nothing. */
+  /** Absent: the simulated wallet attests nothing. */
   ciiu?: string;
 };
 
@@ -51,30 +53,30 @@ type DemoMerchant = {
 export async function seedDemoMerchantCategories(options: {
   ingest: (input: IngestCategoryClaimInput) => Promise<IngestionResult>;
   key: DemoSigningKey;
-  /** The real test-network merchant wallet, when configured. It gets Droguería Central's evidence. */
-  testNetworkMerchantWallet?: string;
-  /** A second real test-network wallet, when configured. It gets the liquor store's evidence. */
-  testNetworkLiquorWallet?: string;
+  /** A real PayPal sandbox business account, when configured. It gets Droguería Central's evidence. */
+  sandboxMerchantId?: string;
+  /** A second sandbox business account, when configured. It gets the liquor store's evidence. */
+  sandboxLiquorId?: string;
   now?: Date;
 }): Promise<number> {
   const observedAt = (options.now ?? new Date()).toISOString();
   const merchants: DemoMerchant[] = [
-    { slug: "drogueria-central", walletAddressUrl: DEMO_DROGUERIA_WALLET, declared: "MEDICATION", ciiu: "4773" },
-    { slug: "example-liquor", walletAddressUrl: DEMO_LIQUOR_WALLET, declared: "ALCOHOL", ciiu: "4724" },
-    { slug: "tienda-dona-gloria", walletAddressUrl: DEMO_TIENDA_WALLET, declared: "FOOD" },
+    { slug: "drogueria-central", paypalMerchantId: DEMO_DROGUERIA_PAYPAL_ID, declared: "MEDICATION", ciiu: "4773" },
+    { slug: "example-liquor", paypalMerchantId: DEMO_LIQUOR_PAYPAL_ID, declared: "ALCOHOL", ciiu: "4724" },
+    { slug: "tienda-dona-gloria", paypalMerchantId: DEMO_TIENDA_PAYPAL_ID, declared: "FOOD" },
   ];
-  if (options.testNetworkMerchantWallet) {
+  if (options.sandboxMerchantId) {
     merchants.push({
-      slug: testNetworkSlug("test-network-merchant", options.testNetworkMerchantWallet),
-      walletAddressUrl: options.testNetworkMerchantWallet,
+      slug: sandboxSlug("paypal-sandbox-merchant", options.sandboxMerchantId),
+      paypalMerchantId: options.sandboxMerchantId,
       declared: "MEDICATION",
       ciiu: "4773",
     });
   }
-  if (options.testNetworkLiquorWallet) {
+  if (options.sandboxLiquorId) {
     merchants.push({
-      slug: testNetworkSlug("test-network-liquor", options.testNetworkLiquorWallet),
-      walletAddressUrl: options.testNetworkLiquorWallet,
+      slug: sandboxSlug("paypal-sandbox-liquor", options.sandboxLiquorId),
+      paypalMerchantId: options.sandboxLiquorId,
       declared: "ALCOHOL",
       ciiu: "4724",
     });
@@ -86,7 +88,7 @@ export async function seedDemoMerchantCategories(options: {
       sourceId: MERCHANT_SOURCE,
       submissionId: `demo-self-declared-${merchant.slug}`,
       type: "CATEGORY_CLAIM",
-      subject: { kind: "WALLET_ADDRESS", walletAddressUrl: merchant.walletAddressUrl },
+      subject: { kind: "PAYPAL_MERCHANT", paypalMerchantId: merchant.paypalMerchantId },
       declaredCategories: [merchant.declared],
       observedAt,
     },
@@ -96,7 +98,7 @@ export async function seedDemoMerchantCategories(options: {
           sourceId: KYB_SOURCE,
           submissionId: `demo-kyb-${merchant.slug}`,
           type: "CATEGORY_CLAIM",
-          subject: { kind: "WALLET_ADDRESS", walletAddressUrl: merchant.walletAddressUrl },
+          subject: { kind: "PAYPAL_MERCHANT", paypalMerchantId: merchant.paypalMerchantId },
           codes: [{ system: "CIIU_REV4_AC", code: merchant.ciiu, role: "PRIMARY" }],
           observedAt,
           evidenceRef: "demo-kyb-rut",

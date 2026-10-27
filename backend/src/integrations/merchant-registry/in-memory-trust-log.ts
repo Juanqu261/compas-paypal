@@ -4,17 +4,17 @@ import type {
   TrustLogAppendResult,
 } from "../../ports/merchant-trust-log.ts";
 
-function concernsWallet(entry: TrustLogEntry, walletAddressUrl: string): boolean {
+function concernsMerchant(entry: TrustLogEntry, paypalMerchantId: string): boolean {
   switch (entry.type) {
     case "CATEGORY_CLAIM":
     case "LICENSE_CLAIM":
       return (
-        entry.subject.kind === "WALLET_ADDRESS" &&
-        entry.subject.walletAddressUrl === walletAddressUrl
+        entry.subject.kind === "PAYPAL_MERCHANT" &&
+        entry.subject.paypalMerchantId === paypalMerchantId
       );
     case "IDENTITY_BINDING":
     case "FLAG":
-      return entry.walletAddressUrl === walletAddressUrl;
+      return entry.paypalMerchantId === paypalMerchantId;
     case "REVOCATION":
       return false;
   }
@@ -75,8 +75,8 @@ export class InMemoryTrustLog implements MerchantTrustLog {
     return this.#bySubmission.get(submissionKey(sourceId, submissionId));
   }
 
-  async listByWalletAddress(walletAddressUrl: string): Promise<readonly TrustLogEntry[]> {
-    return this.#entries.filter((entry) => concernsWallet(entry, walletAddressUrl));
+  async listByPayPalMerchant(paypalMerchantId: string): Promise<readonly TrustLogEntry[]> {
+    return this.#entries.filter((entry) => concernsMerchant(entry, paypalMerchantId));
   }
 
   async listBySubjectRef(subjectRef: string): Promise<readonly TrustLogEntry[]> {
