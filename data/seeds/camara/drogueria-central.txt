@@ -1,0 +1,24 @@
+demo/test data — certificado simulado, no expedido por ninguna Cámara de Comercio.
+
+CÁMARA DE COMERCIO DE MEDELLÍN PARA ANTIOQUIA
+CERTIFICADO DE EXISTENCIA Y REPRESENTACIÓN LEGAL
+
+Código de verificación: DEMO-CCMA-7F3K9Q2M
+Fecha de expedición: 2026-10-20
+
+NOMBRE, IDENTIFICACIÓN Y DOMICILIO
+Razón social: DROGUERÍA CENTRAL S.A.S.
+NIT: 900456781-6
+Domicilio principal: Medellín, Antioquia
+Correo electrónico de notificación: {{notificationEmail}}
+
+MATRÍCULA
+Matrícula No.: 21-000000-12 (demo)
+Fecha de renovación: 2026-03-15
+Estado de la matrícula: ACTIVA
+
+ACTIVIDADES ECONÓMICAS
+Actividad principal: 4773 Comercio al por menor de productos farmacéuticos y medicinales, cosméticos y artículos de tocador en establecimientos especializados
+
+REPRESENTACIÓN LEGAL
+Representante legal: (omitido en el demo)

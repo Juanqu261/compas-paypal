@@ -1,7 +1,13 @@
 # Seeds
 
-Reference data loaded by the backend. Demo scenarios live in `fixtures/demo/` instead.
+Reference data the backend loads. A malformed file stops the backend at startup.
 
-- `category-mappings/`: versioned tables that map CIIU Rev. 4 A.C. codes and license types to COMPAS categories. Each file says how far it has been verified. A malformed table stops the backend at startup.
-- `merchant-registry/rues-medellin.json`: 1,900 real establishments from the Confecámaras RUES open data (CC BY-SA 4.0), regenerated with `npm run registry:fetch` in `backend/`. Public registry data, not yet loaded by the backend. See its README.
-- `category-sources/demo-sources.json`: the two simulated Nequi Negocios evidence sources, labeled `demo/test data`. The file names a `keyRef`, not a key. The backend generates the key at startup.
+| Folder | What | Label |
+| --- | --- | --- |
+| `category-mappings/` | CIIU codes and licenses mapped to COMPAS categories | reviewed config |
+| `trust-matrix/` | Cells and thresholds of the trust matrix | reviewed config |
+| `category-sources/` | `compas-sources.json`: the analyst and onboarding sources, always registered. `demo-sources.json`: the simulated Nequi Negocios and Cámara sources | demo/test data |
+| `merchant-registry/` | 1,900 real RUES establishments, CC BY-SA 4.0 (`npm run registry:fetch`) | public data |
+| `cum/` | A subset of INVIMA's CUM rows, copied verbatim from datos.gov.co, for tests and offline demos | demo/test data |
+| `merchant-catalogs/` | The demo merchants' catalogs, including the lookalike pharmacy | demo/test data |
+| `camara/` | The simulated Cámara de Comercio: certificates and their records | demo/test data |

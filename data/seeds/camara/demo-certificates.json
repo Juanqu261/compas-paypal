@@ -1,0 +1,28 @@
+{
+  "dataLabel": "demo/test data",
+  "notes": [
+    "A simulated Cámara de Comercio. FixtureCamaraVerifier answers a verification code from this table instead of the Cámara's online check, which a real CamaraVerifier adapter can replace.",
+    "The companies, NITs, verification codes and emails are invented. The NITs have valid check digits and belong to no company we know of.",
+    "notificationEmailEnv names the env variable that holds the email, so the real pharmacy's record can carry its PayPal sandbox account's email without committing it. An unset variable leaves the record without an email, and its binding fails closed."
+  ],
+  "records": [
+    {
+      "merchantId": "demo-merchant-drogueria-central",
+      "verificationCode": "DEMO-CCMA-7F3K9Q2M",
+      "nit": "900456781-6",
+      "razonSocial": "DROGUERÍA CENTRAL S.A.S.",
+      "ciiu": ["4773"],
+      "notificationEmailEnv": "DEMO_MERCHANT_PAYPAL_EMAIL",
+      "certificateFile": "drogueria-central.txt"
+    },
+    {
+      "merchantId": "demo-merchant-lookalike",
+      "verificationCode": "DEMO-CCMA-2B8R4T6W",
+      "nit": "901876542-8",
+      "razonSocial": "DROGUERIA CENTRALL OFERTAS S.A.S.",
+      "ciiu": ["4773", "4791"],
+      "notificationEmail": "ventas@centrall-ofertas.example",
+      "certificateFile": "drogueria-centrall.txt"
+    }
+  ]
+}

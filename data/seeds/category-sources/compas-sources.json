@@ -1,0 +1,29 @@
+{
+  "notes": [
+    "COMPAS's own sources. They are registered whether or not the demo seed runs.",
+    "compas-analyst is the AI analyst. It may only FLAG, and revoke its own flags when a human reviewer withdraws them. A flag turns a declared category into REVIEW; it never adds support.",
+    "compas-onboarding/merchant records what a merchant asserts itself while onboarding, such as the NIT on the certificate it uploaded. Its binding is self-declared: a registry claim joined through it is REGISTRY_UNBOUND."
+  ],
+  "sources": [
+    {
+      "id": "compas-analyst",
+      "kind": "COMPAS_ANALYST",
+      "trustLevel": "SELF_DECLARED",
+      "transport": "PULL",
+      "allowedEntryTypes": ["FLAG"],
+      "allowedSystems": [],
+      "allowedLicenses": [],
+      "simulated": false
+    },
+    {
+      "id": "compas-onboarding/merchant",
+      "kind": "MERCHANT",
+      "trustLevel": "SELF_DECLARED",
+      "transport": "PULL",
+      "allowedEntryTypes": ["IDENTITY_BINDING"],
+      "allowedSystems": [],
+      "allowedLicenses": [],
+      "simulated": false
+    }
+  ]
+}
