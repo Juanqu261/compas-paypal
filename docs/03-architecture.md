@@ -2,7 +2,7 @@
 
 COMPAS is a product repository. The root is not an application. `frontend/`, `backend/`, and `data/` are separate. There is no npm workspace at the root. See [adr/0004-general-monorepo-architecture.md](adr/0004-general-monorepo-architecture.md).
 
-The three wallet simulations remain one Next.js app inside `frontend/`. Domain code does not import Next.js, the Open Payments SDK, an AI vendor SDK, or a database client.
+The three wallet simulations remain one Next.js app inside `frontend/`. Domain code does not import Next.js, a PayPal client, an AI vendor SDK, or a database client.
 
 ## System context
 
@@ -17,12 +17,12 @@ flowchart TB
   backendApp["backend"]
   domain["COMPAS domain"]
   policy["Policy engine"]
-  gateway["Open Payments gateway"]
+  gateway["PayPal gateway"]
   registry["Merchant registry"]
   classifier["AI classifier"]
   audit["Audit"]
   dataStore["Data / persistence"]
-  openPayments["Open Payments"]
+  paypal["PayPal sandbox"]
 
   frontendApp -->|"HTTP / API"| backendApp
   backendApp --> domain
@@ -32,10 +32,10 @@ flowchart TB
   backendApp --> classifier
   backendApp --> audit
   backendApp --> dataStore
-  gateway -->|"only after ALLOW"| openPayments
+  gateway -->|"order only after ALLOW, capture only after the payer approved"| paypal
 ```
 
-ARQ, Nequi, and Nequi Negocios are UX simulations inside the frontend. Open Payments is the payment layer. COMPAS never sits in the path as a custodian.
+ARQ, Nequi, and Nequi Negocios are UX simulations inside the frontend. PayPal is the payment layer. COMPAS never sits in the path as a custodian.
 
 ## Backend components
 
@@ -46,7 +46,7 @@ flowchart TB
   policyNode["backend/src/policy"]
   domainNode["backend/src/domain"]
   ports["backend/src/ports"]
-  openPaymentsAdapter["backend/src/integrations/open-payments"]
+  paypalAdapter["backend/src/integrations/paypal"]
   merchantAdapter["backend/src/integrations/merchant-registry"]
   classifierAdapter["backend/src/integrations/ai-classifier"]
 
@@ -55,25 +55,26 @@ flowchart TB
   application --> domainNode
   policyNode --> domainNode
   application --> ports
-  openPaymentsAdapter -.-> ports
+  paypalAdapter -.-> ports
   merchantAdapter -.-> ports
   classifierAdapter -.-> ports
 ```
 
 Ports:
 
-- `OpenPaymentsGateway` — wallet resolution, grants, incoming payments, quotes, outgoing payments, payment status
+- `PayPalGateway` — create, read and capture a PayPal order
 - `MandateRepository`
-- `MerchantRegistry` — resolves a wallet address to COMPAS categories and trust levels
+- `SpendingLog` — every attempt, and the PayPal order's state as it moves
+- `MerchantRegistry` — resolves a PayPal merchant id to COMPAS categories and trust levels
 - `MerchantTrustLog`, `CategorySourceRegistry`, `CategoryMappingRepository`, `CategoryEvidenceFeed` — the merchant category service (see [ADR 0005](adr/0005-merchant-category-attestations.md))
 - `PurposeClassifier`
 - `AuditRepository`
 
-The Open Payments adapter is real: `InterledgerOpenPaymentsGateway` in `backend/src/integrations/open-payments/`. It is used when `CLIENT_WALLET_ADDRESS`, `KEY_ID` and `PRIVATE_KEY_PATH` are set. Otherwise `UnimplementedOpenPaymentsGateway` throws. The merchant category service is real but in memory: `TrustLogMerchantRegistry` with `InMemoryTrustLog`, seeded with simulated Nequi Negocios evidence. Its RUES and health-registry feeds throw. The other adapters still throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
+The PayPal adapter is real: `PayPalRestGateway` in `backend/src/integrations/paypal/`, on the sandbox only. It is used when `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set. Otherwise `UnimplementedPayPalGateway` throws. The merchant category service is real but in memory: `TrustLogMerchantRegistry` with `InMemoryTrustLog`, seeded with simulated Nequi Negocios evidence. Its RUES and health-registry feeds throw. The other adapters still throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
 
-`createOutgoingPaymentIfAllowed` in `backend/src/application/create-outgoing-payment-if-allowed.ts` is the only payment-related behavior in the scaffold: `DENY` and `REVIEW` return before the gateway is called.
+Two functions guard money. `createPayPalOrderIfAllowed` in `backend/src/application/create-paypal-order-if-allowed.ts` returns before the gateway for `DENY` and `REVIEW`. `PayPalOrderSettlement` in `backend/src/application/settle-paypal-order.ts` is the only caller of `captureOrder`, and it checks the mandate and the order again first. See [ADR 0008](adr/0008-paypal-rail-per-order-approval.md).
 
-The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the Open Payments consent callback `GET /open-payments/finish`, the merchant category routes `POST /merchant-category-claims`, `GET /merchants/categories` and `GET /demo/merchants`, the mandate routes (demo sessions, `/me`, `/mandates…`) and the delegate's purchase routes `POST /purchases/preview` and `POST /purchases`. The callback answers only with a redirect, and it is what activates a mandate after a verified consent. `POST /purchases` runs `purchaseUnderMandate` and is off for demo sessions unless the operator sets `COMPAS_DEMO_PURCHASES=enabled` on the test network. Shapes are in `contracts/open-payments/`, `contracts/merchant-categories/`, `contracts/mandates/` and `contracts/purchases/`. Mandates are in Postgres with `DATABASE_URL`, in memory without it. The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
+The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the PayPal return and cancel redirects `GET /paypal/orders/return` and `GET /paypal/orders/cancel`, the merchant category routes `POST /merchant-category-claims`, `GET /merchants/categories` and `GET /demo/merchants`, the mandate routes (demo sessions, `/me`, `/mandates…`) and the delegate's purchase routes `POST /purchases/preview` and `POST /purchases`. The PayPal redirects answer only with a redirect to the frontend, after the settlement captured or closed the order. `POST /purchases` runs `purchaseUnderMandate` and is off for demo sessions unless the operator sets `COMPAS_DEMO_PURCHASES=enabled`. Shapes are in `contracts/merchant-categories/`, `contracts/mandates/` and `contracts/purchases/`. Mandates are in Postgres with `DATABASE_URL`, in memory without it. The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
 
 ## Three surfaces, one frontend
 
@@ -108,22 +109,27 @@ sequenceDiagram
   participant Frontend
   participant Backend
   participant Policy
-  participant Gateway as OpenPaymentsGateway
+  participant Gateway as PayPalGateway
+  participant Payer
 
   Delegate->>Frontend: Purchase intent
   Frontend->>Backend: Evaluate request
-  Backend->>Policy: Evaluate mandate and evidence
+  Backend->>Policy: Evaluate mandate, evidence and budget
   alt DENY or REVIEW
     Policy-->>Backend: Decision
-    Backend-->>Frontend: Stop
+    Backend-->>Frontend: Stop, no order
   else ALLOW
     Policy-->>Backend: ALLOW
-    Backend->>Gateway: Quote and outgoing payment
-    Gateway-->>Backend: Payment result
+    Backend->>Gateway: Create order (payee = merchant)
+    Gateway-->>Backend: Waiting for the payer
+    Payer->>Gateway: Approves at PayPal
+    Backend->>Backend: Check the mandate and the order again
+    Backend->>Gateway: Capture
+    Gateway-->>Backend: Captured
   end
 ```
 
-The gateway calls in that diagram are implemented. `purchaseUnderMandate` makes them, behind `POST /purchases`. `npm run op:smoke` exercises the Open Payments leg alone. A decision rendered by the frontend is not authoritative.
+The gateway calls in that diagram are implemented. `purchaseUnderMandate` creates the order, behind `POST /purchases`, and `PayPalOrderSettlement` captures it, behind the PayPal return route. `npm run paypal:smoke` exercises the PayPal leg alone. A decision rendered by the frontend is not authoritative.
 
 Evaluation order is the constant `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts` and is explained in [05-policy-engine.md](05-policy-engine.md).
 

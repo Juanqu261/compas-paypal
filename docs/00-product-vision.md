@@ -14,13 +14,13 @@ The same shape appears when a treasury, company, or NGO allocates funds for a pu
 
 A payer creates a COMPAS mandate. The mandate names a delegate, a beneficiary, a budget, a purpose policy, and a validity window. The delegate does not receive the budget. The delegate receives permission to initiate a payment that COMPAS will check.
 
-At payment time COMPAS evaluates the proposed purchase. Only an `ALLOW` decision may continue into Open Payments. The payment then runs from the payer's wallet to the merchant's wallet. The delegate is not the payee.
+At payment time COMPAS evaluates the proposed purchase. Only an `ALLOW` decision becomes a PayPal order. The payer approves that order at PayPal, and the payment runs from the payer's PayPal account to the merchant's. The delegate is not the payee.
 
 Purpose-Bound Money binds the money. COMPAS binds the permission to spend it. COMPAS did not invent restricted-purpose or programmable payments. Prior art is summarized in [09-research-and-prior-art.md](09-research-and-prior-art.md).
 
 ## What COMPAS is
 
-COMPAS is a non-custodial policy and authorization layer that can sit inside an existing wallet experience. It decides whether a proposed payment is inside a mandate, records why, and only then allows an Open Payments flow to start.
+COMPAS is a non-custodial policy and authorization layer that can sit inside an existing wallet experience. It decides whether a proposed payment is inside a mandate, records why, and only then creates a PayPal order for the payer to approve.
 
 ## What COMPAS is not
 
@@ -28,9 +28,9 @@ COMPAS is not a bank, a wallet, a payment rail, a stored-value account, or a cus
 
 ## Permission, not custody
 
-`remainingAuthorizedAmount` is authorization capacity. It is not a balance COMPAS holds and not money that has moved to the delegate. Reducing it records consumed permission. The payer's wallet still holds the funds until Open Payments executes a payment to the merchant.
+`remainingAuthorizedAmount` is authorization capacity. It is not a balance COMPAS holds and not money that has moved to the delegate. Reducing it records consumed permission. The payer's PayPal account still holds the funds until the payer approves an order and PayPal pays the merchant.
 
-Open Payments can limit how much and when a client may create outgoing payments. COMPAS adds who may cause a payment, for whom, and for which purpose. `MEDICATION` is a COMPAS policy concept. It is not an Open Payments scope.
+PayPal shows the payer every payment and moves money only once they approve it. COMPAS adds who may cause a payment, for whom, for which purpose and within which budget. `MEDICATION` is a COMPAS policy concept. It is not a PayPal concept.
 
 ## Same primitive, later contexts
 
@@ -41,6 +41,6 @@ The mandate is the only authorization primitive:
 - An NGO authorizes field spending against a program purpose.
 - A public treasury authorizes a project manager to pay eligible labor providers from a `LABOR_CONTRACTS` allocation. A purchase classified as `MATERIALS` is not funded from that mandate.
 
-Those extensions stay on the roadmap. The MVP proves the family medication flow, and the rejection of an ineligible purchase before any outgoing payment.
+Those extensions stay on the roadmap. The MVP proves the family medication flow, and the rejection of an ineligible purchase before any PayPal order exists.
 
 COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail. It does not solve corruption, fraud, or collusion.

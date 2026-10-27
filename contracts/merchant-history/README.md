@@ -29,7 +29,7 @@ The handler is in `backend/src/api/spending-confirmations.ts`. It is **not wired
 
 One observation per paid purchase and one per verdict. Each holds:
 
-- the merchant wallet
+- the merchant's PayPal merchant id
 - HMAC refs for the payer and the delegate
 - the mandate's categories and the categories on the merchant's lines
 - the enforcement mode, the payment state and the time

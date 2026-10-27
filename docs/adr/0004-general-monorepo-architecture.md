@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted.
+
+The rail changed on 2026-10-26: [ADR 0008](0008-paypal-rail-per-order-approval.md) replaces Open Payments with PayPal. The backend now owns the PayPal gateway in place of the Open Payments one.
 
 ## Context
 

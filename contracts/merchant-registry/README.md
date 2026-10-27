@@ -49,7 +49,7 @@ The example uses DIAN's own public NIT as a test vector. It is not registry data
 - `INACTIVE` or `CANCELLED`: a `REVOCATION` of that renewal's claim.
 - `ACTIVE` but past its renewal deadline: nothing. The earlier claim expires.
 
-A registry claim reaches a wallet only through an identity binding. Through a NIT the merchant typed itself, it gives `REGISTRY_UNBOUND` corroboration and never more than `MEDIUM` confidence.
+A registry claim reaches a PayPal merchant only through an identity binding. Through a NIT the merchant typed itself, it gives `REGISTRY_UNBOUND` corroboration and never more than `MEDIUM` confidence.
 
 ## Questions for the database branch
 

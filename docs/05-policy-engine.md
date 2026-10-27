@@ -1,6 +1,6 @@
 # Policy engine
 
-The deterministic rules are implemented in `backend/src/policy/evaluate-purchase.ts`. `purchaseUnderMandate` in `backend/src/application/purchase-under-mandate.ts` runs them around the Open Payments calls. The AI classifier step is not wired: a line item without a category gives `REVIEW`. The step names are `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts`. The budget check runs after the quote, because only the quote knows the debit in the payer's asset.
+The deterministic rules are implemented in `backend/src/policy/evaluate-purchase.ts`. `purchaseUnderMandate` in `backend/src/application/purchase-under-mandate.ts` runs them before the PayPal order. The AI classifier step is not wired: a line item without a category gives `REVIEW`. The step names are `POLICY_EVALUATION_ORDER` in `backend/src/policy/evaluation-order.ts`. The budget check reads the charge itself: the PayPal order is for exactly that amount, in that asset.
 
 ```text
 payment intent
@@ -13,7 +13,7 @@ payment intent
   -> item/category deterministic evidence?
   -> if still ambiguous: AI classifier
   -> policy decision
-  -> ONLY IF ALLOWED: Open Payments flow
+  -> ONLY IF ALLOWED: one PayPal order, which the payer approves at PayPal
 ```
 
 ## Deterministic rules first
@@ -30,7 +30,7 @@ A merchant choosing "I sell medication" is a `SELF_DECLARED` claim. That claim i
 
 ### Merchant category step
 
-The merchant step is implemented as a pure function, `evaluateMerchantCategoryEvidence` in `backend/src/policy/merchant-category-evidence.ts`. At decision time the evaluator calls `MerchantRegistry.resolve(intent.merchantWalletAddressUrl)`, loads a history summary for each eligible category the merchant declared, and passes both with the mandate's purpose policy. The trust matrix gives each declared category a confidence ([ADR 0007](adr/0007-merchant-confidence-matrix.md)). Rows are checked top to bottom:
+The merchant step is implemented as a pure function, `evaluateMerchantCategoryEvidence` in `backend/src/policy/merchant-category-evidence.ts`. At decision time the evaluator calls `MerchantRegistry.resolve(intent.paypalMerchantId)`, loads a history summary for each eligible category the merchant declared, and passes both with the mandate's purpose policy. The trust matrix gives each declared category a confidence ([ADR 0007](adr/0007-merchant-confidence-matrix.md)). Rows are checked top to bottom:
 
 | Condition | Result |
 | --- | --- |
@@ -40,11 +40,11 @@ The merchant step is implemented as a pure function, `evaluateMerchantCategoryEv
 | Confidence at or above `merchantConfidence.minimum` | PASS: go on to line items |
 | Otherwise | `REVIEW`, `MERCHANT_EVIDENCE_INSUFFICIENT` |
 
-After the quote, a merchant that passed below `HIGH` must also fit the mandate's optional `maxDebitBelowHigh`. Over it, or in another asset, gives `REVIEW` with `MERCHANT_CONFIDENCE_LIMIT_EXCEEDED`. The purpose check stores the confidence record (corroboration, history grade, matrix version and history summary), so a decision can be replayed.
+A merchant that passed below `HIGH` must also fit the mandate's optional `maxDebitBelowHigh`, checked against the charge. Over it, or in another asset, gives `REVIEW` with `MERCHANT_CONFIDENCE_LIMIT_EXCEEDED`. The purpose check stores the confidence record (corroboration, history grade, matrix version and history summary), so a decision can be replayed.
 
 PASS is not `ALLOW`. Line items still decide. For the alcohol story the merchant step gives `MERCHANT_NOT_ELIGIBLE`, and the line items give `PURPOSE_MISMATCH`. A decision can carry both reasons.
 
-Amount checks compare minor-unit strings for the same asset. They must not treat `remainingAuthorizedAmount` as a wallet balance. Cross-currency cost comes from an Open Payments quote later, not from a rate inside the policy engine.
+Amount checks compare minor-unit strings for the same asset. They must not treat `remainingAuthorizedAmount` as a PayPal balance. A charge in another asset than the budget fails closed: COMPAS does not convert.
 
 ### Enforcement mode
 
@@ -67,14 +67,14 @@ The classifier interface cannot return a policy outcome. See [06-ai-classificati
 
 ## The gate
 
-`outgoingPaymentMayProceed` is true only for `ALLOW`. `createOutgoingPaymentIfAllowed` returns without calling the gateway for every other outcome. That function is the scaffold's enforcement of the core invariant:
+`paymentMayProceed` is true only for `ALLOW`. `createPayPalOrderIfAllowed` returns without calling the gateway for every other outcome. That function is the enforcement of the core invariant:
 
-No outgoing payment is initiated before COMPAS policy evaluation returns `ALLOW`.
+No PayPal order is created before COMPAS policy evaluation returns `ALLOW`.
 
-`REVIEW` is not an approval. It does not start a payment.
+`REVIEW` is not an approval. It does not create an order. An order itself moves no money: the payer approves it at PayPal, and `PayPalOrderSettlement` captures it only after checking the mandate and the order again.
 
 ## Not in this scaffold
 
-The AI classifier step. `POST /purchases` runs `purchaseUnderMandate` with the mandate repository, so an `ALLOW` reserves capacity. `POST /purchases/preview` runs the checks before the quote and is not a decision (`contracts/purchases/README.md`).
+The AI classifier step. `POST /purchases` runs `purchaseUnderMandate` with the mandate repository, so an `ALLOW` reserves capacity. `POST /purchases/preview` runs every check before PayPal, reserves nothing and is not a decision (`contracts/purchases/README.md`).
 
 There is no rule implementation, no split-tender calculation, and no partial approval of a mixed basket. Mixed-basket behavior is described in [02-domain-model.md](02-domain-model.md) and stays future work.
