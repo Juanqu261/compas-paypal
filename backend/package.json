@@ -10,6 +10,8 @@
     "compas:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/compas-smoke.ts",
     "registry:fetch": "node --experimental-strip-types scripts/fetch-rues-registry.ts",
     "registry:load": "node --experimental-strip-types --env-file-if-exists=.env scripts/load-rues-registry.ts",
+    "cum:index": "node --experimental-strip-types --env-file-if-exists=.env scripts/index-cum.ts",
+    "analyst:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/analyst-smoke.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\""
   },
@@ -18,6 +20,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
     "postgres": "3.4.9"
   },
   "engines": {

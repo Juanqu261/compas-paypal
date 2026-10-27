@@ -143,8 +143,34 @@ export function applyConfidenceCap(
   };
 }
 
-/** Turns rule results into the one decision the payment gate reads. */
+/**
+ * Turns rule results into the one decision the payment gate reads.
+ *
+ * Hold reasons (an errand the cart doesn't fit) turn an ALLOW into REVIEW
+ * whatever the enforcement mode: MONITORED relaxes purpose checks, not what
+ * the delegate confirmed. A DENY or a REVIEW keeps its outcome and lists them too.
+ */
 export function composeDecision(input: {
+  decisionId: string;
+  mandate: Mandate;
+  intent: PurchaseIntent;
+  hardReasons: readonly PolicyReason[];
+  holdReasons?: readonly PolicyReason[];
+  purposeCheck?: PurposeCheck;
+  evaluatedAt: Date;
+}): PolicyDecision {
+  const decision = composeWithoutHolds(input);
+  const holds = input.holdReasons ?? [];
+  if (holds.length === 0) return decision;
+  if (decision.outcome !== "ALLOW") return { ...decision, reasons: [...decision.reasons, ...holds] };
+  return {
+    ...decision,
+    outcome: "REVIEW",
+    reasons: [...decision.reasons.filter((reason) => reason.code !== "PAYER_MONITORED_EXCEPTION"), ...holds],
+  };
+}
+
+function composeWithoutHolds(input: {
   decisionId: string;
   mandate: Mandate;
   intent: PurchaseIntent;

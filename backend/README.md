@@ -1,123 +1,106 @@
 # Backend
 
-The authoritative COMPAS runtime.
+The COMPAS runtime: domain, policy gate, PayPal, merchant trust, the AI analyst, errands and the HTTP API (port 4000).
 
-It owns the domain model, the policy gate, payment authorization orchestration, the PayPal gateway, the merchant registry port, the purpose classifier port, and audit events. Storage is Supabase Postgres with `DATABASE_URL`, and in memory without it.
+These rules hold in every flow:
 
-The backend must never create a PayPal order unless the policy engine has returned `ALLOW`, and never capture one the payer did not approve at PayPal.
+- Only an `ALLOW` creates a PayPal order.
+- Only an order the payer approved at PayPal is captured.
+- AI never authorizes.
 
-`DENY` and `REVIEW` do not call `createOrder`. That rule is tested in `backend/tests/policy/payment-gate.test.ts` and, on the real adapter, in `backend/tests/integration/denied-payment-never-reaches-paypal.test.ts`. Only `PayPalOrderSettlement` calls `captureOrder` (`backend/tests/application/settle-paypal-order.test.ts`).
+## Run
+
+```bash
+npm install
+cp .env.example .env   # then fill it in
+npm run dev            # or npm start
+```
+
+`GET /health` reports what is configured: PayPal, storage, Elastic, the analyst's model, merchant login and analyst jobs. Without `DATABASE_URL`, everything runs in memory.
+
+## Configure
+
+The demo needs seven values, at the top of `.env.example`:
+
+- PayPal: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `DEMO_MERCHANT_PAYPAL_ID`, and `COMPAS_DEMO_PURCHASES=enabled`.
+- Elastic, for CUM search: `ELASTICSEARCH_URL` and `ELASTICSEARCH_API_KEY`. Run `npm run cum:index -- --demo` once.
+- Claude, the analyst's model: `ANTHROPIC_API_KEY` (`claude-haiku-5-5`). Without it, the model is Elastic's Inference API.
+
+Everything else is optional and listed below them. Add `DEMO_MERCHANT_PAYPAL_EMAIL` to bind the Cámara certificate; that step also needs Log in with PayPal enabled on the sandbox app, with return URL `http://localhost:4000/paypal/identity/return`. Without credentials, PayPal, Elastic and the model throw. Nothing is faked.
 
 ## Layout
 
 ```text
-src/domain/            Mandate, parties, money, decisions, spending records, audit events
-src/application/       Purchase flow on top of PayPal, order gate, settlement, spending report, category ingestion
-src/policy/            Evaluation order, budget and purpose checks, merchant category step, payment gate
-src/ports/             PayPal gateway, repositories, classifier, merchant category service
-src/integrations/      PayPal REST adapter (paypal/), merchant category service, Postgres adapters (postgres/), in-memory fallbacks
-src/audit/             Future audit writer
-src/api/               HTTP boundary: health, PayPal return and cancel, merchant category routes, demo sessions, mandates, purchases
-scripts/paypal-smoke.ts  One real PayPal sandbox payment: order, approval, capture
-scripts/compas-smoke.ts  COMPAS on top of real PayPal sandbox orders
-scripts/fetch-rues-registry.ts, load-rues-registry.ts  Cámara de Comercio extract: fetch it, load it into Postgres
+src/domain/        mandates, purchases, trust, CUM, catalogs, analyst findings, errands
+src/policy/        purchase rules, trust matrix, CUM verifier, errand check, payment gate
+src/application/   purchase flow, settlement, analyst, certificate binding, errands, merchant login
+src/ports/         interfaces to PayPal, Elastic, the Cámara, storage
+src/integrations/  paypal/, elastic/, cum/, camara/ (fixture), postgres/, in-memory stores
+src/api/           HTTP routes (see src/api/README.md)
+scripts/           smoke tests and data loaders
 ```
 
-Future resources are listed in `src/api/README.md`. They are not implemented.
+## How a purchase is decided
 
-## Mandates
+1. **Mandate rules.** Status, validity, delegate and budget. A failure is `DENY`.
+2. **Merchant trust.** The shop's declared categories go through the trust matrix: corroboration × payment history ([ADR 0007](../docs/adr/0007-merchant-confidence-matrix.md)). An analyst flag gives `REVIEW`.
+3. **Lines.** A line whose SKU has a verified CUM is `MEDICATION`. An off-purpose line is `DENY`.
+4. **Errand,** if the purchase names one. Every line must fit it, or the purchase is `REVIEW` `ERRAND_MISMATCH` ([ADR 0010](../docs/adr/0010-errands.md)).
+5. **Order.** `ALLOW` reserves capacity and creates a PayPal order. Pedro approves it at PayPal, and `PayPalOrderSettlement` re-checks before it captures.
 
-`MandateService` (`src/application/mandates.ts`) creates, authorizes, reads and revokes mandates for the PayPal app and Nequi screens. Access depends on the actor's relation in each mandate. The actor comes from a DEMO session token (`src/api/demo-identity.ts`): COMPAS has no user authentication yet. Authorizing moves a `DRAFT` to `ACTIVE` at once: nothing is asked of PayPal, because Pedro approves each purchase's order at PayPal instead ([ADR 0008](../docs/adr/0008-paypal-rail-per-order-approval.md)). The confirmation is read from the mandate's audit events. Status changes never rewrite the remaining capacity. Reading a mandate's activity first reconciles its open PayPal orders. A budget must be in a currency PayPal takes in an order (`ASSET_NOT_SUPPORTED` otherwise, for example COP). Mandates are in Postgres with `DATABASE_URL` (`persistence: "POSTGRES"`) and in memory without it (`"IN_MEMORY_DEMO"`). Contract: `contracts/mandates/README.md`.
+## Index and analyst
 
-## Environment
+**Index** (`npm run cum:index -- --demo`, once): loads INVIMA's CUM rows (the committed subset, or all of datos.gov.co with `--all`) into the Elastic index `compas-cum-v1`, one document per CUM. It only proposes candidates; it is never evidence.
 
-Copy `.env.example` to `.env`. The PayPal names are `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`, from the sandbox app in the PayPal developer dashboard. Do not commit them.
+**Analyst** (`POST /analyst/jobs { merchantId }`, or `npm run analyst:smoke`) runs ahead of time, never at checkout ([ADR 0009](../docs/adr/0009-ai-analyst-evidence.md)):
 
-## Local development
+1. Elastic returns CUM candidates for each SKU in the merchant's catalog.
+2. Claude says which SKUs are medicines, picks a CUM among the candidates, and lists lookalike signals.
+3. `cum-verifier.2` re-reads each CUM from INVIMA and checks: active, vigente, not a free sample, ingredients, strengths, form and box size. The mapping is `VERIFIED` or `REJECTED`.
+4. A mostly off-purpose catalog or a lookalike signal adds a `FLAG`: that shop's purchases become `REVIEW`. Only an operator withdraws it.
+
+On the demo data: Droguería Central verifies 6 of 6 medicines with no flags; the lookalike Droguería Centrall gets two flags.
+
+This MVP covers medicine only, so CUM is its only registry. Another category, such as food, may need another registry with its own codes, index and verifier ([ADR 0009](../docs/adr/0009-ai-analyst-evidence.md)).
+
+## Tests
 
 ```bash
-cd backend
-npm install
-npm run dev
 npm run typecheck
-npm test
-npm start
+npm test               # unit and integration tests, no network
 ```
 
-`npm run dev` and `npm start` listen on port 4000. They load `backend/.env` when it exists. `GET /health` returns `{ "status": "ok", "paypal": "sandbox" | "not_configured", "storage": "postgres" | "memory", "identity": "demo" | "disabled", "persistence": "POSTGRES" | "IN_MEMORY_DEMO", "payerApproval": "PINNED" | "ANY_ACCOUNT", "purchases": "enabled" | "disabled_for_demo" | "not_configured" }`.
+With `TEST_DATABASE_URL` set, `npm test` also runs the Postgres adapter tests; otherwise they are skipped.
 
-## Storage
+| Area | Tests |
+| --- | --- |
+| Payment gate: `DENY` and `REVIEW` never reach PayPal | `policy/payment-gate`, `integration/denied-payment-never-reaches-paypal` |
+| Purchase policy and the trust matrix | `policy/evaluate-purchase`, `policy/merchant-category-evidence`, `policy/trust-matrix`, `policy/merchant-history` |
+| PayPal adapter, orders, settlement | `integrations/paypal/*`, `application/purchase-under-mandate`, `application/settle-paypal-order` |
+| Mandates and purchases API | `api/*`, `application/mandates`, `application/delegate-purchases` |
+| Merchant categories and trust log | `application/ingest-category-claim`, `application/resolve-merchant-categories`, `integration/merchant-category-demo` |
+| CUM verifier on real INVIMA rows | `policy/cum-mapping-verifier` |
+| AI analyst: mappings, flags, prompt injection, appeals, jobs | `application/merchant-analysis` |
+| The analyst can't reach PayPal | `integration/analyst-never-reaches-paypal` |
+| Cámara binding and Log in with PayPal | `application/certificate-binding`, `application/merchant-identity`, `api/merchant-onboarding` |
+| Errands: holds, reservations, releases, drafts | `application/errands`, `application/delegate-errand-purchases` |
+| Elastic search, inference stream, bulk | `integrations/elastic/elastic` |
+| Claude adapter: structured output, refusals | `integrations/anthropic/claude-analyst-model` |
 
-- The server stores the trust log and the COMPAS mandates with their spending records and audit events there. `npm run compas:smoke` also stores the mandate, the spending log and the observation log, and reserves the mandate's capacity there. Its two category trust logs stay in memory, because one PayPal account plays both shops.
-- `MERCHANT_SUBJECT_HMAC_KEY` is then required, and must never change once data is stored.
-- The demo seeds are idempotent: a second start keeps the first start's entries, and completes a seed that stopped halfway. In Postgres, the demo tienda's history also writes the 12 food mandates and spending records behind it (`demo-food-mandate-N`, `demo-tienda-purchase-N`). The server seeds it at startup.
-- `DATABASE_ADMIN_URL=… npm run registry:load` loads the 1,900 Cámara de Comercio shops into `compas.registry_*`.
-- `TEST_DATABASE_URL` (a member of `compas_backend`, both migrations applied) runs the Postgres adapter tests in `npm test`. Without it they are skipped.
+All paths are under `tests/`. The tests use fakes for PayPal, Elastic and Claude, and the real CUM subset in `data/seeds/cum/`.
 
-## PayPal
+### Live checks
 
-The adapter in `src/integrations/paypal/` calls the PayPal REST API over `fetch`, on the sandbox only (`https://api-m.sandbox.paypal.com`). No PayPal SDK. Port, flow and mapping: `docs/04-paypal-mapping.md`.
+These need `.env` and make real sandbox or Elastic calls.
 
-- **Order.** On `ALLOW`, one Orders v2 order for exactly the charge, `payee.merchant_id` = the merchant, `custom_id` = the decision id, `invoice_id` = the intent id, `reference_id` = the mandate id, lines named "Item 1", "Item 2". `PayPal-Request-Id` = the decision id, so a retry returns the same order.
-- **Approval.** PayPal answers `PAYER_ACTION_REQUIRED` with a `payer-action` link. Only the payer's activity view carries it. Pedro approves at PayPal, logged in to his own account.
-- **Capture.** PayPal sends the browser to `GET /paypal/orders/return`. `PayPalOrderSettlement` reads the order and captures it only if it is `APPROVED`, unchanged, under a mandate still `ACTIVE` and in its window, and, with `DEMO_PAYER_PAYPAL_ID` set, approved by that account. `GET /paypal/orders/cancel` closes it. Either way the browser goes to `PAYPAL_FRONTEND_RETURN_URL`.
-- **No standing permission.** The sandbox app has no Vault permission (`403 NOT_AUTHORIZED` on `/v3/vault/setup-tokens`, checked on 2026-10-26), so COMPAS never charges a payer who is absent. See ADR 0008.
+| Command | What it does |
+| --- | --- |
+| `npm run paypal:smoke -- --amount 1120` | One sandbox payment. Approve it in the browser as Pedro's personal account |
+| `npm run compas:smoke -- --mode enforced` | Pharmacy `ALLOW`, approved and captured; liquor `DENY`. `--mode monitored` and `--scenario` are also available |
+| `npm run cum:index` | Builds the Elastic CUM index from datos.gov.co. `--demo` loads the committed subset; `--recreate` rebuilds |
+| `npm run analyst:smoke` | Runs the analyst on the demo catalogs with live Elastic and Claude. Its trust log is in memory |
 
-To run a real payment on the sandbox:
+## Data
 
-1. In the PayPal developer dashboard, use the REST app's sandbox credentials, and two sandbox accounts besides the app's own business account: a **business** account for the pharmacy and a **personal** account for Pedro.
-2. Copy `.env.example` to `.env`. Fill in `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `DEMO_MERCHANT_PAYPAL_ID` (the pharmacy's merchant id, under its account details). Optionally `DEMO_PAYER_PAYPAL_ID` (Pedro's payer id).
-3. `npm run paypal:smoke -- --amount 1120`. Open the printed URL, log in as the personal account and approve. PayPal sends you to a one-off listener on `PAYPAL_SMOKE_PORT` (4123), and the script captures after you confirm.
-
-The smoke script checks the PayPal leg only. It runs no COMPAS policy.
-
-## Merchant categories
-
-The merchant category service tells the policy engine what a merchant is and how well that is backed. It resolves a merchant's PayPal merchant id to COMPAS categories and trust levels. Design: `docs/adr/0005-merchant-category-attestations.md`. Payloads: `contracts/merchant-categories/README.md`.
-
-- Evidence enters only through `ingestCategoryClaim` (`src/application/ingest-category-claim.ts`). Push sources sign the raw body with Ed25519.
-- The trust log is in memory, or in `compas.trust_log_entries` with `DATABASE_URL`.
-- At startup the backend generates a throwaway Ed25519 key, registers the two simulated Nequi Negocios sources from `data/seeds/category-sources/demo-sources.json` and seeds the demo merchants. Droguería Central (`DEMPHARMACY22`) resolves to `MEDICATION` at `PROVIDER_VERIFIED`. The liquor store (`DEMLAGERBAR22`) resolves to `ALCOHOL`/`TOBACCO`. Those demo ids name no PayPal account. When `DEMO_MERCHANT_PAYPAL_ID` is set, that sandbox account gets Droguería Central's evidence too. `MERCHANT_CATEGORY_DEMO_SEED=false` turns the seed off.
-- PayPal signs no category attestations. On a real PayPal deployment `PROVIDER_VERIFIED` is empty, and `HIGH` needs a registry binding (ADR 0008).
-- `MERCHANT_SUBJECT_HMAC_KEY` (32+ characters) keys the HMAC that replaces NITs. Without it and without a database, a random key is used for the process.
-- The Cámara de Comercio registry has two lookups for `RegistryDbFeed`: `JsonBusinessRegistryLookup` over the seed file and `PostgresBusinessRegistryLookup` over `compas.registry_establishments`. Nothing calls `refreshRegistryEvidence` yet. The health-registry feed throws `NotImplementedError`.
-
-### Trust matrix
-
-Each category the merchant declared gets a confidence (`CONTESTED`, `LOW`, `MEDIUM`, `HIGH`) from corroboration × payment history, through `data/seeds/trust-matrix/trust-matrix.json`. The loader refuses a matrix that lets history alone reach `HIGH`. A mandate sets `purposePolicy.merchantConfidence.minimum`. Captured purchases and payer verdicts go to the observation log. The demo seeds Tienda Doña Gloria (`DEMTENDAGLRA2`): self-declared `FOOD` and 12 confirming payers, which gives `MEDIUM`. Design: `docs/adr/0007-merchant-confidence-matrix.md`.
-
-```bash
-curl "http://localhost:4000/merchants/categories?paypalMerchantId=DEMPHARMACY22"
-```
-
-## Purchases and the payer's tick
-
-`purchaseUnderMandate` (`src/application/purchase-under-mandate.ts`) is COMPAS on top of PayPal for one purchase:
-
-1. Mandate rules.
-2. Merchant categories, history and the trust matrix, then the purpose check.
-3. Budget against the charge, and the cap for a merchant below `HIGH` confidence.
-4. One decision. `ALLOW` reserves the charge, and only `ALLOW` reaches `createPayPalOrderIfAllowed`.
-5. The order waits for the payer. `PayPalOrderSettlement` (`src/application/settle-paypal-order.ts`) captures it after the payer approved, and only then does the purchase join the merchant's history.
-
-`purposePolicy.enforcement` is the payer's tick. `ENFORCED` blocks a failed purpose check. `MONITORED` orders it and flags `PAYER_MONITORED_EXCEPTION`. Mandate rules and the budget apply in both modes, and the payer approves every order. Every attempt goes to the spending log, and `buildSpendingReport` builds the payer's view. See `docs/04-paypal-mapping.md` and `docs/adr/0006-monitored-budgets.md`.
-
-## COMPAS smoke test
-
-`npm run compas:smoke` runs the category layer and the purchase policy on top of real PayPal sandbox orders. Each allowed purchase prints a PayPal approval URL: approve it as the sandbox personal account, and the script settles it as the return route does. The terminal shows what each layer did:
-
-1. The category layer resolves the merchant.
-2. The purpose check runs.
-3. The decision is made.
-4. If allowed, the PayPal order is created and you approve it.
-5. The settlement checks the mandate again and captures.
-6. The run ends with the payer's spending report.
-
-```bash
-npm run compas:smoke -- --mode enforced     # pharmacy: ALLOW, approved, captured. liquor: DENY, no PayPal call
-npm run compas:smoke -- --mode monitored    # pharmacy: ALLOW, captured. liquor: ALLOW + PAYER_MONITORED_EXCEPTION, captured
-```
-
-Options: `--scenario all|pharmacy|liquor`, `--budget` (minor units, default 4000), `--amount` (minor units, default 1120), `--yes` (skip the prompt before each order).
-
-It needs only the `.env` that `paypal:smoke` uses. `DEMO_MERCHANT_PAYPAL_ID` plays both shops. Each role gets its own trust log: CIIU 4773 (pharmacy) in one and CIIU 4724 (liquor store) in the other. One log holding both would be contradictory evidence, which is `REVIEW` for every purchase. Each scenario prints PASS or FAIL against the expected result. Merchant evidence is the simulated Nequi Negocios seed (`demo/test data`).
+- `npm run registry:fetch` and `registry:load` handle the Cámara de Comercio extract (`data/seeds/merchant-registry/`).
+- The analyst, catalog, login and errand stores are in memory. Their tables are in `data/migrations/20261027170000_analyst_errands.sql`, applied on 2026-10-27 and empty until there are Postgres adapters.

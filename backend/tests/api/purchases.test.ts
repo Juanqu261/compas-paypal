@@ -135,7 +135,10 @@ test("the demo merchant list hides PayPal ids and says when no evidence source i
   assert.equal(listed.status, 200);
   assert.equal(listed.body.categorySources, "NONE_REGISTERED");
   const merchants = listed.body.merchants as Record<string, unknown>[];
-  assert.deepEqual(merchants.map((merchant) => merchant.id), [DEMO_MERCHANT_IDS.drogueria, DEMO_MERCHANT_IDS.liquor]);
+  assert.deepEqual(
+    merchants.map((merchant) => merchant.id),
+    [DEMO_MERCHANT_IDS.drogueria, DEMO_MERCHANT_IDS.liquor, DEMO_MERCHANT_IDS.lookalike],
+  );
   assert.ok(merchants.every((merchant) => !("paypalMerchantId" in merchant)));
   assert.equal((merchants[0].categories as unknown[]).length, 1);
 });

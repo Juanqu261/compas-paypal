@@ -1,11 +1,9 @@
-# PayPal gateway tests
+# Integration tests
 
-Critical requirement:
+These tests check the invariants across modules.
 
-A denied COMPAS transaction must never invoke `PayPalGateway.createOrder()`.
+- `denied-payment-never-reaches-paypal`: `DENY` and `REVIEW` make no PayPal request. `ALLOW` creates one order and no capture. It runs on the real REST adapter over a fetch-level fake.
+- `analyst-never-reaches-paypal`: the analyst, errand and Elastic modules import no PayPal port. The test follows their imports.
+- `merchant-category-demo`: the demo seed resolves through real signature checks.
 
-The same rule applies to `REVIEW`. Only `ALLOW` may reach the gateway, and an order moves no money by itself: only `PayPalOrderSettlement` captures, after the payer approved at PayPal and the mandate was checked again.
-
-`backend/tests/policy/payment-gate.test.ts` locks that gate with a test double. The double is not a PayPal response.
-
-`denied-payment-never-reaches-paypal.test.ts` drives `createPayPalOrderIfAllowed` with the real `PayPalRestGateway` over a fetch-level double of the PayPal REST API (`tests/integrations/paypal/fake-paypal-api.ts`). `DENY` and `REVIEW` make no request at all; `ALLOW` creates one order and no capture. Do not stub a successful payment in the running backend to make a test pass. `UnimplementedPayPalGateway` keeps throwing when the PayPal credentials are missing.
+Never stub a successful payment in the running backend to make a test pass.

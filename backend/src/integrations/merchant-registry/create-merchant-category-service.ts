@@ -11,7 +11,7 @@ import type { MerchantTrustLog } from "../../ports/merchant-trust-log.ts";
 import type { Database } from "../postgres/database.ts";
 import { PostgresTrustLog } from "../postgres/postgres-trust-log.ts";
 import { verifyClaimSignature } from "./claim-signature.ts";
-import { CATEGORY_MAPPINGS_DIR, DEMO_CATEGORY_SOURCES_FILE } from "./data-paths.ts";
+import { CATEGORY_MAPPINGS_DIR, COMPAS_CATEGORY_SOURCES_FILE, DEMO_CATEGORY_SOURCES_FILE } from "./data-paths.ts";
 import {
   DEMO_KEY_REF,
   generateDemoSigningKey,
@@ -30,8 +30,11 @@ export type MerchantCategoryService = {
   /** Number of demo submissions ingested at startup. 0 when the seed is off. */
   demoSubmissions: number;
   /**
-   * Registered evidence sources. 0 with the demo seed off: the trust log may
-   * still hold entries, but evidence from an unregistered source is ignored.
+   * Registered evidence sources that can support a category. 0 with the demo
+   * seed off: the trust log may still hold entries, but evidence from an
+   * unregistered source is ignored. COMPAS's own sources (the analyst and
+   * merchant onboarding) are always registered and not counted: alone they
+   * can only flag or bind.
    */
   sourceCount: number;
 };
@@ -41,6 +44,7 @@ export type CreateMerchantCategoryServiceOptions = {
   logWarning?: (message: string) => void;
   mappingsDir?: string;
   demoSourcesFile?: string;
+  compasSourcesFile?: string;
   now?: () => Date;
   /** With a database, the trust log is compas.trust_log_entries. Without one, it is in memory. */
   database?: Database;
@@ -65,13 +69,16 @@ export async function createMerchantCategoryService(
 
   const demoSeedEnabled = env.MERCHANT_CATEGORY_DEMO_SEED?.trim().toLowerCase() !== "false";
   const demoKey = demoSeedEnabled ? generateDemoSigningKey() : undefined;
-  const sourceList: CategorySource[] = demoKey
+  const evidenceSources: CategorySource[] = demoKey
     ? loadCategorySources(
         options.demoSourcesFile ?? DEMO_CATEGORY_SOURCES_FILE,
         new Map([[DEMO_KEY_REF, demoKey.publicKeyJwk]]),
       )
     : [];
-  const sources = new StaticCategorySourceRegistry(sourceList);
+  const sources = new StaticCategorySourceRegistry([
+    ...loadCategorySources(options.compasSourcesFile ?? COMPAS_CATEGORY_SOURCES_FILE, new Map()),
+    ...evidenceSources,
+  ]);
 
   const trustLog: MerchantTrustLog = options.database
     ? new PostgresTrustLog(options.database)
@@ -114,6 +121,6 @@ export async function createMerchantCategoryService(
     }),
     sources,
     demoSubmissions,
-    sourceCount: sourceList.length,
+    sourceCount: evidenceSources.length,
   };
 }

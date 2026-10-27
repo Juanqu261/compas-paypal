@@ -25,6 +25,12 @@ export function generateDemoSigningKey(): DemoSigningKey {
   return { publicKeyJwk: publicKey.export({ format: "jwk" }), privateKey };
 }
 
+/**
+ * The demo arc's lookalike pharmacy: it declares MEDICATION itself and nobody
+ * attests it. Its catalog is mostly gift cards, which the analyst flags.
+ */
+export const DEMO_LOOKALIKE_PAYPAL_ID = "DEMCENTRALL22";
+
 /** A tienda de barrio: self-declared only, no registry, no KYB. Its history is in demo-history-seed.ts. */
 export const DEMO_TIENDA_PAYPAL_ID = "DEMTENDAGLRA2";
 
@@ -64,6 +70,7 @@ export async function seedDemoMerchantCategories(options: {
     { slug: "drogueria-central", paypalMerchantId: DEMO_DROGUERIA_PAYPAL_ID, declared: "MEDICATION", ciiu: "4773" },
     { slug: "example-liquor", paypalMerchantId: DEMO_LIQUOR_PAYPAL_ID, declared: "ALCOHOL", ciiu: "4724" },
     { slug: "tienda-dona-gloria", paypalMerchantId: DEMO_TIENDA_PAYPAL_ID, declared: "FOOD" },
+    { slug: "drogueria-centrall", paypalMerchantId: DEMO_LOOKALIKE_PAYPAL_ID, declared: "MEDICATION" },
   ];
   if (options.sandboxMerchantId) {
     merchants.push({

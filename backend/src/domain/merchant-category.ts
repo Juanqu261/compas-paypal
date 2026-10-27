@@ -35,6 +35,8 @@ export const CATEGORY_SOURCE_KINDS = [
   "BUSINESS_REGISTRY",
   "HEALTH_AUTHORITY",
   "PROGRAM_OPERATOR",
+  /** COMPAS's AI analyst. It may only flag: a judgment can lower confidence, never raise it. */
+  "COMPAS_ANALYST",
 ] as const;
 export type CategorySourceKind = (typeof CATEGORY_SOURCE_KINDS)[number];
 

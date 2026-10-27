@@ -1,5 +1,6 @@
 import type { Mandate } from "../domain/mandate.ts";
 import type { PaymentFailureCode, PaymentState, SpendingRecord } from "../domain/spending.ts";
+import type { ErrandRepository } from "../ports/errand-repository.ts";
 import type { MandateRepository } from "../ports/mandate-repository.ts";
 import type { PartyDirectory } from "../ports/party-directory.ts";
 import type { PayPalGateway, PayPalOrder } from "../ports/paypal-gateway.ts";
@@ -20,6 +21,8 @@ export type PayPalSettlementDeps = {
   parties: Pick<PartyDirectory, "getById">;
   /** A captured order joins the merchant's history. */
   history: Pick<MerchantHistoryDeps, "observations" | "partyRef">;
+  /** An errand's units held by a purchase are given back with its capacity. */
+  errands?: Pick<ErrandRepository, "release">;
   now?: () => Date;
   logWarning?: (message: string) => void;
 };
@@ -68,6 +71,12 @@ export class PayPalOrderSettlement {
     return this.#deps.now?.() ?? new Date();
   }
 
+  /** Nothing was paid: the mandate's capacity and any errand units go back. */
+  async #release(record: SpendingRecord): Promise<void> {
+    await this.#deps.mandates.releaseCapacity(record.mandateId, record.requestedAmount);
+    await this.#deps.errands?.release(record.id);
+  }
+
   /** PayPal sent the payer back after approval. */
   async approved(orderId: string): Promise<SettlementOutcome> {
     const record = await this.#deps.spending.findByPayPalOrderId(orderId);
@@ -88,7 +97,7 @@ export class PayPalOrderSettlement {
       return { result: await this.#settle(record), mandateId: record.mandateId };
     }
     const moved = await this.#deps.spending.transitionPayment(record.id, AWAITING, { state: "CANCELLED" });
-    if (moved) await this.#deps.mandates.releaseCapacity(record.mandateId, record.requestedAmount);
+    if (moved) await this.#release(record);
     return { result: moved?.paypal.state ?? (await this.#current(record)), mandateId: record.mandateId };
   }
 
@@ -132,7 +141,7 @@ export class PayPalOrderSettlement {
   async #fail(record: SpendingRecord, failureCode: PaymentFailureCode): Promise<SettlementResult> {
     const moved = await this.#deps.spending.transitionPayment(record.id, AWAITING, { state: "FAILED", failureCode });
     if (!moved) return this.#current(record);
-    await this.#deps.mandates.releaseCapacity(record.mandateId, record.requestedAmount);
+    await this.#release(record);
     this.#deps.logWarning?.(`PayPal order of ${record.id} closed unpaid: ${failureCode}.`);
     return "FAILED";
   }
@@ -208,7 +217,7 @@ export class PayPalOrderSettlement {
         state: "FAILED",
         failureCode: "CAPTURE_DECLINED",
       });
-      if (moved) await this.#deps.mandates.releaseCapacity(record.mandateId, record.requestedAmount);
+      if (moved) await this.#release(record);
     }
   }
 }

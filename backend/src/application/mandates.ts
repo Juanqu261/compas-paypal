@@ -518,6 +518,11 @@ export class MandateService {
     return { ok: true, mandate: access.mandate };
   }
 
+  /** The mandate and the actor's role in it, for flows built on a mandate such as errands. Same visibility as a read. */
+  async forParticipant(actor: Actor, id: string): Promise<MandateResult<{ mandate: Mandate; role: ViewerRole }>> {
+    return this.#access(actor, id);
+  }
+
   /**
    * The mandate's attempts. Open PayPal orders are reconciled first, so an
    * order the payer approved, cancelled or let expire shows as such. Only the

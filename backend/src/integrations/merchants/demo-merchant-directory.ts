@@ -1,6 +1,10 @@
 import { normalizePayPalAccountId } from "../../domain/merchant-identifiers.ts";
 import type { DirectoryMerchant, MerchantDirectory } from "../../ports/merchant-directory.ts";
-import { DEMO_DROGUERIA_PAYPAL_ID, DEMO_LIQUOR_PAYPAL_ID } from "../merchant-registry/demo-category-seed.ts";
+import {
+  DEMO_DROGUERIA_PAYPAL_ID,
+  DEMO_LIQUOR_PAYPAL_ID,
+  DEMO_LOOKALIKE_PAYPAL_ID,
+} from "../merchant-registry/demo-category-seed.ts";
 
 /**
  * demo/test data: the merchants of the demo story. The ids are what the
@@ -14,6 +18,8 @@ import { DEMO_DROGUERIA_PAYPAL_ID, DEMO_LIQUOR_PAYPAL_ID } from "../merchant-reg
 export const DEMO_MERCHANT_IDS = {
   drogueria: "demo-merchant-drogueria-central",
   liquor: "demo-merchant-liquor",
+  /** The lookalike pharmacy of the demo arc. A demo id only: PayPal can't pay it, and COMPAS stops it first. */
+  lookalike: "demo-merchant-lookalike",
 } as const;
 
 export function createDemoMerchantDirectory(env: NodeJS.ProcessEnv = process.env): MerchantDirectory {
@@ -31,6 +37,11 @@ export function createDemoMerchantDirectory(env: NodeJS.ProcessEnv = process.env
       id: DEMO_MERCHANT_IDS.liquor,
       displayName: "Licorera de ejemplo",
       paypalMerchantId: account("DEMO_LIQUOR_PAYPAL_ID", DEMO_LIQUOR_PAYPAL_ID),
+    },
+    {
+      id: DEMO_MERCHANT_IDS.lookalike,
+      displayName: "Droguería Centrall",
+      paypalMerchantId: DEMO_LOOKALIKE_PAYPAL_ID,
     },
   ]);
 }

@@ -23,6 +23,12 @@ import { categoriesNeedingHistory } from "../policy/merchant-category-evidence.t
 import { type Actor, type FieldError, type MandateErrorCode, type MandateService, parseMoney } from "./mandates.ts";
 import { loadMerchantHistory, type MerchantHistoryDeps } from "./merchant-history.ts";
 import { purchaseUnderMandate } from "./purchase-under-mandate.ts";
+import { type Errand, errandWindowStart } from "../domain/errand.ts";
+import type { CatalogMappingRepository } from "../ports/catalog-mapping-repository.ts";
+import type { ErrandRepository } from "../ports/errand-repository.ts";
+import type { MerchantCatalogRepository } from "../ports/merchant-catalog.ts";
+import { checkErrand, type ErrandLine } from "../policy/errand-check.ts";
+import { resolveCatalogLine } from "./catalog-mappings.ts";
 
 // ---------------------------------------------------------------------------
 // Request
@@ -32,15 +38,29 @@ const MANDATE_ID = /^mandate-[A-Za-z0-9-]{1,80}$/;
 const MERCHANT_ID = /^[a-z0-9-]{1,64}$/;
 /** Chosen by the client, once per purchase attempt. Retrying with the same key never pays twice. */
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,64}$/;
+const ERRAND_ID = /^errand-[A-Za-z0-9-]{1,80}$/;
+const CATALOG_ITEM_ID = /^[A-Za-z0-9._:-]{1,64}$/;
 export const MAX_PURCHASE_LINES = 20;
+export const MAX_LINE_QUANTITY = 99;
+
+export type PurchaseLine = {
+  category?: CompasCategory;
+  amount: MoneyAmount;
+  /** The merchant's SKU id. COMPAS reads its verified CUM from the catalog mapping, never from the request. */
+  catalogItemId?: string;
+  /** Units of the SKU on the line. Default 1. */
+  quantity: number;
+};
 
 export type PurchaseRequest = {
   mandateId: string;
   merchantId: string;
   /** What the merchant charges. An allowed purchase's PayPal order is for exactly this. */
   amount: MoneyAmount;
-  /** Categories and amounts only. Descriptions can name a medicine, so COMPAS doesn't take them. */
-  lines: readonly { category?: CompasCategory; amount: MoneyAmount }[];
+  /** Categories, SKU ids and amounts only. Descriptions can name a medicine, so COMPAS doesn't take them. */
+  lines: readonly PurchaseLine[];
+  /** The errand the cart is bought under. Every line must then fit it. */
+  errandId?: string;
   idempotencyKey?: string;
 };
 
@@ -76,8 +96,17 @@ export function parsePurchaseRequest(
     }
   }
 
+  let errandId: string | undefined;
+  if (body.errandId !== undefined) {
+    if (typeof body.errandId !== "string" || !ERRAND_ID.test(body.errandId)) {
+      errors.push({ field: "errandId", code: "INVALID_ID", message: "an errand id" });
+    } else {
+      errandId = body.errandId;
+    }
+  }
+
   const amount = parseMoney(body.amount, "amount", errors);
-  const lines: { category?: CompasCategory; amount: MoneyAmount }[] = [];
+  const lines: PurchaseLine[] = [];
   if (!Array.isArray(body.lineItems) || body.lineItems.length === 0 || body.lineItems.length > MAX_PURCHASE_LINES) {
     errors.push({ field: "lineItems", code: "REQUIRED", message: `1 to ${MAX_PURCHASE_LINES} lines` });
   } else {
@@ -91,8 +120,24 @@ export function parsePurchaseRequest(
         errors.push({ field: `${field}.category`, code: "UNKNOWN_CATEGORY", message: `one of ${COMPAS_CATEGORIES.join(", ")}` });
         return;
       }
+      if (raw.catalogItemId !== undefined && (typeof raw.catalogItemId !== "string" || !CATALOG_ITEM_ID.test(raw.catalogItemId))) {
+        errors.push({ field: `${field}.catalogItemId`, code: "INVALID_ID", message: "the merchant's SKU id" });
+        return;
+      }
+      const quantity = raw.quantity ?? 1;
+      if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_LINE_QUANTITY) {
+        errors.push({ field: `${field}.quantity`, code: "INVALID_QUANTITY", message: `a whole number from 1 to ${MAX_LINE_QUANTITY}` });
+        return;
+      }
       const lineAmount = parseMoney(raw.amount, `${field}.amount`, errors);
-      if (lineAmount) lines.push({ ...(raw.category !== undefined ? { category: raw.category as CompasCategory } : {}), amount: lineAmount });
+      if (lineAmount) {
+        lines.push({
+          ...(raw.category !== undefined ? { category: raw.category as CompasCategory } : {}),
+          amount: lineAmount,
+          ...(typeof raw.catalogItemId === "string" ? { catalogItemId: raw.catalogItemId } : {}),
+          quantity,
+        });
+      }
     });
   }
 
@@ -105,7 +150,17 @@ export function parsePurchaseRequest(
   }
 
   if (errors.length > 0 || !amount) return { ok: false, errors };
-  return { ok: true, value: { mandateId, merchantId, amount, lines, ...(idempotencyKey ? { idempotencyKey } : {}) } };
+  return {
+    ok: true,
+    value: {
+      mandateId,
+      merchantId,
+      amount,
+      lines,
+      ...(errandId ? { errandId } : {}),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +200,8 @@ export type PurchasePreview = {
   budget?: { passed: boolean; reasonCodes: readonly PolicyReasonCode[] };
   /** Absent when a mandate rule already stops the purchase. */
   purposeCheck?: PurposeCheckView;
+  /** Present when the purchase names an errand. ERRAND_MISMATCH holds; DELEGATE_NOT_AUTHORIZED denies. */
+  errand?: { passed: boolean; reasonCodes: readonly PolicyReasonCode[] };
   merchantCategories: readonly { category: CompasCategory; trustLevel: MerchantTrustLevel }[];
   /**
    * What `purchaseUnderMandate` would do now. STOP_*: it would decide DENY
@@ -199,6 +256,7 @@ export type PurchaseErrorCode =
   | MandateErrorCode
   | "INVALID_PURCHASE"
   | "UNKNOWN_MERCHANT"
+  | "UNKNOWN_ERRAND"
   | "PURCHASES_DISABLED_FOR_DEMO"
   | "PAYPAL_NOT_CONFIGURED"
   | "IDEMPOTENCY_KEY_REUSED"
@@ -240,6 +298,10 @@ export type DelegatePurchaseDeps = {
   spending: SpendingLog;
   /** Where the mandate's remaining capacity lives: an ALLOW reserves the charge there. */
   capacity: Pick<MandateRepository, "reserveCapacity" | "releaseCapacity">;
+  /** Merchant catalogs and their verified CUM mappings. Without them, a SKU on a line resolves to nothing. */
+  catalog?: { catalogs: MerchantCatalogRepository; mappings: CatalogMappingRepository };
+  /** Errands. Without them, a purchase that names an errand is refused as UNKNOWN_ERRAND. */
+  errands?: ErrandRepository;
   /**
    * Whether this caller may create PayPal orders for the payer to approve.
    * Anyone can start a demo session as Andrea, so the server keeps it off
@@ -278,7 +340,7 @@ export class DelegatePurchaseService {
   async #prepare(
     actor: Actor,
     request: PurchaseRequest,
-  ): Promise<PurchaseResult<{ mandate: Mandate; merchant: DirectoryMerchant }>> {
+  ): Promise<PurchaseResult<{ mandate: Mandate; merchant: DirectoryMerchant; errand?: Errand; resolved: readonly ErrandLine[] }>> {
     const access = await this.#deps.mandates.forDelegatePurchase(actor, request.mandateId);
     if (!access.ok) return failure(access.code, access.message);
     const merchant = await this.#deps.merchants.getById(request.merchantId);
@@ -287,23 +349,59 @@ export class DelegatePurchaseService {
         fieldErrors: [{ field: "merchantId", code: "UNKNOWN_MERCHANT", message: "not a known merchant" }],
       });
     }
-    return { ok: true, mandate: access.mandate, merchant };
+    let errand: Errand | undefined;
+    if (request.errandId) {
+      errand = await this.#deps.errands?.get(request.errandId);
+      if (!errand) {
+        return failure("UNKNOWN_ERRAND", "There is no such errand.", {
+          fieldErrors: [{ field: "errandId", code: "UNKNOWN_ERRAND", message: "not a known errand" }],
+        });
+      }
+    }
+    return { ok: true, mandate: access.mandate, merchant, ...(errand ? { errand } : {}), resolved: await this.#resolveLines(merchant, request) };
   }
 
-  #intent(actor: Actor, request: PurchaseRequest, id: string, merchant: DirectoryMerchant, now: Date): PurchaseIntent {
+  /** Each line's verified CUM, from the merchant's catalog mapping. A line without a SKU, or an unmapped SKU, has none. */
+  async #resolveLines(merchant: DirectoryMerchant, request: PurchaseRequest): Promise<ErrandLine[]> {
+    const catalog = this.#deps.catalog;
+    return Promise.all(
+      request.lines.map(async (line) => {
+        if (!line.catalogItemId || !catalog) return { quantity: line.quantity };
+        const resolved = await resolveCatalogLine(merchant.paypalMerchantId, line.catalogItemId, catalog);
+        return { quantity: line.quantity, ...(resolved.cum ? { cum: resolved.cum } : {}) };
+      }),
+    );
+  }
+
+  /**
+   * A line with no category whose SKU has a verified CUM is MEDICATION: the
+   * deterministic first step of classification. A category the merchant
+   * gave is kept, so its own label can still contradict.
+   */
+  #intent(
+    actor: Actor,
+    request: PurchaseRequest,
+    id: string,
+    merchant: DirectoryMerchant,
+    now: Date,
+    resolved: readonly ErrandLine[] = [],
+  ): PurchaseIntent {
     return {
       id,
       mandateId: request.mandateId,
       delegateId: actor.partyId,
       paypalMerchantId: merchant.paypalMerchantId,
       merchantDisplayName: merchant.displayName,
-      lineItems: request.lines.map((line, index) => ({
-        id: `line-${index + 1}`,
-        // Not the product name: COMPAS decides on categories and keeps no description.
-        description: `line ${index + 1}`,
-        ...(line.category ? { category: line.category } : {}),
-        amount: line.amount,
-      })),
+      lineItems: request.lines.map((line, index) => {
+        const category = line.category ?? (resolved[index]?.cum ? ("MEDICATION" as const) : undefined);
+        return {
+          id: `line-${index + 1}`,
+          // Not the product name: COMPAS decides on categories and keeps no description.
+          description: `line ${index + 1}`,
+          ...(category ? { category } : {}),
+          amount: line.amount,
+        };
+      }),
       amount: request.amount,
       createdAt: now.toISOString(),
     };
@@ -315,9 +413,9 @@ export class DelegatePurchaseService {
     if (!parsed.ok) return failure("INVALID_PURCHASE", "The purchase is not valid.", { fieldErrors: parsed.errors });
     const prepared = await this.#prepare(actor, parsed.value);
     if (!prepared.ok) return prepared;
-    const { mandate, merchant } = prepared;
+    const { mandate, merchant, errand, resolved } = prepared;
     const now = this.#now();
-    const intent = this.#intent(actor, parsed.value, `preview-${this.#deps.newId?.() ?? randomUUID()}`, merchant, now);
+    const intent = this.#intent(actor, parsed.value, `preview-${this.#deps.newId?.() ?? randomUUID()}`, merchant, now, resolved);
 
     const base = {
       mandateId: mandate.id,
@@ -325,13 +423,33 @@ export class DelegatePurchaseService {
       requestedAmount: intent.amount,
       execution: this.#deps.execution.allowed ? ("ENABLED" as const) : this.#deps.execution.code,
     };
-    const mandateReasons = checkMandateRules(mandate, intent, now);
+    const errandCheck = errand
+      ? checkErrand({
+          errand,
+          mandateId: mandate.id,
+          delegateId: intent.delegateId,
+          lines: resolved,
+          amount: intent.amount,
+          used: (await this.#deps.errands!.usage(errand.id, errandWindowStart(errand, now)))!,
+          now,
+        })
+      : undefined;
+    const errandView = errandCheck
+      ? {
+          errand: {
+            passed: errandCheck.hardReasons.length === 0 && errandCheck.holdReasons.length === 0,
+            reasonCodes: [...errandCheck.hardReasons, ...errandCheck.holdReasons].map((reason) => reason.code),
+          },
+        }
+      : {};
+    const mandateReasons = [...checkMandateRules(mandate, intent, now), ...(errandCheck?.hardReasons ?? [])];
     if (mandateReasons.length > 0) {
       return {
         ok: true,
         preview: {
           ...base,
           mandateRules: { passed: false, reasonCodes: mandateReasons.map((reason) => reason.code) },
+          ...errandView,
           merchantCategories: [],
           next: "STOP_DENY",
         },
@@ -356,6 +474,7 @@ export class DelegatePurchaseService {
       mandate,
       intent,
       hardReasons: budgetReasons,
+      holdReasons: errandCheck?.holdReasons ?? [],
       purposeCheck: check,
       evaluatedAt: now,
     });
@@ -366,6 +485,7 @@ export class DelegatePurchaseService {
         mandateRules: { passed: true, reasonCodes: [] },
         budget: { passed: budgetReasons.length === 0, reasonCodes: budgetReasons.map((reason) => reason.code) },
         purposeCheck: purposeCheckView(check),
+        ...errandView,
         merchantCategories: resolution.categories.map(({ category, trustLevel }) => ({ category, trustLevel })),
         next: decision.outcome === "ALLOW" ? "ORDER" : decision.outcome === "DENY" ? "STOP_DENY" : "STOP_REVIEW",
       },
@@ -389,7 +509,7 @@ export class DelegatePurchaseService {
     if (!parsed.ok) return failure("INVALID_PURCHASE", "The purchase is not valid.", { fieldErrors: parsed.errors });
     const request = parsed.value;
     const intentId = `intent-${createHash("sha256").update(`${actor.partyId}\n${request.idempotencyKey}`).digest("hex").slice(0, 32)}`;
-    const fingerprint = JSON.stringify([request.mandateId, request.merchantId, request.amount, request.lines]);
+    const fingerprint = JSON.stringify([request.mandateId, request.merchantId, request.amount, request.lines, request.errandId]);
 
     const running = this.#attempts.get(intentId);
     if (running) {
@@ -422,7 +542,7 @@ export class DelegatePurchaseService {
   ): Promise<PurchaseResult<{ purchase: PurchaseView }>> {
     const prepared = await this.#prepare(actor, request);
     if (!prepared.ok) return prepared;
-    const { mandate, merchant } = prepared;
+    const { mandate, merchant, errand, resolved } = prepared;
     const merchantView = { id: merchant.id, displayName: merchant.displayName };
 
     // An attempt from before a restart is in the spending log.
@@ -442,13 +562,18 @@ export class DelegatePurchaseService {
     const now = this.#now();
     try {
       const { record } = await purchaseUnderMandate(
-        { mandate, intent: this.#intent(actor, request, intentId, merchant, now) },
+        {
+          mandate,
+          intent: this.#intent(actor, request, intentId, merchant, now, resolved),
+          ...(errand ? { errand: { errand, lines: resolved } } : {}),
+        },
         {
           merchants: this.#deps.registry,
           payments: this.#deps.payments,
           spending: this.#deps.spending,
           history: this.#deps.history,
           capacity: this.#deps.capacity,
+          ...(this.#deps.errands ? { errands: this.#deps.errands } : {}),
           now: () => now,
           ...(this.#deps.newId ? { newId: this.#deps.newId } : {}),
         },

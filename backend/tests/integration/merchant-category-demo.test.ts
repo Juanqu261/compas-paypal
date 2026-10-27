@@ -48,7 +48,8 @@ async function merchantStep(paypalMerchantId: string, policy: PurposePolicy): Pr
 
 test("the demo seed walks the ladder through real signature checks", async () => {
   const service = await createMerchantCategoryService({ env: {}, ...quiet });
-  assert.equal(service.demoSubmissions, 5);
+  // Two claims for the pharmacy and the liquor store, one each for the tienda and the lookalike.
+  assert.equal(service.demoSubmissions, 6);
 
   const pharmacy = await service.registry.resolve(DEMO_DROGUERIA_PAYPAL_ID);
   const medication = pharmacy.categories.find((resolved) => resolved.category === "MEDICATION");
@@ -97,7 +98,7 @@ test("the configured PayPal sandbox merchant gets Droguería Central's evidence"
     env: { DEMO_MERCHANT_PAYPAL_ID: "SANDBXPHARMA2" },
     ...quiet,
   });
-  assert.equal(service.demoSubmissions, 7);
+  assert.equal(service.demoSubmissions, 8);
   const resolution = await service.registry.resolve("SANDBXPHARMA2");
   assert.ok(resolution.categories.some((resolved) => resolved.category === "MEDICATION"));
 });
@@ -129,7 +130,7 @@ test("the configured PayPal sandbox liquor store gets the liquor store's evidenc
     env: { DEMO_LIQUOR_PAYPAL_ID: "sandbxlager22" },
     ...quiet,
   });
-  assert.equal(service.demoSubmissions, 7);
+  assert.equal(service.demoSubmissions, 8);
   const resolution = await service.registry.resolve("SANDBXLAGER22");
   assert.deepEqual(resolution.categories.map((resolved) => resolved.category), ["ALCOHOL", "TOBACCO"]);
 });

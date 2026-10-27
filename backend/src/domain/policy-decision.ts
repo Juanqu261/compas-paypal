@@ -18,6 +18,8 @@ export const POLICY_REASON_CODES = [
   "MERCHANT_CONFIDENCE_LIMIT_EXCEEDED",
   "DELEGATE_NOT_AUTHORIZED",
   "PAYER_MONITORED_EXCEPTION",
+  /** The cart does not fit the errand the delegate confirmed. A hold: REVIEW even under MONITORED. */
+  "ERRAND_MISMATCH",
 ] as const;
 
 export type PolicyReasonCode = (typeof POLICY_REASON_CODES)[number];

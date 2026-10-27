@@ -16,12 +16,17 @@ import {
   evaluatePurposeCheck,
 } from "../policy/evaluate-purchase.ts";
 import { categoriesNeedingHistory } from "../policy/merchant-category-evidence.ts";
+import { checkErrand, type ErrandCheck, type ErrandLine } from "../policy/errand-check.ts";
+import { type Errand, errandWindowStart } from "../domain/errand.ts";
+import type { ErrandRepository } from "../ports/errand-repository.ts";
 import { createPayPalOrderIfAllowed } from "./create-paypal-order-if-allowed.ts";
 import { loadMerchantHistory, type MerchantHistoryDeps } from "./merchant-history.ts";
 
 export type PurchaseUnderMandateInput = {
   mandate: Mandate;
   intent: PurchaseIntent;
+  /** The errand the purchase is made under, with each cart line's verified CUM. */
+  errand?: { errand: Errand; lines: readonly ErrandLine[] };
 };
 
 export type PurchaseUnderMandateDeps = {
@@ -35,6 +40,8 @@ export type PurchaseUnderMandateDeps = {
    * the charge before it is recorded. Without it, the caller tracks capacity.
    */
   capacity?: Pick<MandateRepository, "reserveCapacity" | "releaseCapacity">;
+  /** Required when the input names an errand. An ALLOW reserves the cart's units there, after the capacity. */
+  errands?: Pick<ErrandRepository, "usage" | "reserve" | "release">;
   now?: () => Date;
   newId?: () => string;
 };
@@ -65,6 +72,9 @@ export function summarizeLines(intent: PurchaseIntent): Pick<SpendingRecord, "li
  *    through the trust matrix, then the purpose checks.
  *    ENFORCED: a failure stops here too. MONITORED: the result is recorded and the flow goes on.
  * 3. Budget against the charge, and the mandate's cap for a merchant below HIGH confidence.
+ *    Under an errand: every line must be a verified CUM on the errand, within
+ *    its units and amount. An errand that is not the delegate's denies; a
+ *    cart that doesn't fit holds (REVIEW, even under MONITORED).
  * 4. One decision. Only ALLOW reaches createPayPalOrderIfAllowed, which
  *    creates one PayPal order for exactly this cart, payable to the merchant.
  *
@@ -74,7 +84,10 @@ export function summarizeLines(intent: PurchaseIntent): Pick<SpendingRecord, "li
  *
  * With `capacity`, an ALLOW reserves the charge before it is recorded. If
  * another purchase used the capacity first, the decision becomes DENY
- * BUDGET_EXCEEDED. If creating the order throws, the reservation is given back.
+ * BUDGET_EXCEEDED. Under an errand, the cart's units are reserved next; if
+ * another purchase used them first, the capacity is given back and the
+ * decision becomes REVIEW ERRAND_MISMATCH. If creating the order throws,
+ * both reservations are given back.
  */
 export async function purchaseUnderMandate(
   input: PurchaseUnderMandateInput,
@@ -84,16 +97,18 @@ export async function purchaseUnderMandate(
   const now = deps.now?.() ?? new Date();
   const decisionId = deps.newId?.() ?? randomUUID();
 
+  type Reasons = Parameters<typeof composeDecision>[0]["hardReasons"];
   const finish = async (
-    hardReasons: Parameters<typeof composeDecision>[0]["hardReasons"],
-    context: { resolution?: MerchantCategoryResolution; purposeCheck?: PurposeCheck },
+    hardReasons: Reasons,
+    context: { resolution?: MerchantCategoryResolution; purposeCheck?: PurposeCheck; holdReasons?: Reasons },
   ) => {
-    const decide = (reasons: Parameters<typeof composeDecision>[0]["hardReasons"]) =>
+    const decide = (reasons: Reasons, holds: Reasons = context.holdReasons ?? []) =>
       composeDecision({
         decisionId,
         mandate,
         intent,
         hardReasons: reasons,
+        holdReasons: holds,
         ...(context.purposeCheck ? { purposeCheck: context.purposeCheck } : {}),
         evaluatedAt: now,
       });
@@ -103,6 +118,19 @@ export async function purchaseUnderMandate(
         decision = decide([{
           code: "BUDGET_EXCEEDED",
           message: "The remaining authorized amount no longer covers the charge.",
+        }]);
+      }
+    }
+    if (decision.outcome === "ALLOW" && input.errand && errandCheck?.usage) {
+      const reserved = await errands!.reserve(
+        { decisionId, errandId: input.errand.errand.id, usage: errandCheck.usage, reservedAt: now.toISOString() },
+        errandWindowStart(input.errand.errand, now),
+      );
+      if (!reserved) {
+        await deps.capacity?.releaseCapacity(mandate.id, intent.amount);
+        decision = decide([], [{
+          code: "ERRAND_MISMATCH",
+          message: "Another purchase used what was left of the errand first.",
         }]);
       }
     }
@@ -128,7 +156,27 @@ export async function purchaseUnderMandate(
     return { decision, record };
   };
 
-  const mandateReasons = checkMandateRules(mandate, intent, now);
+  const errands = deps.errands;
+  let errandCheck: ErrandCheck | undefined;
+  if (input.errand) {
+    if (!errands) throw new Error("A purchase under an errand needs the errand repository.");
+    const { errand } = input.errand;
+    const used = (await errands.usage(errand.id, errandWindowStart(errand, now))) ?? {
+      units: errand.items.map(() => 0),
+      amount: { ...errand.maxAmount, value: "0" },
+    };
+    errandCheck = checkErrand({
+      errand,
+      mandateId: mandate.id,
+      delegateId: intent.delegateId,
+      lines: input.errand.lines,
+      amount: intent.amount,
+      used,
+      now,
+    });
+  }
+
+  const mandateReasons = [...checkMandateRules(mandate, intent, now), ...(errandCheck?.hardReasons ?? [])];
   if (mandateReasons.length > 0) return finish(mandateReasons, {});
 
   const resolution = await deps.merchants.resolve(intent.paypalMerchantId);
@@ -143,7 +191,11 @@ export async function purchaseUnderMandate(
     evaluatePurposeCheck(mandate, intent, resolution, merchantHistory),
     intent.amount,
   );
-  const { decision, record } = await finish(checkBudget(mandate, intent.amount), { resolution, purposeCheck });
+  const { decision, record } = await finish(checkBudget(mandate, intent.amount), {
+    resolution,
+    purposeCheck,
+    holdReasons: errandCheck?.holdReasons ?? [],
+  });
 
   let order: PayPalOrder | undefined;
   try {
@@ -156,7 +208,10 @@ export async function purchaseUnderMandate(
       metadata: { compasMandateId: mandate.id, compasDecisionId: decision.id, externalReference: intent.id },
     });
   } catch (error) {
-    if (decision.outcome === "ALLOW") await deps.capacity?.releaseCapacity(mandate.id, intent.amount);
+    if (decision.outcome === "ALLOW") {
+      await deps.capacity?.releaseCapacity(mandate.id, intent.amount);
+      await errands?.release(decision.id);
+    }
     throw error;
   }
   if (!order) return { decision, record };

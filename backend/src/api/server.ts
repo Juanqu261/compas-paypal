@@ -42,6 +42,15 @@ import {
   readRequestBody,
 } from "./merchant-categories.ts";
 import { handlePayPalReturn, isPayPalReturnPath } from "./paypal-return.ts";
+import { handleErrandRequest, isErrandApiPath, MAX_ERRAND_BODY_BYTES } from "./errands.ts";
+import {
+  handleMerchantOnboardingRequest,
+  isMerchantOnboardingPath,
+  MAX_ONBOARDING_BODY_BYTES,
+  readAnalystJobsMode,
+} from "./merchant-onboarding.ts";
+import { createAnalystLayer } from "../integrations/analyst/create-analyst-layer.ts";
+import { InMemoryErrandRepository } from "../integrations/errands/in-memory-errand-repository.ts";
 import {
   DEMO_MERCHANTS_PATH,
   handleListDemoMerchants,
@@ -55,6 +64,10 @@ const returnUrl =
   process.env.PAYPAL_FRONTEND_RETURN_URL?.trim() || "http://localhost:3000/demo";
 // Fail at startup, not inside a request, if the return URL is malformed.
 new URL(returnUrl);
+// Where a merchant's browser lands after Log in with PayPal.
+const merchantReturnUrl =
+  process.env.PAYPAL_IDENTITY_FRONTEND_RETURN_URL?.trim() || "http://localhost:3000/nequi-negocios";
+new URL(merchantReturnUrl);
 
 // With DATABASE_URL, mandates, spending and the trust log live in Supabase Postgres (data/migrations/).
 const database = connectDatabase();
@@ -93,6 +106,10 @@ const mandateRepository = database ? new PostgresMandateRepository(database) : n
 const spending = database ? new PostgresSpendingLog(database) : new InMemorySpendingLog();
 const mandateAudit = database ? new PostgresAuditRepository(database) : new InMemoryAuditRepository();
 
+// Errands, in memory. Shared by the purchase flow, which reserves an errand's
+// units, and the settlement, which gives them back when nothing is paid.
+const errandRepository = new InMemoryErrandRepository();
+
 // The only path to a capture: it reads the order from PayPal and the mandate
 // from the repository again, and captures only what still matches.
 const settlement = new PayPalOrderSettlement({
@@ -101,6 +118,7 @@ const settlement = new PayPalOrderSettlement({
   mandates: mandateRepository,
   parties,
   history: merchantHistory,
+  errands: errandRepository,
   logWarning: (message) => console.warn(message),
 });
 
@@ -118,6 +136,30 @@ const mandates = new MandateService({
 // A demo session creates PayPal orders only if the operator opted in.
 const purchasesMode = readDemoPurchasesMode();
 const merchantDirectory = createDemoMerchantDirectory();
+
+// The AI analyst, merchant catalogs with CUM mapping, the Cámara binding
+// through Log in with PayPal, and errands. Elastic, the analyst's model and
+// Log in with PayPal throw when not configured. Their stores are in memory.
+const demoSeed = process.env.MERCHANT_CATEGORY_DEMO_SEED?.trim().toLowerCase() !== "false";
+const analyst = await createAnalystLayer({
+  merchants: merchantDirectory,
+  registry: merchantCategories.registry,
+  ingest: merchantCategories.ingest,
+  mandates,
+  demo: demoSeed,
+  errands: errandRepository,
+  logWarning: (message) => console.warn(message),
+});
+if (analyst.elastic.missing.length > 0) {
+  console.warn(`Elastic is not fully configured (missing ${analyst.elastic.missing.join(", ")}). Analyst and errand-draft calls will throw.`);
+}
+console.log(`Analyst model: ${analyst.modelVendor === "claude" ? "Claude (Claude API)" : "Elastic Inference API"}.`);
+if (analyst.demoCatalogItems > 0) {
+  console.log(`Merchant catalogs: seeded ${analyst.demoCatalogItems} demo SKUs (demo/test data). CUM mappings come from analyst runs.`);
+}
+const analystJobsMode = readAnalystJobsMode();
+const operatorToken = process.env.COMPAS_OPERATOR_TOKEN?.trim();
+
 const purchases = new DelegatePurchaseService({
   mandates,
   merchants: merchantDirectory,
@@ -126,6 +168,8 @@ const purchases = new DelegatePurchaseService({
   payments: paypal.gateway,
   spending,
   capacity: mandateRepository,
+  catalog: { catalogs: analyst.catalogs, mappings: analyst.mappings },
+  errands: errandRepository,
   execution: !paypal.configured
     ? { allowed: false, code: "PAYPAL_NOT_CONFIGURED", reason: "PayPal is not configured in this environment." }
     : purchasesMode.enabled
@@ -232,6 +276,18 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   const actor = demoIdentity.authenticate(request.headers.authorization);
   if (!actor) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
 
+  if (isErrandApiPath(url.pathname)) {
+    let errandBody: unknown;
+    if (request.method === "POST") {
+      const parsed = await readJsonBody(request, MAX_ERRAND_BODY_BYTES);
+      if (!parsed.ok) return parsed.response;
+      errandBody = parsed.body;
+    }
+    return handleErrandRequest({ method: request.method ?? "GET", url, body: errandBody }, actor, {
+      service: analyst.errandService,
+    });
+  }
+
   if (isPurchaseApiPath(url.pathname)) {
     let purchaseBody: unknown;
     if (request.method === "POST") {
@@ -273,6 +329,10 @@ const server = createServer(async (request, response) => {
         persistence: runtimeFacts.persistence,
         payerApproval: runtimeFacts.payerApproval,
         purchases: runtimeFacts.purchases,
+        elastic: analyst.elastic.missing.length === 0 ? "configured" : "not_configured",
+        analystModel: analyst.modelVendor,
+        merchantLogin: analyst.identityConfigured ? "paypal_sandbox" : "not_configured",
+        analystJobs: analystJobsMode.enabled ? "enabled" : "disabled",
       }),
     );
     return;
@@ -324,7 +384,61 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (url.pathname === DEMO_SESSIONS_PATH || isMandateApiPath(url.pathname) || isPurchaseApiPath(url.pathname)) {
+  if (isMerchantOnboardingPath(url.pathname)) {
+    try {
+      let body: unknown;
+      if (request.method === "POST") {
+        const parsed = await readJsonBody(request, MAX_ONBOARDING_BODY_BYTES);
+        if (!parsed.ok) {
+          sendJson(response, parsed.response);
+          return;
+        }
+        body = parsed.body;
+      }
+      const result = await handleMerchantOnboardingRequest(
+        {
+          method: request.method ?? "GET",
+          url,
+          ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
+          body,
+        },
+        {
+          identity: analyst.identity,
+          identityConfigured: analyst.identityConfigured,
+          demoSessions: Boolean(demoIdentity),
+          merchants: merchantDirectory,
+          findings: analyst.findings,
+          bindCertificate: analyst.bindCertificate,
+          respond: analyst.respond,
+          withdraw: analyst.withdraw,
+          jobs: { mode: analystJobsMode, queue: analyst.jobs },
+          ...(operatorToken ? { operatorToken } : {}),
+          ...(analyst.camara.certificateText ? { demoCertificateText: (id: string) => analyst.camara.certificateText!(id) } : {}),
+          frontendReturnUrl: merchantReturnUrl,
+        },
+      );
+      if ("location" in result) {
+        response.writeHead(302, { location: result.location });
+        response.end();
+      } else if ("text" in result) {
+        response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        response.end(result.text);
+      } else {
+        sendJson(response, result);
+      }
+    } catch (error) {
+      console.error(`Merchant onboarding request failed: ${error instanceof Error ? error.name : "error"}`);
+      sendJson(response, { status: 500, body: { error: "internal_error" } });
+    }
+    return;
+  }
+
+  if (
+    url.pathname === DEMO_SESSIONS_PATH ||
+    isMandateApiPath(url.pathname) ||
+    isPurchaseApiPath(url.pathname) ||
+    isErrandApiPath(url.pathname)
+  ) {
     try {
       sendJson(response, await routeMandates(request, url));
     } catch (error) {
