@@ -83,6 +83,8 @@ demo/test data. The merchants a purchase may name (`contracts/purchases/README.m
 }
 ```
 
-`categorySources: "NONE_REGISTERED"` means no evidence source is registered, so the resolver ignores every trust-log entry and every merchant has no category. That is the state with `MERCHANT_CATEGORY_DEMO_SEED=false`: the demo sources (`nequi-negocios-sim/*`) are registered only with the seed on.
+`categorySources: "NONE_REGISTERED"` means no evidence source that can support a category is registered, so every merchant has no category. That is the state with `MERCHANT_CATEGORY_DEMO_SEED=false`: the demo sources (`nequi-negocios-sim/*`, `camara-fixture`) are registered only with the seed on. COMPAS's own sources (`compas-analyst`, `compas-onboarding/merchant`) are always registered and can only flag or bind.
+
+The demo merchants are Droguería Central, the liquor store and the lookalike Droguería Centrall (`DEMCENTRALL22`, self-declared `MEDICATION`, never a PayPal account).
 
 The merchant is a PayPal sandbox business account when `DEMO_MERCHANT_PAYPAL_ID` (Droguería Central) or `DEMO_LIQUOR_PAYPAL_ID` (the liquor store) is set. Otherwise it is a demo id in PayPal's format that names no account (`DEMPHARMACY22`, `DEMLAGERBAR22`): COMPAS can evaluate a purchase there, but PayPal refuses the order.

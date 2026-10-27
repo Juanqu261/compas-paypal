@@ -10,8 +10,9 @@ payment intent
   -> within time restrictions?
   -> budget sufficient?
   -> merchant/category deterministic evidence?
-  -> item/category deterministic evidence?
-  -> if still ambiguous: AI classifier
+  -> item/category deterministic evidence? (a SKU's verified CUM counts)
+  -> under an errand: does every line fit it?
+  -> if still ambiguous: AI classifier (not wired: REVIEW)
   -> policy decision
   -> ONLY IF ALLOWED: one PayPal order, which the payer approves at PayPal
 ```
@@ -56,6 +57,24 @@ The rules above split into two groups:
 In `MONITORED` mode, the payer's "allow even if not fully approved" tick, the purpose result is stored as `purposeCheck` with `enforced: false`. The outcome is then `ALLOW`, plus `PAYER_MONITORED_EXCEPTION` when the check failed. See [ADR 0006](adr/0006-monitored-budgets.md).
 
 Line-item categories come from the merchant's point of sale, so they are weaker than merchant evidence. A line outside the purpose gives `PURPOSE_MISMATCH` (`DENY`).
+
+### Lines named by SKU: the CUM step
+
+A cart line may name the merchant's SKU (`catalogItemId`). The backend reads the SKU's CUM from the merchant's catalog mapping, and only a `VERIFIED` mapping whose SKU text is unchanged counts (`backend/src/application/catalog-mappings.ts`). A line with no category whose SKU has such a mapping is `MEDICATION`: that is the deterministic first step of classification, with no model at checkout. A category the merchant gave is kept, so its own label can still contradict. See [ADR 0009](adr/0009-ai-analyst-evidence.md).
+
+### Errands
+
+A purchase may name an errand the delegate confirmed (`errandId`). `checkErrand` in `backend/src/policy/errand-check.ts` is pure:
+
+| Condition | Result |
+| --- | --- |
+| The errand belongs to another mandate or delegate | `DENY`, `DELEGATE_NOT_AUTHORIZED` |
+| The errand is cancelled or expired | `REVIEW`, `ERRAND_MISMATCH` |
+| A line has no verified CUM, or its CUM is on no errand item | `REVIEW`, `ERRAND_MISMATCH` |
+| An item's units, plus what earlier purchases still hold, exceed `maxUnits` | `REVIEW`, `ERRAND_MISMATCH` |
+| The amount, plus what earlier purchases still hold, exceeds `maxAmount` | `REVIEW`, `ERRAND_MISMATCH` |
+
+`ERRAND_MISMATCH` is a **hold**: it turns an `ALLOW` into `REVIEW` even under `MONITORED`, because the errand is the delegate's own confirmed action and not a purpose rule. An `ALLOW` reserves the cart's units after the capacity, atomically; they are given back wherever the capacity is. See [ADR 0010](adr/0010-errands.md).
 
 ## AI only when evidence is insufficient
 

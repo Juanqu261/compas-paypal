@@ -81,7 +81,8 @@ Decision `reasons` carry a `code` and a `message`. Build the copy from the code.
 - `PURPOSE_MISMATCH`, `MERCHANT_NOT_ELIGIBLE`: the shop doesn't fit the purpose (the liquor store).
 - `BUDGET_EXCEEDED`: the charge is more than what is left, or in another asset.
 - `PAYER_MONITORED_EXCEPTION`: paid only because Pedro ticked MONITORED. Flag it in his report.
-- `MERCHANT_EVIDENCE_INSUFFICIENT`, `MERCHANT_EVIDENCE_CONFLICT`, `MERCHANT_HISTORY_CONTRADICTS`: the shop's evidence is too weak or contradicts itself.
+- `MERCHANT_EVIDENCE_INSUFFICIENT`, `MERCHANT_EVIDENCE_CONFLICT`, `MERCHANT_HISTORY_CONTRADICTS`: the shop's evidence is too weak or contradicts itself. An analyst flag gives `MERCHANT_EVIDENCE_CONFLICT` (the lookalike pharmacy).
+- `ERRAND_MISMATCH`: the cart doesn't fit the errand Andrea confirmed, such as an extra box. Held even under MONITORED.
 
 ## Never shown in the browser
 

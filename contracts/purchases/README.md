@@ -23,7 +23,10 @@ POST /purchases
 | Field | Rule |
 | --- | --- |
 | `amount` | What the merchant charges. An allowed purchase's PayPal order is for exactly this, in this asset, which must be the budget's: COMPAS does not convert |
-| `lineItems` | 1 to 20. Same asset as `amount`, adding up to it. `category` is optional and one of the COMPAS categories. A line without one is held (`CLASSIFICATION_UNCERTAIN`) |
+| `lineItems` | 1 to 20. Same asset as `amount`, adding up to it. `category` is optional and one of the COMPAS categories. A line without one is held (`CLASSIFICATION_UNCERTAIN`), unless its SKU has a verified CUM |
+| `lineItems[].catalogItemId` | Optional. The merchant's SKU id (`A-Z a-z 0-9 . _ : -`, up to 64). The backend reads its CUM from the merchant's verified catalog mapping, never from the request. A line with no `category` whose SKU has one is `MEDICATION` |
+| `lineItems[].quantity` | Optional, 1 to 99, default 1. Units of the SKU. Counted against an errand's caps |
+| `errandId` | Optional. The errand the cart is bought under (`contracts/errands/README.md`). Every line must then fit it, or the purchase is `REVIEW` `ERRAND_MISMATCH`. Another delegate's errand is `DENY` `DELEGATE_NOT_AUTHORIZED`. Unknown: `422 UNKNOWN_ERRAND` |
 | `idempotencyKey` | Required by `POST /purchases`. 16 to 64 of `A-Z a-z 0-9 - _`. One per attempt |
 
 ### Preview
@@ -44,7 +47,7 @@ POST /purchases
 } }
 ```
 
-`next` is what `purchaseUnderMandate` would do now: `STOP_DENY` or `STOP_REVIEW` decide with no PayPal order, `ORDER` decides `ALLOW` and creates a PayPal order for the payer to approve. `budget` is absent when a mandate rule already stops the purchase. `execution` is `ENABLED`, `PURCHASES_DISABLED_FOR_DEMO` or `PAYPAL_NOT_CONFIGURED`.
+`next` is what `purchaseUnderMandate` would do now: `STOP_DENY` or `STOP_REVIEW` decide with no PayPal order, `ORDER` decides `ALLOW` and creates a PayPal order for the payer to approve. `budget` is absent when a mandate rule already stops the purchase. With an `errandId`, `errand: { passed, reasonCodes }` says whether the cart fits it. `execution` is `ENABLED`, `PURCHASES_DISABLED_FOR_DEMO` or `PAYPAL_NOT_CONFIGURED`.
 
 ### Purchase
 
@@ -60,6 +63,7 @@ POST /purchases
 | 404 | `NOT_FOUND` | No such mandate for this delegate |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | |
 | 422 | `UNKNOWN_MERCHANT` | Not in the backend's directory |
+| 422 | `UNKNOWN_ERRAND` | No errand with that id |
 | 503 | `PAYPAL_NOT_CONFIGURED` | |
 | 503 | `PAYMENT_NOT_STARTED`, `retryable: true` | The purchase stopped before COMPAS held a PayPal order for it, and the reservation was given back. Nothing was paid. An order PayPal may have created anyway can't be captured: no COMPAS purchase names it. Generate a new charge |
 
