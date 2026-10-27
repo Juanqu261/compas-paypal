@@ -1,6 +1,6 @@
 # Research and prior art
 
-COMPAS did not invent restricted-purpose or programmable payments. It explores a non-custodial authorization layer over existing wallet accounts, using Open Payments. Purpose-Bound Money binds the money. COMPAS binds the permission to spend it.
+COMPAS did not invent restricted-purpose or programmable payments. It explores a non-custodial authorization layer over existing payment accounts, using PayPal. Purpose-Bound Money binds the money. COMPAS binds the permission to spend it.
 
 Bibliographic fields that were not checked against the source are marked TODO. URLs below were retrieved or returned by a source that was opened while writing this note.
 
@@ -73,7 +73,7 @@ COMPAS is a payment-control primitive. It is not a universal solution to fraud o
 - **False invoices.** An eligible category on a fictitious bill can pass a category rule. Invoice verification is out of scope.
 - **AI errors.** A wrong or low-confidence category must become `REVIEW` or `DENY`, not a payment.
 - **Small-merchant exclusion.** Strict evidence rules favor merchants that already have clean category data.
-- **Privacy.** Purpose, items, and health context are sensitive. Open Payments metadata stays opaque.
+- **Privacy.** Purpose, items, and health context are sensitive. What PayPal receives stays opaque.
 - **Refunds.** A refund has to restore authorization capacity as well as value. That behavior is not specified yet: TODO.
 - **Split transactions.** Splitting one purchase into many small eligible tickets can evade a naive budget or basket rule.
 - **Purpose-policy abuse.** A policy can be written so broadly that it restricts nothing, or so narrowly that it cannot be used. The product does not judge whether a payer's purpose is fair.

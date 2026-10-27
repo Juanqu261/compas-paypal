@@ -4,6 +4,8 @@
 
 Accepted, 2026-10-16. Amends [ADR 0005](0005-merchant-category-attestations.md).
 
+The rail changed on 2026-10-26: [ADR 0008](0008-paypal-rail-per-order-approval.md) replaces Open Payments with PayPal. The matrix is unchanged. The cap below `HIGH` (`maxDebitBelowHigh`) reads the charge, which the PayPal order is for exactly.
+
 An interactive explainer in Spanish, with a simulator of the matrix, is in [docs/trust-matrix.html](../trust-matrix.html). Open it in a browser.
 
 ## Context

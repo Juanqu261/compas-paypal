@@ -14,9 +14,10 @@
     "id": { "type": "string", "pattern": "^[A-Za-z0-9._:/-]{1,128}$" },
     "schemaVersion": { "const": "1" },
     "timestamp": { "type": "string", "format": "date-time" },
-    "walletAddressUrl": {
+    "paypalMerchantId": {
       "type": "string",
-      "description": "Open Payments wallet address URL or $payment.pointer. No query, fragment or credentials."
+      "pattern": "^[2-9A-HJ-NP-Za-hj-np-z]{13}$",
+      "description": "The merchant's PayPal merchant id (payee.merchant_id), 13 characters without 0, 1, I or O. Upper-cased when ingested."
     },
     "taxId": {
       "type": "string",
@@ -29,10 +30,10 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "walletAddressUrl"],
+          "required": ["kind", "paypalMerchantId"],
           "properties": {
-            "kind": { "const": "WALLET_ADDRESS" },
-            "walletAddressUrl": { "$ref": "#/$defs/walletAddressUrl" }
+            "kind": { "const": "PAYPAL_MERCHANT" },
+            "paypalMerchantId": { "$ref": "#/$defs/paypalMerchantId" }
           }
         },
         {
@@ -60,7 +61,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["schemaVersion", "sourceId", "submissionId", "type", "subject", "observedAt"],
-      "description": "Needs codes or declaredCategories. Only a MERCHANT source may send declaredCategories, and only about a wallet address. At most one PRIMARY code.",
+      "description": "Needs codes or declaredCategories. Only a MERCHANT source may send declaredCategories, and only about a PayPal merchant id. At most one PRIMARY code.",
       "properties": {
         "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
         "sourceId": { "$ref": "#/$defs/id" },
@@ -93,13 +94,13 @@
     "identityBinding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schemaVersion", "sourceId", "submissionId", "type", "walletAddressUrl", "taxId", "observedAt"],
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "paypalMerchantId", "taxId", "observedAt"],
       "properties": {
         "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
         "sourceId": { "$ref": "#/$defs/id" },
         "submissionId": { "$ref": "#/$defs/id" },
         "type": { "const": "IDENTITY_BINDING" },
-        "walletAddressUrl": { "$ref": "#/$defs/walletAddressUrl" },
+        "paypalMerchantId": { "$ref": "#/$defs/paypalMerchantId" },
         "taxId": { "$ref": "#/$defs/taxId" },
         "observedAt": { "$ref": "#/$defs/timestamp" },
         "validUntil": { "$ref": "#/$defs/timestamp" }
@@ -122,14 +123,14 @@
     "flag": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schemaVersion", "sourceId", "submissionId", "type", "walletAddressUrl", "category", "note"],
+      "required": ["schemaVersion", "sourceId", "submissionId", "type", "paypalMerchantId", "category", "note"],
       "description": "Lowers trust only: a flag on an eligible category leads to REVIEW. The note must not hold personal or health data.",
       "properties": {
         "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
         "sourceId": { "$ref": "#/$defs/id" },
         "submissionId": { "$ref": "#/$defs/id" },
         "type": { "const": "FLAG" },
-        "walletAddressUrl": { "$ref": "#/$defs/walletAddressUrl" },
+        "paypalMerchantId": { "$ref": "#/$defs/paypalMerchantId" },
         "category": { "$ref": "#/$defs/compasCategory" },
         "note": { "type": "string", "minLength": 1, "maxLength": 280 }
       }

@@ -299,7 +299,7 @@ footer code { color: var(--ink); }
     <ul class="rules">
       <li><strong>PASS no es ALLOW.</strong> Las líneas de la compra todavía deciden. Una línea fuera del propósito da <code>PURPOSE_MISMATCH</code>.</li>
       <li>Después del quote, una tienda que pasó por debajo de <code>HIGH</code> debe caber en <code>maxDebitBelowHigh</code> si el mandato lo fija. Si lo excede, o el activo es otro, da <code>REVIEW</code> con <code>MERCHANT_CONFIDENCE_LIMIT_EXCEEDED</code>.</li>
-      <li>En un mandato <code>MONITORED</code>, todo esto se registra en el reporte pero no bloquea. Las reglas del mandato y el tope del grant de Open Payments siempre aplican.</li>
+      <li>En un mandato <code>MONITORED</code>, todo esto se registra en el reporte pero no bloquea. Las reglas del mandato y el presupuesto siempre aplican, y quien paga aprueba cada pago en PayPal.</li>
       <li>Si falta el resumen de historial, el paso lanza un error. Nunca cae en silencio a <code>NONE</code>.</li>
       <li>Cada decisión guarda la categoría, la corroboración, el grado, la confianza, la versión de la matriz y el resumen de historial completo, así que una auditoría puede reproducir la celda sin el log de observaciones.</li>
     </ul>
@@ -524,7 +524,7 @@ footer code { color: var(--ink); }
     }
     $("r-out").innerHTML = `<span class="pill out-${out[0]}">${out[0]}</span>${out[1] ? ` <code style="display:block;margin-top:6px;word-break:break-all">${out[1]}</code>` : ""}`;
     $("r-out-why").textContent = outWhy;
-    $("r-note").textContent = note || "Ningún paso de esta tabla autoriza un pago por sí solo. Open Payments hace cumplir el consentimiento y el tope; COMPAS hace cumplir el propósito.";
+    $("r-note").textContent = note || "Ningún paso de esta tabla autoriza un pago por sí solo. PayPal hace cumplir el consentimiento: quien paga aprueba cada pago. COMPAS hace cumplir el propósito y el presupuesto.";
   }
 
   $("controls").addEventListener("input", () => render(true));

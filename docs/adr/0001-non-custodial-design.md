@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted.
+
+The rail changed on 2026-10-26: [ADR 0008](0008-paypal-rail-per-order-approval.md) replaces Open Payments with PayPal. The decision stands: the payer's PayPal keeps the funds until the payer approves an order and PayPal pays the merchant directly. No grant caps the debit on PayPal; the budget is COMPAS's, and the payer approves every order.
 
 ## Context
 

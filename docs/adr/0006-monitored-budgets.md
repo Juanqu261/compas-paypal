@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted, 2026-10-16
+Accepted, 2026-10-16.
+
+The rail changed on 2026-10-26: [ADR 0008](0008-paypal-rail-per-order-approval.md) replaces Open Payments with PayPal. Without a grant cap, the budget is checked against the charge before PayPal is called and reserved on `ALLOW`. A monitored exception is still a PayPal order the payer must approve, so "up to the grant cap" below now reads "up to the budget, with the payer's approval of each order".
 
 ## Context
 

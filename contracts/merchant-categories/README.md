@@ -2,7 +2,7 @@
 
 Payloads of the merchant category service. Design and rules: `docs/plans/merchant-category-service.md` and `docs/adr/0005-merchant-category-attestations.md`.
 
-A merchant's category belongs to its Open Payments wallet address. It is never carried in Open Payments metadata, and a purchase intent never supplies it.
+A merchant's category belongs to its PayPal merchant id. It is never sent to PayPal, and a purchase intent never supplies it.
 
 ## Submit evidence
 
@@ -18,14 +18,14 @@ A submission has no `trustLevel` field, and one that includes it is refused. The
   "sourceId": "nequi-negocios-sim/kyb",
   "submissionId": "demo-kyb-drogueria-central",
   "type": "CATEGORY_CLAIM",
-  "subject": { "kind": "WALLET_ADDRESS", "walletAddressUrl": "https://wallet.example/demo-drogueria-central" },
+  "subject": { "kind": "PAYPAL_MERCHANT", "paypalMerchantId": "DEMPHARMACY22" },
   "codes": [{ "system": "CIIU_REV4_AC", "code": "4773", "role": "PRIMARY" }],
   "observedAt": "2026-10-16T15:00:00Z",
   "evidenceRef": "demo-kyb-rut"
 }
 ```
 
-Entry types: `CATEGORY_CLAIM`, `LICENSE_CLAIM`, `IDENTITY_BINDING` (wallet to NIT), `REVOCATION` (one of the same source's own submissions) and `FLAG`.
+Entry types: `CATEGORY_CLAIM`, `LICENSE_CLAIM`, `IDENTITY_BINDING` (PayPal merchant to NIT), `REVOCATION` (one of the same source's own submissions) and `FLAG`.
 
 | Status | Body | Meaning |
 | --- | --- | --- |
@@ -40,14 +40,14 @@ Entry types: `CATEGORY_CLAIM`, `LICENSE_CLAIM`, `IDENTITY_BINDING` (wallet to NI
 
 ## Read a merchant's categories
 
-`GET /merchants/categories?walletAddress=<wallet address URL or $pointer>`
+`GET /merchants/categories?paypalMerchantId=<PayPal merchant id>`
 
 For the Nequi Negocios simulation and the demo screen. It returns COMPAS categories, trust levels and source ids. It never returns subject refs, NITs or trust-log entry ids. This is a view, not a policy decision.
 
 ```json
 {
   "dataLabel": "demo/test data",
-  "walletAddressUrl": "https://wallet.example/demo-drogueria-central",
+  "paypalMerchantId": "DEMPHARMACY22",
   "categories": [
     { "category": "MEDICATION", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/merchant", "nequi-negocios-sim/kyb"], "simulated": true },
     { "category": "PERSONAL_CARE", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/kyb"], "simulated": true }
@@ -67,13 +67,13 @@ For the Nequi Negocios simulation and the demo screen. It returns COMPAS categor
 
 `dataLabel` appears when any evidence comes from a simulated source. `simulated: true` marks a category backed by a simulated source. The UI must label it "simulated Nequi Negocios provider attestation", not a real Nequi signal.
 
-A missing or malformed `walletAddress` returns `400 { "error": "INVALID_WALLET_ADDRESS" }`.
+A missing or malformed `paypalMerchantId` returns `400 { "error": "INVALID_PAYPAL_MERCHANT_ID" }`. It is normalized first: trimmed and upper-cased.
 
 ## Demo merchants
 
 `GET /demo/merchants`
 
-demo/test data. The merchants a purchase may name (`contracts/purchases/README.md`), each with the same category view as above minus `walletAddressUrl`: the wallet stays on the server. No session is needed.
+demo/test data. The merchants a purchase may name (`contracts/purchases/README.md`), each with the same category view as above minus `paypalMerchantId`: the PayPal account stays on the server. No session is needed.
 
 ```json
 {
@@ -85,4 +85,4 @@ demo/test data. The merchants a purchase may name (`contracts/purchases/README.m
 
 `categorySources: "NONE_REGISTERED"` means no evidence source is registered, so the resolver ignores every trust-log entry and every merchant has no category. That is the state with `MERCHANT_CATEGORY_DEMO_SEED=false`: the demo sources (`nequi-negocios-sim/*`) are registered only with the seed on.
 
-The wallet is the test-network one when `DEMO_MERCHANT_WALLET_ADDRESS` (Droguería Central) or `DEMO_LIQUOR_WALLET_ADDRESS` (the liquor store) is set, and the reserved example domain otherwise.
+The merchant is a PayPal sandbox business account when `DEMO_MERCHANT_PAYPAL_ID` (Droguería Central) or `DEMO_LIQUOR_PAYPAL_ID` (the liquor store) is set. Otherwise it is a demo id in PayPal's format that names no account (`DEMPHARMACY22`, `DEMLAGERBAR22`): COMPAS can evaluate a purchase there, but PayPal refuses the order.

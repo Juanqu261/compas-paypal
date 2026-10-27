@@ -7,6 +7,6 @@ Cross-runtime contracts will live here: OpenAPI descriptions, JSON schemas, even
 - `merchant-categories/`: category claims and the merchant category view.
 - `merchant-history/`: the payer's verdict on a paid purchase.
 - `merchant-registry/`: PROVISIONAL shape of the Cámara de Comercio registry database.
-- `open-payments/`, `purchases/`: see their READMEs.
+- `purchases/`: the delegate's purchase, the PayPal order it creates, and the PayPal return redirects.
 
 There is no shared TypeScript package. The frontend must not import `backend/src`, and the backend must not import `frontend/src`. When a payload needs to be shared, add the contract in this directory instead.

@@ -12,10 +12,10 @@ Types live in `backend/src/domain/`. They describe the model. They do not persis
 | Beneficiary | The person or purpose the spending is for. Not necessarily a wallet holder. |
 | Budget | The maximum amount the mandate may authorize, as a `MoneyAmount`. |
 | Remaining authorized amount | Unused authorization capacity. Not a wallet balance. |
-| Purpose policy | Allowed purposes, eligible categories, the merchant trust levels the mandate accepts, and `enforcement` (`ENFORCED` or `MONITORED`). A COMPAS concept, not an Open Payments scope. |
-| Merchant profile | A wallet address plus the categories resolved for it, each with a trust level. Built by COMPAS, never supplied by an intent. |
-| Purchase intent | A proposed purchase a delegate wants the mandate to fund. It names the merchant by its Open Payments wallet address. |
-| Spending record | One purchase attempt as the payer sees it: merchant wallet, resolved categories, purpose check, decision, monitored exception and Open Payments references. No line-item descriptions. |
+| Purpose policy | Allowed purposes, eligible categories, the merchant trust levels the mandate accepts, and `enforcement` (`ENFORCED` or `MONITORED`). A COMPAS concept, not a PayPal concept. |
+| Merchant profile | A PayPal merchant id plus the categories resolved for it, each with a trust level. Built by COMPAS, never supplied by an intent. |
+| Purchase intent | A proposed purchase a delegate wants the mandate to fund. It names the merchant by its PayPal merchant id. |
+| Spending record | One purchase attempt as the payer sees it: merchant, resolved categories, line categories, purpose check, decision, monitored exception, and the PayPal order with its state. No line-item descriptions. |
 | Trust log | Append-only record of merchant category evidence: claims, licenses, identity bindings, revocations and flags. |
 | Policy decision | `ALLOW`, `DENY`, or `REVIEW`, with reasons. |
 | Audit event | A reconstructable record of a material action or decision. |
@@ -36,13 +36,13 @@ A mandate has:
 
 Statuses:
 
-`DRAFT`, `PENDING_AUTHORIZATION`, `ACTIVE`, `EXHAUSTED`, `EXPIRED`, `REVOKED`
+`DRAFT`, `ACTIVE`, `EXHAUSTED`, `EXPIRED`, `REVOKED`
 
-`ACTIVE` means the payer's authorization is in force and capacity remains. `EXHAUSTED` means the authorized capacity is used up. Neither state means COMPAS is holding funds.
+`ACTIVE` means the payer's authorization is in force and capacity remains. Each purchase under it still needs the payer's approval of its PayPal order. `EXHAUSTED` means the authorized capacity is used up. Neither state means COMPAS is holding funds.
 
 ## Merchant evidence
 
-Merchant categories are evidence attached to the payee's wallet address, recorded in the trust log. See [ADR 0005](adr/0005-merchant-category-attestations.md) and `docs/plans/merchant-category-service.md`.
+Merchant categories are evidence attached to the payee's PayPal merchant id, recorded in the trust log. See [ADR 0005](adr/0005-merchant-category-attestations.md) and `docs/plans/merchant-category-service.md`.
 
 The registered source sets the trust level, never the claim itself:
 
@@ -92,14 +92,14 @@ The set is intentionally small.
 
 ## Audit event
 
-An event can point at a mandate, a decision, an actor, and Open Payments resource URLs. The payload is a map of strings so later code does not drop a medical record into it. Safe Open Payments metadata is limited to opaque references: `compasMandateId`, `compasDecisionId`, `externalReference`.
+An event can point at a mandate, a decision, an actor, and PayPal resource ids (order, capture). The payload is a map of strings so later code does not drop a medical record into it. What COMPAS sends PayPal is limited to opaque references: `compasMandateId`, `compasDecisionId`, `externalReference`.
 
 ## Invariants
 
 - Delegated capacity is permission. It is not a transfer to the delegate.
 - COMPAS does not custody funds.
-- No outgoing payment starts unless the policy outcome is `ALLOW`. In `MONITORED` mode the purpose checks don't block, but mandate rules and the Open Payments grant cap still do.
+- No PayPal order exists unless the policy outcome is `ALLOW`, and no money moves until the payer approves it at PayPal. In `MONITORED` mode the purpose checks don't block, but mandate rules and the budget still do.
 - AI may classify. AI does not choose `ALLOW`, `DENY`, or `REVIEW`.
-- Purpose restrictions belong to COMPAS. Grant limits belong to Open Payments.
-- Demo fixtures are not Open Payments responses.
+- Purpose restrictions and the budget belong to COMPAS. The payer's consent to each payment belongs to PayPal.
+- Demo fixtures are not PayPal responses.
 - One mandate type serves a person, a business, an NGO, or a government allocation. The MVP implements only the family medication story.

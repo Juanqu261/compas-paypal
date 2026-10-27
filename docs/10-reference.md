@@ -1,20 +1,25 @@
-# COMPAS reference: Open Payments facts, flows, categories, research
+# COMPAS reference: PayPal facts, flows, categories, research
 
-## Open Payments facts (verified against open-payments-specifications/openapi and SDK 7.4.0)
-- Outgoing-payment grant `limits`: `receiver` (one incoming-payment URL), `interval` (ISO 8601 repeating, e.g. `R/2026-10-16T00:00:00Z/P1M`), and **either** `debitAmount` **or** `receiveAmount`. Amounts are per-interval maxima across many payments. There is no merchant list, category or MCC.
-- An incoming payment with `incomingAmount` accepts several payments. Once the total is reached the ASE "MUST reject any further payments and set `completed` to `true`". This is what makes split tender possible later.
-- Incoming-payment and quote grants are non-interactive. Outgoing-payment grants need interactive consent at the payer's wallet, then `grant.continue` with `interact_ref`.
-- SDK calls in the official peer-to-peer example: `createAuthenticatedClient`, `walletAddress.get`, `grant.request`, `grant.continue`, `incomingPayment.create`, `quote.create`, `outgoingPayment.create`, `isFinalizedGrant`. Keep them behind `OpenPaymentsGateway`.
+## PayPal facts (checked against the sandbox REST API on 2026-10-26)
+- The sandbox app's client-credentials token has no `vault/payment-tokens` scope, and `POST /v3/vault/setup-tokens` with a PayPal payment source answers `403 NOT_AUTHORIZED`. No payer-absent charge is available: every order needs the payer's approval.
+- `POST /v2/checkout/orders` with `payment_source.paypal.experience_context` answers `PAYER_ACTION_REQUIRED` with a `payer-action` link (`https://www.sandbox.paypal.com/checkoutnow?token=<order id>`).
+- `payee.merchant_id` is checked when the order is created: an unknown id answers `422 PAYEE_ACCOUNT_INVALID`. `payee.email_address` is not checked then. `brand_name` replaces the payee's name on the checkout page, so COMPAS leaves it out.
+- The same `PayPal-Request-Id` returns the same order. A capture before approval answers `422 ORDER_NOT_APPROVED`. An unknown order answers `404 RESOURCE_NOT_FOUND`.
+- `reference_id`, `custom_id` and `invoice_id` come back unchanged on the order. COMPAS puts the mandate, decision and intent ids there.
+- Legacy billing-agreement tokens (`/v1/billing-agreements/agreement-tokens`) can be created; charging one was not verified.
+- Not verified: a full approval and capture with a sandbox personal account, payee routing to a second business account at capture, Log in with PayPal, refunds and dispute webhooks.
 
 ## Flows mapped to the gateway
-| Step | COMPAS | `OpenPaymentsGateway` |
+| Step | COMPAS | `PayPalGateway` |
 |---|---|---|
-| Payer consent | Mandate `PENDING_AUTHORIZATION` → `ACTIVE` | `requestGrant` (outgoing-payment, `debitAmount` + `interval`, no receiver) → redirect → `continueGrant` |
-| Merchant charge | Purchase intent with line items | `createIncomingPayment` on the merchant wallet (metadata: opaque ids only) |
-| Decision | Policy, in the order `POLICY_EVALUATION_ORDER` | none |
-| Pay (only on `ALLOW`) | Decrease `remainingAuthorizedAmount`; audit event | `createQuote` → `createOutgoingPayment` → `readPaymentStatus` |
-| Exception (next) | `REVIEW` → payer approves | `requestGrant` with `limits.receiver` = incoming-payment URL, `debitAmount` = quote debit |
-| Split tender (roadmap) | Bonus mandate first, then the remittance mandate | One quote + outgoing payment per mandate, all into the same incoming payment |
+| Payer confirms the budget | Mandate `DRAFT` → `ACTIVE` | none |
+| Merchant charge | Purchase intent with line items | none |
+| Decision | Policy, in the order `POLICY_EVALUATION_ORDER`, budget included | none |
+| Order (only on `ALLOW`) | Reserve the charge; record the order | `createOrder` (payee = merchant, opaque ids only) |
+| Payer approves | Shown to the payer only | none: the payer approves at PayPal |
+| Capture | Mandate and order checked again; history recorded | `getOrder` → `captureOrder` |
+| Cancel or expiry | Capacity given back | `getOrder` |
+| Exception (next) | `REVIEW` → payer approves a one-off order | `createOrder` for the held cart |
 
 ## Categories → CIIU Rev. 4 A.C.
 These codes come from memory and are not verified. Check them against the annex of DIAN Res. 114/2020.
