@@ -15,7 +15,7 @@ type TrustLogRow = {
   submission_id: string;
   body_digest: string;
   recorded_at: Date;
-  wallet_address_url: string | null;
+  paypal_merchant_id: string | null;
   subject_ref: string | null;
   revokes_entry_id: string | null;
   observed_at: Date | null;
@@ -36,10 +36,10 @@ export class PostgresTrustLog implements MerchantTrustLog {
     const inserted = await this.#sql<TrustLogRow[]>`
       insert into compas.trust_log_entries
         (id, type, source_id, submission_id, body_digest, recorded_at,
-         wallet_address_url, subject_ref, revokes_entry_id, observed_at, valid_until, details)
+         paypal_merchant_id, subject_ref, revokes_entry_id, observed_at, valid_until, details)
       values
         (${row.id}, ${row.type}, ${row.source_id}, ${row.submission_id}, ${row.body_digest}, ${row.recorded_at},
-         ${row.wallet_address_url}, ${row.subject_ref}, ${row.revokes_entry_id}, ${row.observed_at},
+         ${row.paypal_merchant_id}, ${row.subject_ref}, ${row.revokes_entry_id}, ${row.observed_at},
          ${row.valid_until}, ${this.#sql.json(row.details as never)})
       on conflict (source_id, submission_id) do nothing
       returning *`;
@@ -62,10 +62,10 @@ export class PostgresTrustLog implements MerchantTrustLog {
     return row && fromRow(row);
   }
 
-  async listByWalletAddress(walletAddressUrl: string): Promise<readonly TrustLogEntry[]> {
+  async listByPayPalMerchant(paypalMerchantId: string): Promise<readonly TrustLogEntry[]> {
     const rows = await this.#sql<TrustLogRow[]>`
       select * from compas.trust_log_entries
-      where wallet_address_url = ${walletAddressUrl}
+      where paypal_merchant_id = ${paypalMerchantId}
       order by recorded_at, id`;
     return rows.map(fromRow);
   }
@@ -97,9 +97,9 @@ export class PostgresTrustLog implements MerchantTrustLog {
 }
 
 function subjectColumns(subject: MerchantSubject) {
-  return subject.kind === "WALLET_ADDRESS"
-    ? { wallet_address_url: subject.walletAddressUrl, subject_ref: null }
-    : { wallet_address_url: null, subject_ref: subject.subjectRef };
+  return subject.kind === "PAYPAL_MERCHANT"
+    ? { paypal_merchant_id: subject.paypalMerchantId, subject_ref: null }
+    : { paypal_merchant_id: null, subject_ref: subject.subjectRef };
 }
 
 function toRow(entry: TrustLogEntry) {
@@ -110,7 +110,7 @@ function toRow(entry: TrustLogEntry) {
     submission_id: entry.submissionId,
     body_digest: entry.bodyDigest,
     recorded_at: entry.recordedAt,
-    wallet_address_url: null as string | null,
+    paypal_merchant_id: null as string | null,
     subject_ref: null as string | null,
     revokes_entry_id: null as string | null,
     observed_at: null as string | null,
@@ -141,7 +141,7 @@ function toRow(entry: TrustLogEntry) {
     case "IDENTITY_BINDING":
       return {
         ...base,
-        wallet_address_url: entry.walletAddressUrl,
+        paypal_merchant_id: entry.paypalMerchantId,
         subject_ref: entry.subject.subjectRef,
         observed_at: entry.observedAt,
         valid_until: entry.validUntil ?? null,
@@ -151,7 +151,7 @@ function toRow(entry: TrustLogEntry) {
     case "FLAG":
       return {
         ...base,
-        wallet_address_url: entry.walletAddressUrl,
+        paypal_merchant_id: entry.paypalMerchantId,
         details: { category: entry.category, note: entry.note },
       };
   }
@@ -169,7 +169,7 @@ function fromRow(row: TrustLogRow): TrustLogEntry {
   const validUntil = isoOrUndefined(row.valid_until);
   const subject: MerchantSubject = row.subject_ref !== null
     ? { kind: "TAX_ID", subjectRef: row.subject_ref }
-    : { kind: "WALLET_ADDRESS", walletAddressUrl: row.wallet_address_url! };
+    : { kind: "PAYPAL_MERCHANT", paypalMerchantId: row.paypal_merchant_id! };
 
   switch (row.type) {
     case "CATEGORY_CLAIM":
@@ -197,7 +197,7 @@ function fromRow(row: TrustLogRow): TrustLogEntry {
       return {
         ...base,
         type: "IDENTITY_BINDING",
-        walletAddressUrl: row.wallet_address_url!,
+        paypalMerchantId: row.paypal_merchant_id!,
         subject: { kind: "TAX_ID", subjectRef: row.subject_ref! },
         observedAt: iso(row.observed_at!),
         ...(validUntil ? { validUntil } : {}),
@@ -213,7 +213,7 @@ function fromRow(row: TrustLogRow): TrustLogEntry {
       return {
         ...base,
         type: "FLAG",
-        walletAddressUrl: row.wallet_address_url!,
+        paypalMerchantId: row.paypal_merchant_id!,
         category: details.category as CompasCategory,
         note: details.note as string,
       };

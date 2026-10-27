@@ -1,4 +1,4 @@
-import type { AuditEvent, OpenPaymentsResourceRefs } from "../../domain/audit.ts";
+import type { AuditEvent, PayPalResourceRefs } from "../../domain/audit.ts";
 import type { AuditRepository } from "../../ports/audit-repository.ts";
 import { type Database, iso } from "./database.ts";
 
@@ -9,7 +9,7 @@ type AuditRow = {
   mandate_id: string | null;
   decision_id: string | null;
   actor_id: string | null;
-  open_payments_refs: OpenPaymentsResourceRefs | null;
+  paypal_refs: PayPalResourceRefs | null;
   payload: Record<string, string>;
 };
 
@@ -25,10 +25,10 @@ export class PostgresAuditRepository implements AuditRepository {
     const sql = this.#sql;
     await sql`
       insert into compas.audit_events
-        (id, type, occurred_at, mandate_id, decision_id, actor_id, open_payments_refs, payload)
+        (id, type, occurred_at, mandate_id, decision_id, actor_id, paypal_refs, payload)
       values
         (${event.id}, ${event.type}, ${event.occurredAt}, ${event.mandateId ?? null}, ${event.decisionId ?? null},
-         ${event.actorId ?? null}, ${event.openPaymentsRefs ? sql.json(event.openPaymentsRefs as never) : null},
+         ${event.actorId ?? null}, ${event.paypalRefs ? sql.json(event.paypalRefs as never) : null},
          ${sql.json(event.payload as never)})`;
   }
 
@@ -42,7 +42,7 @@ export class PostgresAuditRepository implements AuditRepository {
       ...(row.mandate_id !== null ? { mandateId: row.mandate_id } : {}),
       ...(row.decision_id !== null ? { decisionId: row.decision_id } : {}),
       ...(row.actor_id !== null ? { actorId: row.actor_id } : {}),
-      ...(row.open_payments_refs !== null ? { openPaymentsRefs: row.open_payments_refs } : {}),
+      ...(row.paypal_refs !== null ? { paypalRefs: row.paypal_refs } : {}),
       payload: row.payload,
     }));
   }

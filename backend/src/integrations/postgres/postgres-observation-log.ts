@@ -13,7 +13,7 @@ type ObservationRow = {
   id: string;
   type: MerchantObservation["type"];
   spending_record_id: string;
-  merchant_wallet_address_url: string;
+  paypal_merchant_id: string;
   payer_ref: string;
   observed_at: Date;
   delegate_ref: string | null;
@@ -27,7 +27,7 @@ type ObservationRow = {
 
 /** Domain arrays come back as text[], so the driver parses them. */
 const COLUMNS = (sql: Database) => sql`
-  id, type, spending_record_id, merchant_wallet_address_url, payer_ref, observed_at, delegate_ref,
+  id, type, spending_record_id, paypal_merchant_id, payer_ref, observed_at, delegate_ref,
   mandate_categories::text[] as mandate_categories, line_categories::text[] as line_categories,
   has_uncategorized_lines, enforcement::text as enforcement, payment_state, verdict`;
 
@@ -44,10 +44,10 @@ export class PostgresObservationLog implements MerchantObservationLog {
     if (observation.type === "PAID") {
       await sql`
         insert into compas.merchant_observations
-          (id, type, spending_record_id, merchant_wallet_address_url, payer_ref, observed_at, delegate_ref,
+          (id, type, spending_record_id, paypal_merchant_id, payer_ref, observed_at, delegate_ref,
            mandate_categories, line_categories, has_uncategorized_lines, enforcement, payment_state)
         values
-          (${observation.id}, 'PAID', ${observation.spendingRecordId}, ${observation.merchantWalletAddressUrl},
+          (${observation.id}, 'PAID', ${observation.spendingRecordId}, ${observation.paypalMerchantId},
            ${observation.payerRef}, ${observation.observedAt}, ${observation.delegateRef},
            ${sql.array([...observation.mandateCategories])}::text[]::compas.category[],
            ${sql.array([...observation.lineCategories])}::text[]::compas.category[],
@@ -56,10 +56,10 @@ export class PostgresObservationLog implements MerchantObservationLog {
     }
     await sql`
       insert into compas.merchant_observations
-        (id, type, spending_record_id, merchant_wallet_address_url, payer_ref, observed_at, verdict)
+        (id, type, spending_record_id, paypal_merchant_id, payer_ref, observed_at, verdict)
       values
         (${observation.id}, 'PAYER_VERDICT', ${observation.spendingRecordId},
-         ${observation.merchantWalletAddressUrl}, ${observation.payerRef}, ${observation.observedAt},
+         ${observation.paypalMerchantId}, ${observation.payerRef}, ${observation.observedAt},
          ${observation.verdict})`;
   }
 
@@ -77,10 +77,10 @@ export class PostgresObservationLog implements MerchantObservationLog {
     return row && (fromRow(row) as VerdictObservation);
   }
 
-  async listByMerchant(walletAddressUrl: string, since: Date): Promise<readonly MerchantObservation[]> {
+  async listByMerchant(paypalMerchantId: string, since: Date): Promise<readonly MerchantObservation[]> {
     const rows = await this.#sql<ObservationRow[]>`
       select ${COLUMNS(this.#sql)} from compas.merchant_observations
-      where merchant_wallet_address_url = ${walletAddressUrl} and observed_at > ${since}
+      where paypal_merchant_id = ${paypalMerchantId} and observed_at > ${since}
       order by observed_at, id`;
     return rows.map(fromRow);
   }
@@ -90,7 +90,7 @@ function fromRow(row: ObservationRow): MerchantObservation {
   const base = {
     id: row.id,
     spendingRecordId: row.spending_record_id,
-    merchantWalletAddressUrl: row.merchant_wallet_address_url,
+    paypalMerchantId: row.paypal_merchant_id,
     payerRef: row.payer_ref,
     observedAt: iso(row.observed_at),
   };
