@@ -1,7 +1,7 @@
-import type { SpendingRecord } from "../../domain/spending.ts";
+import type { PaymentFailureCode, PaymentState, SpendingRecord } from "../../domain/spending.ts";
 import type { SpendingLog } from "../../ports/spending-log.ts";
 
-/** MVP spending log. A restart loses it, like the grant store and the trust log. */
+/** MVP spending log. A restart loses it, like the trust log and the observation log. */
 export class InMemorySpendingLog implements SpendingLog {
   readonly #records = new Map<string, SpendingRecord>();
 
@@ -12,21 +12,36 @@ export class InMemorySpendingLog implements SpendingLog {
     this.#records.set(record.id, structuredClone(record));
   }
 
-  async recordPayment(
+  async recordOrder(
     recordId: string,
-    payment: { outgoingPaymentUrl: string; state: "PENDING" | "COMPLETED" | "FAILED" },
+    order: { orderId: string; approvalUrl?: string; state: PaymentState },
   ): Promise<SpendingRecord> {
     const record = this.#records.get(recordId);
     if (!record) throw new Error(`No spending record ${recordId}`);
-    if (record.openPayments.outgoingPaymentUrl && record.openPayments.outgoingPaymentUrl !== payment.outgoingPaymentUrl) {
-      throw new Error(`Spending record ${recordId} already has a different outgoing payment`);
+    if (record.decision.outcome !== "ALLOW") throw new Error(`Spending record ${recordId} is not an ALLOW`);
+    if (record.paypal.orderId && record.paypal.orderId !== order.orderId) {
+      throw new Error(`Spending record ${recordId} already has a different PayPal order`);
     }
-    const updated: SpendingRecord = {
-      ...record,
-      openPayments: { ...record.openPayments, ...payment },
-    };
+    const updated: SpendingRecord = { ...record, paypal: { ...record.paypal, ...order } };
     this.#records.set(recordId, updated);
     return structuredClone(updated);
+  }
+
+  async transitionPayment(
+    recordId: string,
+    from: readonly PaymentState[],
+    to: { state: PaymentState; captureId?: string; failureCode?: PaymentFailureCode },
+  ): Promise<SpendingRecord | undefined> {
+    const record = this.#records.get(recordId);
+    if (!record?.paypal.orderId || !record.paypal.state || !from.includes(record.paypal.state)) return undefined;
+    const updated: SpendingRecord = { ...record, paypal: { ...record.paypal, ...to } };
+    this.#records.set(recordId, updated);
+    return structuredClone(updated);
+  }
+
+  async findByPayPalOrderId(orderId: string): Promise<SpendingRecord | undefined> {
+    const record = [...this.#records.values()].find((candidate) => candidate.paypal.orderId === orderId);
+    return record && structuredClone(record);
   }
 
   async listByMandate(mandateId: string): Promise<readonly SpendingRecord[]> {
