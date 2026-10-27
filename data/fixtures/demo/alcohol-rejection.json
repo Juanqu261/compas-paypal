@@ -5,9 +5,9 @@
   "merchantSurface": "Nequi Negocios simulation",
   "notes": [
     "The same medication mandate must not pay for alcohol.",
-    "Expected future result: DENY / PURPOSE_MISMATCH, with no outgoing payment. The merchant step adds MERCHANT_NOT_ELIGIBLE: the simulated KYB attestation is CIIU 4724.",
-    "The intent carries no category evidence. Its wallet address uses the reserved example domain and is not a real wallet.",
-    "The charge is in COP, like the pharmacy charge. COMPAS denies it before any quote, so no payer debit is computed."
+    "Expected result: DENY / PURPOSE_MISMATCH, with no PayPal order. The merchant step adds MERCHANT_NOT_ELIGIBLE: the simulated KYB attestation is CIIU 4724.",
+    "The intent carries no category evidence. Its PayPal merchant id has PayPal's format but names no PayPal account.",
+    "The charge is in USD, like the pharmacy charge. COMPAS denies it before calling PayPal."
   ],
   "mandate": {
     "id": "demo-mandate-medication",
@@ -58,7 +58,7 @@
     "id": "demo-intent-liquor",
     "mandateId": "demo-mandate-medication",
     "delegateId": "demo-delegate-andrea",
-    "merchantWalletAddressUrl": "https://wallet.example/demo-example-liquor",
+    "paypalMerchantId": "DEMLAGERBAR22",
     "merchantDisplayName": "Example liquor store",
     "lineItems": [
       {
@@ -66,15 +66,15 @@
         "description": "Alcohol",
         "category": "ALCOHOL",
         "amount": {
-          "value": "4500000",
-          "assetCode": "COP",
+          "value": "1500",
+          "assetCode": "USD",
           "assetScale": 2
         }
       }
     ],
     "amount": {
-      "value": "4500000",
-      "assetCode": "COP",
+      "value": "1500",
+      "assetCode": "USD",
       "assetScale": 2
     },
     "createdAt": "2026-10-16T16:00:00Z"

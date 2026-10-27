@@ -5,9 +5,9 @@
   "merchantSurface": "Nequi Negocios simulation",
   "notes": [
     "Expected ALLOW is the story outcome once eligible evidence exists. It is not a decision this scaffold computed.",
-    "The intent carries no category evidence. COMPAS resolves it from the merchant's wallet address. The backend seeds a simulated Nequi Negocios self-declaration and KYB attestation (CIIU 4773) for this wallet.",
-    "Droguería Central is simulated. Its wallet address uses the reserved example domain and is not a real wallet. No quote is included.",
-    "The charge is in COP, the asset of the test-network merchant wallet. The payer debit in the payer wallet asset comes from the Open Payments quote, never from a hardcoded rate."
+    "The intent carries no category evidence. COMPAS resolves it from the merchant's PayPal merchant id. The backend seeds a simulated Nequi Negocios self-declaration and KYB attestation (CIIU 4773) for this merchant.",
+    "Droguería Central is simulated. Its PayPal merchant id has PayPal's format but names no PayPal account, so PayPal would refuse an order to it.",
+    "The charge is in USD, the budget's asset. On ALLOW, COMPAS creates one PayPal order for exactly this amount, and Pedro approves it at PayPal. COMPAS does not convert currencies."
   ],
   "mandate": {
     "id": "demo-mandate-medication",
@@ -58,7 +58,7 @@
     "id": "demo-intent-pharmacy",
     "mandateId": "demo-mandate-medication",
     "delegateId": "demo-delegate-andrea",
-    "merchantWalletAddressUrl": "https://wallet.example/demo-drogueria-central",
+    "paypalMerchantId": "DEMPHARMACY22",
     "merchantDisplayName": "Droguería Central",
     "lineItems": [
       {
@@ -66,15 +66,15 @@
         "description": "Acetaminophen",
         "category": "MEDICATION",
         "amount": {
-          "value": "8000000",
-          "assetCode": "COP",
+          "value": "1120",
+          "assetCode": "USD",
           "assetScale": 2
         }
       }
     ],
     "amount": {
-      "value": "8000000",
-      "assetCode": "COP",
+      "value": "1120",
+      "assetCode": "USD",
       "assetScale": 2
     },
     "createdAt": "2026-10-16T15:00:00Z"

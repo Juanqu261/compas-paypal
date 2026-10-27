@@ -46,7 +46,7 @@ A record looks like this. Categories are not precomputed. The backend maps CIIU 
 {"registryKey":"21-52577802","name":"DISLICORES STORE EL TESORO","registrationType":"ESTABLECIMIENTO_DE_COMERCIO","ciiu":{"primary":"4711","secondary":[]},"registeredOn":"2012-03-06","renewedOn":"2026-03-18","owner":{"type":"PERSONA_JURIDICA","nit":"890916575","checkDigit":"4","name":"DISTRIBUIDORA DE VINOS Y LICORES S.A.S.","legalForm":"SOCIEDADES POR ACCIONES SIMPLIFICADAS SAS","ciiuPrimary":"4632"}}
 ```
 
-- `registryKey` combines the cámara code and the establishment's matrícula. It's a registry id, not a wallet address.
+- `registryKey` combines the cámara code and the establishment's matrícula. It's a registry id, not a PayPal account.
 - `owner` is `PERSONA_JURIDICA` with its NIT for 435 shops, and `PERSONA_NATURAL` with no identifier for the other 1,465.
 - The dataset has no address or municipality.
 
