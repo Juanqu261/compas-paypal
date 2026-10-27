@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --experimental-strip-types --env-file-if-exists=.env --watch src/api/server.ts",
     "start": "node --experimental-strip-types --env-file-if-exists=.env src/api/server.ts",
-    "op:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/op-smoke.ts",
+    "paypal:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/paypal-smoke.ts",
     "compas:smoke": "node --experimental-strip-types --env-file-if-exists=.env scripts/compas-smoke.ts",
     "registry:fetch": "node --experimental-strip-types scripts/fetch-rues-registry.ts",
     "registry:load": "node --experimental-strip-types --env-file-if-exists=.env scripts/load-rues-registry.ts",
@@ -18,7 +18,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@interledger/open-payments": "7.4.0",
     "postgres": "3.4.9"
   },
   "engines": {

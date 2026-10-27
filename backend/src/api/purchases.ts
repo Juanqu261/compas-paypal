@@ -19,16 +19,10 @@ const STATUS_BY_ERROR: Record<PurchaseErrorCode, number> = {
   NOT_THE_DELEGATE: 403,
   UNKNOWN_MERCHANT: 422,
   PURCHASES_DISABLED_FOR_DEMO: 403,
-  PAYER_GRANTS_DISABLED_FOR_DEMO: 403,
-  OPEN_PAYMENTS_NOT_CONFIGURED: 503,
-  PAYER_WALLET_NOT_CONFIGURED: 409,
-  GRANT_NOT_ACTIVE: 409,
+  PAYPAL_NOT_CONFIGURED: 503,
   INVALID_STATE: 409,
-  ASSET_MISMATCH: 409,
   IDEMPOTENCY_KEY_REUSED: 409,
-  AUTHORIZATION_FAILED: 502,
   PAYMENT_NOT_STARTED: 503,
-  PAYMENT_OUTCOME_UNKNOWN: 502,
 };
 
 export function isPurchaseApiPath(pathname: string): boolean {
@@ -42,8 +36,7 @@ function fail(result: PurchaseFailure): JsonResponse {
       error: result.code,
       message: result.message,
       ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
-      // Only an unknown outcome is unsafe to retry. The client must not resend it.
-      ...(result.code === "PAYMENT_OUTCOME_UNKNOWN" ? { retryable: false } : {}),
+      // Nothing was paid, and COMPAS holds no order for the attempt.
       ...(result.code === "PAYMENT_NOT_STARTED" ? { retryable: true } : {}),
     },
   };
@@ -51,9 +44,10 @@ function fail(result: PurchaseFailure): JsonResponse {
 
 /**
  * The delegate's purchase routes. The actor comes from the session, never
- * from the body. A preview writes nothing and calls no wallet. A purchase is
- * the whole COMPAS flow and answers 201 for any decision it records,
- * DENY and REVIEW included: a refusal is a result, not an error.
+ * from the body. A preview writes nothing and calls no PayPal API. A purchase
+ * is the whole COMPAS flow and answers 201 for any decision it records,
+ * DENY and REVIEW included: a refusal is a result, not an error. An ALLOW
+ * answers with a PayPal order waiting for the payer's approval.
  */
 export async function handlePurchaseRequest(
   request: { method: string; url: URL; body?: unknown },
@@ -77,8 +71,8 @@ export async function handlePurchaseRequest(
 
 /**
  * GET /demo/merchants: the demo merchants and the categories COMPAS resolves
- * for each one now. demo/test data. The wallet address stays on the server:
- * a purchase names the merchant by id. A view, not a policy decision.
+ * for each one now. demo/test data. The PayPal merchant id stays on the
+ * server: a purchase names the merchant by id. A view, not a policy decision.
  */
 export async function handleListDemoMerchants(deps: {
   merchants: MerchantDirectory;
@@ -89,7 +83,7 @@ export async function handleListDemoMerchants(deps: {
 }): Promise<JsonResponse> {
   const merchants = [];
   for (const merchant of await deps.merchants.list()) {
-    const { walletAddressUrl: _wallet, ...categories } = await merchantCategoryView(merchant.walletAddressUrl, deps);
+    const { paypalMerchantId: _account, ...categories } = await merchantCategoryView(merchant.paypalMerchantId, deps);
     merchants.push({ id: merchant.id, displayName: merchant.displayName, ...categories });
   }
   return {

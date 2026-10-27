@@ -106,7 +106,7 @@ test("refresh ingests through the one ingestion path; the claim reaches a wallet
     sourceId: "merchant",
     submissionId: "d1",
     type: "CATEGORY_CLAIM",
-    subject: { kind: "WALLET_ADDRESS", walletAddressUrl: PHARMACY },
+    subject: { kind: "PAYPAL_MERCHANT", paypalMerchantId: PHARMACY },
     declaredCategories: ["MEDICATION"],
     observedAt: "2026-10-16T12:00:00Z",
   });
@@ -114,7 +114,7 @@ test("refresh ingests through the one ingestion path; the claim reaches a wallet
     sourceId: "merchant",
     submissionId: "b1",
     type: "IDENTITY_BINDING",
-    walletAddressUrl: PHARMACY,
+    paypalMerchantId: PHARMACY,
     taxId: VALID_NIT,
     observedAt: "2026-10-16T12:00:00Z",
   });

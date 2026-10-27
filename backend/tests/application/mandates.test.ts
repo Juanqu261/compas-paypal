@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleOpenPaymentsFinish } from "../../src/api/open-payments-finish.ts";
 import { parseCreateMandateRequest } from "../../src/application/mandates.ts";
 import {
   ANDREA,
-  fakeGateway,
+  countingSettlement,
   GLADYS,
   medicationRequest,
   NOW,
-  PAYER_WALLET,
+  PAYER_PAYPAL_ID,
   PEDRO,
   serviceKit,
   spendingRecord,
@@ -23,10 +22,8 @@ async function createDraft(kit: ReturnType<typeof serviceKit>, overrides: Record
 
 async function activate(kit: ReturnType<typeof serviceKit>) {
   const draft = await createDraft(kit);
-  const started = await kit.service.startAuthorization(PEDRO, draft.id);
-  assert.ok(started.ok);
-  await kit.gateway.finishGrant(draft.id);
-  assert.equal(await kit.service.completeAuthorization(draft.id), "ACTIVATED");
+  const activated = await kit.service.authorize(PEDRO, draft.id);
+  assert.ok(activated.ok, JSON.stringify(activated));
   return draft.id;
 }
 
@@ -50,7 +47,7 @@ test("Pedro creates the demo budget as a DRAFT owned by the authenticated payer"
   assert.deepEqual(mandate.purposePolicy.eligibleCategories, ["MEDICATION"]);
   assert.equal(mandate.viewerRole, "PAYER");
   assert.equal(mandate.authorization?.consent, "NOT_STARTED");
-  assert.equal(kit.gateway.calls.start.length, 0, "creating a draft asks no wallet for anything");
+  assert.equal(mandate.usable, false);
 });
 
 test("ENFORCED and a HIGH minimum confidence are the defaults", async () => {
@@ -84,10 +81,14 @@ test("invalid amounts are refused", async () => {
   assert.deepEqual(fieldCodes(badScale), ["INVALID_ASSET"]);
 });
 
-test("the budget must use the payer wallet's asset when the wallet can be read", async () => {
-  const kit = serviceKit({ gateway: fakeGateway({ wallet: { assetCode: "EUR", assetScale: 2 } }) });
-  const result = await kit.service.create(PEDRO, medicationRequest());
-  assert.deepEqual(fieldCodes(result), ["ASSET_MISMATCH"]);
+test("the budget must be in a currency PayPal charges, at PayPal's scale: COMPAS does not convert", async () => {
+  const kit = serviceKit();
+  const cop = await kit.service.create(PEDRO, medicationRequest({ budget: { value: "4000", assetCode: "COP", assetScale: 2 } }));
+  assert.deepEqual(fieldCodes(cop), ["ASSET_NOT_SUPPORTED"]);
+  const wrongScale = await kit.service.create(PEDRO, medicationRequest({ budget: { value: "4000", assetCode: "USD", assetScale: 3 } }));
+  assert.deepEqual(fieldCodes(wrongScale), ["ASSET_NOT_SUPPORTED"]);
+  const eur = await createDraft(kit, { budget: { value: "4000", assetCode: "EUR", assetScale: 2 } });
+  assert.equal(eur.budget.assetCode, "EUR");
 });
 
 test("invalid validity windows are refused", async () => {
@@ -147,7 +148,7 @@ test("parties must be known, and the payer cannot delegate to themselves", async
   assert.deepEqual(fieldCodes(await kit.service.create(PEDRO, medicationRequest({ delegateId: PEDRO.partyId }))), ["SELF_DELEGATION"]);
 });
 
-test("the beneficiary needs no wallet: Gladys has none", async () => {
+test("the beneficiary needs no PayPal account: Gladys has none", async () => {
   const mandate = await createDraft(serviceKit());
   assert.equal(mandate.beneficiary.id, GLADYS.partyId);
 });
@@ -158,144 +159,58 @@ test("dates are normalized to ISO instants", () => {
   assert.equal(parsed.value.validFrom, "2026-10-16T05:00:00.000Z");
 });
 
-// --- Authorization and the consent callback -------------------------------------
+// --- Authorization -------------------------------------------------------------------
 
-test("only the payer can start the authorization; a stranger can't even see the budget", async () => {
+test("only the payer can authorize; a stranger can't even see the budget", async () => {
   const kit = serviceKit();
   const draft = await createDraft(kit);
-  const asStranger = await kit.service.startAuthorization(STRANGER, draft.id);
+  const asStranger = await kit.service.authorize(STRANGER, draft.id);
   assert.equal(asStranger.ok ? "" : asStranger.code, "NOT_FOUND");
-  // Andrea can't see a draft at all: there is no permission before consent.
-  const asDelegate = await kit.service.startAuthorization(ANDREA, draft.id);
+  // Andrea can't see a draft at all: there is no permission before Pedro confirms.
+  const asDelegate = await kit.service.authorize(ANDREA, draft.id);
   assert.equal(asDelegate.ok ? "" : asDelegate.code, "NOT_FOUND");
-  assert.equal(kit.gateway.calls.start.length, 0);
+  const after = await kit.service.get(PEDRO, draft.id);
+  assert.equal(after.ok ? after.mandate.status : "", "DRAFT");
 });
 
-test("authorizing asks the payer wallet for a grant capped at the budget and waits for consent", async () => {
+test("authorizing activates the budget at once: each purchase still needs Pedro's PayPal approval", async () => {
   const kit = serviceKit();
   const draft = await createDraft(kit);
-  const result = await kit.service.startAuthorization(PEDRO, draft.id);
+  assert.equal(draft.usable, false, "a draft authorizes nothing");
+  const result = await kit.service.authorize(PEDRO, draft.id);
   assert.ok(result.ok);
-  assert.equal(result.redirectUrl, `https://auth.test/interact/${draft.id}`);
-  assert.equal(result.mandate.status, "PENDING_AUTHORIZATION");
-  assert.equal(result.mandate.authorization?.consent, "WAITING_FOR_PAYER");
-  assert.deepEqual(kit.gateway.calls.start, [
-    { grantKey: draft.id, payerWalletAddressUrl: PAYER_WALLET, debitLimit: { value: "4000", assetCode: "USD", assetScale: 2 } },
-  ]);
-  assert.equal("interval" in kit.gateway.calls.start[0], false, "no recurring budgets");
+  assert.equal(result.mandate.status, "ACTIVE");
+  assert.equal(result.mandate.usable, true);
+  assert.equal(result.mandate.authorization?.consent, "GRANTED");
+  assert.equal(result.mandate.authorization?.canAuthorize, false);
+  assert.deepEqual(result.mandate.remainingAuthorizedAmount, draft.budget);
+  assert.ok((await kit.audit.listByMandate(draft.id)).some((event) => event.type === "MANDATE_ACTIVATED"));
 });
 
-test("only an authentic finish activates the mandate", async () => {
+test("an active, revoked or expired mandate can't be authorized again", async () => {
   const kit = serviceKit();
-  const draft = await createDraft(kit);
-  await kit.service.startAuthorization(PEDRO, draft.id);
-  const before = await kit.service.get(PEDRO, draft.id);
-  assert.ok(before.ok);
-  assert.equal(before.mandate.status, "PENDING_AUTHORIZATION", "starting consent is not consent");
-  assert.equal(before.mandate.usable, false);
-  assert.equal(
-    await kit.service.completeAuthorization(draft.id),
-    "IGNORED",
-    "the hook alone is not enough: the stored grant must be ACTIVE",
-  );
-  await kit.gateway.finishGrant(draft.id);
-  assert.equal(await kit.service.completeAuthorization(draft.id), "ACTIVATED");
-  const after = await kit.service.get(PEDRO, draft.id);
-  assert.ok(after.ok);
-  assert.equal(after.mandate.status, "ACTIVE");
-  assert.equal(after.mandate.authorization?.consent, "GRANTED");
-  assert.equal(after.mandate.usable, true);
-});
+  const id = await activate(kit);
+  const again = await kit.service.authorize(PEDRO, id);
+  assert.equal(again.ok ? "" : again.code, "INVALID_STATE");
 
-test("a manipulated callback that fails the hash check never activates the mandate", async () => {
-  const kit = serviceKit();
-  const draft = await createDraft(kit);
-  await kit.service.startAuthorization(PEDRO, draft.id);
-  const { result } = await handleOpenPaymentsFinish(
-    new URL(`http://localhost:4000/open-payments/finish?grantKey=${draft.id}&interact_ref=forged&hash=forged`),
-    {
-      gateway: { finishPayerGrant: async () => { throw Object.assign(new Error("hash"), { code: "INVALID_INTERACTION_HASH" }); } },
-      returnUrl: "http://localhost:3000/demo",
-      onPayerGrantFinished: async (grantKey) => { await kit.service.completeAuthorization(grantKey); },
-    },
-  );
-  assert.equal(result, "failed");
-  const after = await kit.service.get(PEDRO, draft.id);
-  assert.ok(after.ok);
-  assert.equal(after.mandate.status, "PENDING_AUTHORIZATION");
-});
+  const revoked = await createDraft(kit);
+  await kit.service.revoke(PEDRO, revoked.id);
+  const afterRevoke = await kit.service.authorize(PEDRO, revoked.id);
+  assert.equal(afterRevoke.ok ? "" : afterRevoke.code, "INVALID_STATE");
 
-test("a rejected consent leaves the mandate waiting, and the payer can retry", async () => {
-  const kit = serviceKit();
-  const draft = await createDraft(kit);
-  await kit.service.startAuthorization(PEDRO, draft.id);
-  const { result } = await handleOpenPaymentsFinish(
-    new URL(`http://localhost:4000/open-payments/finish?grantKey=${draft.id}&result=grant_rejected`),
-    {
-      gateway: { finishPayerGrant: async () => ({ status: "GRANTED" as const }) },
-      returnUrl: "http://localhost:3000/demo",
-      onPayerGrantFinished: async (grantKey) => { await kit.service.completeAuthorization(grantKey); },
-    },
-  );
-  assert.equal(result, "rejected");
-  const waiting = await kit.service.get(PEDRO, draft.id);
-  assert.ok(waiting.ok);
-  assert.equal(waiting.mandate.status, "PENDING_AUTHORIZATION");
-  assert.equal(waiting.mandate.authorization?.canAuthorize, true);
-  const retry = await kit.service.startAuthorization(PEDRO, draft.id);
-  assert.ok(retry.ok);
-  assert.equal(kit.gateway.calls.start.length, 2);
-});
-
-test("a finish for a draft that never asked for consent changes nothing", async () => {
-  const kit = serviceKit();
-  const draft = await createDraft(kit);
-  assert.equal(await kit.service.completeAuthorization(draft.id), "IGNORED");
-  assert.equal(await kit.service.completeAuthorization("mandate-unknown"), "IGNORED");
-  const after = await kit.service.get(PEDRO, draft.id);
-  assert.ok(after.ok);
-  assert.equal(after.mandate.status, "DRAFT");
-});
-
-test("without Open Payments configured, authorization fails closed and the mandate stays a DRAFT", async () => {
-  const kit = serviceKit({ gateway: fakeGateway({ start: "not-configured", wallet: "not-configured" }) });
-  const draft = await createDraft(kit);
-  const result = await kit.service.startAuthorization(PEDRO, draft.id);
-  assert.equal(result.ok ? "" : result.code, "OPEN_PAYMENTS_NOT_CONFIGURED");
-  const after = await kit.service.get(PEDRO, draft.id);
-  assert.ok(after.ok);
-  assert.equal(after.mandate.status, "DRAFT");
-  assert.deepEqual(after.mandate.authorization?.lastError, { operation: "AUTHORIZE", code: "NOT_CONFIGURED" });
-  assert.deepEqual(await kit.service.payerWallet(PEDRO), { status: "OPEN_PAYMENTS_NOT_CONFIGURED" });
-});
-
-test("a payer without a wallet can draft but not authorize", async () => {
-  const kit = serviceKit({ payerWallet: null });
-  const draft = await createDraft(kit);
-  const result = await kit.service.startAuthorization(PEDRO, draft.id);
-  assert.equal(result.ok ? "" : result.code, "PAYER_WALLET_NOT_CONFIGURED");
-  assert.equal(kit.gateway.calls.start.length, 0);
-});
-
-test("a provider error is reported by code and the mandate is not activated", async () => {
-  const kit = serviceKit({ gateway: fakeGateway({ start: "upstream" }) });
-  const draft = await createDraft(kit);
-  const result = await kit.service.startAuthorization(PEDRO, draft.id);
-  assert.ok(!result.ok);
-  assert.equal(result.code, "AUTHORIZATION_FAILED");
-  assert.equal(result.providerCode, "UPSTREAM");
+  const late = await createDraft(kit);
+  kit.setNow(new Date("2026-11-20T00:00:00Z"));
+  const expired = await kit.service.authorize(PEDRO, late.id);
+  assert.equal(expired.ok ? "" : expired.code, "INVALID_STATE");
 });
 
 // --- Roles ---------------------------------------------------------------------------
 
-test("the delegate sees received authorizations only after the payer consented", async () => {
+test("the delegate sees received authorizations only after the payer confirmed", async () => {
   const kit = serviceKit();
   const draft = await createDraft(kit);
   assert.deepEqual(await kit.service.list(ANDREA, "DELEGATE"), []);
-  await kit.service.startAuthorization(PEDRO, draft.id);
-  assert.deepEqual(await kit.service.list(ANDREA, "DELEGATE"), [], "waiting for Pedro is not a permission yet");
-  await kit.gateway.finishGrant(draft.id);
-  await kit.service.completeAuthorization(draft.id);
+  await kit.service.authorize(PEDRO, draft.id);
   const received = await kit.service.list(ANDREA, "DELEGATE");
   assert.equal(received.length, 1);
   assert.equal(received[0].viewerRole, "DELEGATE");
@@ -331,84 +246,39 @@ test("only the payer can revoke; the delegate is told so", async () => {
   assert.equal(asDelegate.ok ? "" : asDelegate.code, "NOT_THE_PAYER");
   const asStranger = await kit.service.revoke(STRANGER, id);
   assert.equal(asStranger.ok ? "" : asStranger.code, "NOT_FOUND");
-  assert.equal(kit.gateway.calls.cancel.length, 0);
 });
 
-test("revoking blocks the mandate and cancels the grant; the delegate sees it revoked", async () => {
+test("revoking blocks the mandate; the delegate sees it revoked, and revoking again is idempotent", async () => {
   const kit = serviceKit();
   const id = await activate(kit);
   const result = await kit.service.revoke(PEDRO, id);
   assert.ok(result.ok);
+  assert.equal(result.alreadyRevoked, false);
   assert.equal(result.mandate.status, "REVOKED");
-  assert.equal(result.mandate.authorization?.grantCancellation, "DONE");
-  assert.deepEqual(kit.gateway.calls.cancel, [id]);
+  assert.equal(result.mandate.authorization?.canRevoke, false);
   const asAndrea = await kit.service.get(ANDREA, id);
   assert.ok(asAndrea.ok);
   assert.equal(asAndrea.mandate.status, "REVOKED");
   assert.equal(asAndrea.mandate.usable, false);
-});
 
-test("when the provider can't cancel, COMPAS still blocks and reports the cancellation as pending", async () => {
-  const kit = serviceKit({ gateway: fakeGateway({ cancel: "upstream" }) });
-  const id = await activate(kit);
-  const first = await kit.service.revoke(PEDRO, id);
-  assert.ok(first.ok);
-  assert.equal(first.mandate.status, "REVOKED");
-  assert.equal(first.mandate.authorization?.grantCancellation, "PENDING");
-  assert.deepEqual(first.mandate.authorization?.lastError, { operation: "CANCEL", code: "UPSTREAM" });
-
-  kit.gateway.failCancel("ok");
-  const retry = await kit.service.revoke(PEDRO, id);
-  assert.ok(retry.ok);
-  assert.equal(retry.alreadyRevoked, true);
-  assert.equal(retry.mandate.authorization?.grantCancellation, "DONE");
-  assert.equal(kit.gateway.calls.cancel.length, 2);
-});
-
-test("revoking twice is idempotent once the cancellation is done", async () => {
-  const kit = serviceKit();
-  const id = await activate(kit);
-  await kit.service.revoke(PEDRO, id);
   const again = await kit.service.revoke(PEDRO, id);
   assert.ok(again.ok);
   assert.equal(again.alreadyRevoked, true);
-  assert.equal(kit.gateway.calls.cancel.length, 1, "no second cancel call");
+  assert.equal((await kit.audit.listByMandate(id)).filter((event) => event.type === "MANDATE_REVOKED").length, 1);
 });
 
-test("revoking a draft needs no provider call", async () => {
+test("a draft can be revoked before it ever authorized anything", async () => {
   const kit = serviceKit();
   const draft = await createDraft(kit);
   const result = await kit.service.revoke(PEDRO, draft.id);
   assert.ok(result.ok);
-  assert.equal(result.mandate.authorization?.grantCancellation, "NOT_NEEDED");
-  assert.equal(kit.gateway.calls.cancel.length, 0);
-});
-
-test("a grant that finishes after the payer revoked is cancelled, not activated", async () => {
-  const kit = serviceKit({ gateway: fakeGateway({ cancel: "upstream" }) });
-  const draft = await createDraft(kit);
-  await kit.service.startAuthorization(PEDRO, draft.id);
-  // The cancellation of the pending request fails, then the payer finishes consent anyway.
-  await kit.service.revoke(PEDRO, draft.id);
-  await kit.gateway.finishGrant(draft.id);
-  kit.gateway.failCancel("ok");
-  assert.equal(await kit.service.completeAuthorization(draft.id), "CANCELLED_AFTER_REVOKE");
-  assert.equal(await kit.gateway.grants.get(draft.id), undefined, "the late grant is gone");
-  const after = await kit.service.get(PEDRO, draft.id);
-  assert.ok(after.ok);
-  assert.equal(after.mandate.status, "REVOKED");
+  assert.equal(result.mandate.status, "REVOKED");
+  assert.equal(result.mandate.authorization?.consent, "NOT_STARTED");
 });
 
 // --- State transitions ----------------------------------------------------------------
 
-test("an active mandate can't be authorized again", async () => {
-  const kit = serviceKit();
-  const id = await activate(kit);
-  const again = await kit.service.startAuthorization(PEDRO, id);
-  assert.equal(again.ok ? "" : again.code, "INVALID_STATE");
-});
-
-test("a mandate past its expiry is EXPIRED and can't be authorized", async () => {
+test("a mandate past its expiry is EXPIRED for both sides", async () => {
   const kit = serviceKit();
   const id = await activate(kit);
   kit.setNow(new Date("2026-11-20T00:00:00Z"));
@@ -422,30 +292,97 @@ test("a mandate past its expiry is EXPIRED and can't be authorized", async () =>
 
 // --- Activity and exposure ------------------------------------------------------------
 
-test("activity separates completed and pending payments and adds the provider's spent figure", async () => {
-  const kit = serviceKit();
+test("activity reconciles PayPal first, then separates captured, waiting and pending charges", async () => {
+  const settlement = countingSettlement();
+  const kit = serviceKit({ settlement });
   const id = await activate(kit);
   await kit.spending.append(spendingRecord({ id: "d-1", mandateId: id }));
   await kit.spending.append(
     spendingRecord({
       id: "d-2",
       mandateId: id,
-      openPayments: { outgoingPaymentUrl: "https://wallet.test/outgoing/2", state: "PENDING" },
+      paypal: {
+        orderId: "TESTORDER00000002",
+        approvalUrl: "https://www.sandbox.paypal.com/checkoutnow?token=TESTORDER00000002",
+        state: "AWAITING_PAYER_APPROVAL",
+      },
       recordedAt: "2026-10-16T17:00:00.000Z",
+    }),
+  );
+  await kit.spending.append(
+    spendingRecord({
+      id: "d-3",
+      mandateId: id,
+      paypal: { orderId: "TESTORDER00000003", state: "PENDING" },
+      recordedAt: "2026-10-16T18:00:00.000Z",
     }),
   );
   const result = await kit.service.activity(PEDRO, id);
   assert.ok(result.ok);
-  assert.deepEqual(result.activity.totals.completed, { value: "1120", assetCode: "USD", assetScale: 2 });
-  assert.deepEqual(result.activity.totals.inProgress, { value: "1120", assetCode: "USD", assetScale: 2 });
-  assert.deepEqual(result.providerSpent, { value: "1120", assetCode: "USD", assetScale: 2 });
-
-  const asAndrea = await kit.service.activity(ANDREA, id);
-  assert.ok(asAndrea.ok);
-  assert.equal(asAndrea.providerSpentAvailable, false, "the provider is asked for the payer only");
+  assert.deepEqual(settlement.refreshed, [id]);
+  const { totals, entries } = result.activity;
+  assert.deepEqual(totals.completed, { value: "1120", assetCode: "USD", assetScale: 2 });
+  assert.deepEqual(totals.inProgress, { value: "2240", assetCode: "USD", assetScale: 2 });
+  assert.deepEqual(
+    [totals.completedCount, totals.awaitingApprovalCount, totals.inProgressCount],
+    [1, 1, 1],
+  );
+  assert.equal(
+    entries.find((entry) => entry.id === "d-2")?.approvalUrl,
+    "https://www.sandbox.paypal.com/checkoutnow?token=TESTORDER00000002",
+    "Pedro gets the link that approves the order at PayPal",
+  );
 });
 
-test("views never expose wallet addresses, grants or tokens", async () => {
+test("the delegate never receives the link that approves a payment from the payer's PayPal", async () => {
+  const kit = serviceKit();
+  const id = await activate(kit);
+  await kit.spending.append(
+    spendingRecord({
+      id: "d-1",
+      mandateId: id,
+      paypal: {
+        orderId: "TESTORDER00000001",
+        approvalUrl: "https://www.sandbox.paypal.com/checkoutnow?token=TESTORDER00000001",
+        state: "AWAITING_PAYER_APPROVAL",
+      },
+    }),
+  );
+  const asAndrea = await kit.service.activity(ANDREA, id);
+  assert.ok(asAndrea.ok);
+  assert.equal(asAndrea.activity.entries[0].kind, "AWAITING_APPROVAL");
+  assert.equal(JSON.stringify(asAndrea).includes("paypal.com"), false);
+});
+
+test("a revoked mandate shows no approval link: its orders can no longer be paid", async () => {
+  const kit = serviceKit();
+  const id = await activate(kit);
+  await kit.spending.append(
+    spendingRecord({
+      id: "d-1",
+      mandateId: id,
+      paypal: {
+        orderId: "TESTORDER00000001",
+        approvalUrl: "https://www.sandbox.paypal.com/checkoutnow?token=TESTORDER00000001",
+        state: "AWAITING_PAYER_APPROVAL",
+      },
+    }),
+  );
+  await kit.service.revoke(PEDRO, id);
+  const result = await kit.service.activity(PEDRO, id);
+  assert.ok(result.ok);
+  assert.equal(result.activity.entries[0].approvalUrl, undefined);
+});
+
+test("activity still answers when PayPal can't be reconciled", async () => {
+  const kit = serviceKit({ settlement: countingSettlement({ fail: true }) });
+  const id = await activate(kit);
+  const result = await kit.service.activity(PEDRO, id);
+  assert.ok(result.ok);
+  assert.equal(result.activity.totals.attempts, 0);
+});
+
+test("views never expose PayPal account ids, order ids or captures", async () => {
   const kit = serviceKit();
   const id = await activate(kit);
   await kit.spending.append(spendingRecord({ id: "d-1", mandateId: id }));
@@ -454,8 +391,9 @@ test("views never expose wallet addresses, grants or tokens", async () => {
     await kit.service.get(ANDREA, id),
     await kit.service.list(PEDRO, "PAYER"),
     await kit.service.activity(PEDRO, id),
+    await kit.service.activity(ANDREA, id),
   ]);
-  for (const secret of [PAYER_WALLET, "accessToken", "continueAccessToken", "nonce", "test-access-token", "test-continue-token", "wallet.test/drogueria", "incoming", "quotes"]) {
+  for (const secret of [PAYER_PAYPAL_ID, "TESTPHARMACY2", "TESTORDER", "TESTCAPTURE", "token"]) {
     assert.equal(payload.includes(secret), false, `leaked ${secret}`);
   }
 });

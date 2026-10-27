@@ -4,7 +4,7 @@ import type {
   IngestionErrorCode,
   IngestionResult,
 } from "../application/ingest-category-claim.ts";
-import { normalizeWalletAddressUrl } from "../domain/merchant-identifiers.ts";
+import { normalizePayPalAccountId } from "../domain/merchant-identifiers.ts";
 import type { CategorySourceRegistry } from "../ports/category-source-registry.ts";
 import type { MerchantRegistry } from "../ports/merchant-registry.ts";
 
@@ -64,20 +64,23 @@ export async function handleIngestCategoryClaim(
 }
 
 /**
- * GET /merchants/categories?walletAddress=<url>. COMPAS categories, trust
+ * GET /merchants/categories?paypalMerchantId=<id>. COMPAS categories, trust
  * levels and source ids. Never subject refs, entry ids or raw identifiers.
  */
 export async function handleGetMerchantCategories(
   requestUrl: URL,
   deps: { registry: MerchantRegistry; sources: CategorySourceRegistry },
 ): Promise<JsonResponse> {
-  const raw = requestUrl.searchParams.get("walletAddress");
-  const walletAddressUrl = raw ? normalizeWalletAddressUrl(raw) : undefined;
-  if (!walletAddressUrl) {
-    return { status: 400, body: { error: "INVALID_WALLET_ADDRESS", message: "walletAddress must be a wallet address URL" } };
+  const raw = requestUrl.searchParams.get("paypalMerchantId");
+  const paypalMerchantId = raw ? normalizePayPalAccountId(raw) : undefined;
+  if (!paypalMerchantId) {
+    return {
+      status: 400,
+      body: { error: "INVALID_PAYPAL_MERCHANT_ID", message: "paypalMerchantId must be a PayPal merchant id" },
+    };
   }
 
-  return { status: 200, body: await merchantCategoryView(walletAddressUrl, deps) };
+  return { status: 200, body: await merchantCategoryView(paypalMerchantId, deps) };
 }
 
 /**
@@ -85,10 +88,10 @@ export async function handleGetMerchantCategories(
  * policy decision. Never subject refs, entry ids or raw identifiers.
  */
 export async function merchantCategoryView(
-  walletAddressUrl: string,
+  paypalMerchantId: string,
   deps: { registry: MerchantRegistry; sources: CategorySourceRegistry },
 ): Promise<Record<string, unknown>> {
-  const resolution = await deps.registry.resolve(walletAddressUrl);
+  const resolution = await deps.registry.resolve(paypalMerchantId);
   const simulatedSources = new Set<string>();
   for (const sourceId of new Set(resolution.categories.flatMap((category) => category.sourceIds))) {
     if ((await deps.sources.getById(sourceId))?.simulated) simulatedSources.add(sourceId);
@@ -103,7 +106,7 @@ export async function merchantCategoryView(
 
   return {
     ...(simulatedSources.size > 0 ? { dataLabel: "demo/test data" } : {}),
-    walletAddressUrl: resolution.walletAddressUrl,
+    paypalMerchantId: resolution.paypalMerchantId,
     categories,
     declarations: resolution.declarations.map(({ category, corroboration }) => ({ category, corroboration })),
     conflicts: resolution.conflicts.map((conflict) => ({ categories: conflict.categories })),

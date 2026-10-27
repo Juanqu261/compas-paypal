@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { AuditEvent } from "../domain/audit.ts";
 import type {
   Mandate,
   MandateStatus,
@@ -9,10 +8,8 @@ import type {
 import { COMPAS_CATEGORIES, type CompasCategory, isCompasCategory } from "../domain/merchant-category.ts";
 import type { MoneyAmount } from "../domain/money.ts";
 import { ACCEPTABLE_CONFIDENCE_LEVELS, type AcceptableConfidence } from "../domain/trust-matrix.ts";
-import { NotImplementedError } from "../lib/not-implemented.ts";
 import type { AuditRepository } from "../ports/audit-repository.ts";
 import type { MandateRepository } from "../ports/mandate-repository.ts";
-import type { OpenPaymentsGateway } from "../ports/open-payments-gateway.ts";
 import type { DirectoryParty, PartyDirectory } from "../ports/party-directory.ts";
 import type { SpendingLog } from "../ports/spending-log.ts";
 import { buildMandateActivity, type MandateActivity } from "./mandate-activity.ts";
@@ -23,7 +20,7 @@ import { buildMandateActivity, type MandateActivity } from "./mandate-activity.t
 
 /** A demo budget never authorizes more than this many whole units of its asset. */
 export const MAX_BUDGET_WHOLE_UNITS = 10_000n;
-/** Wallet asset scales above this are refused as malformed. */
+/** Asset scales above this are refused as malformed. */
 export const MAX_ASSET_SCALE = 9;
 /** A budget's validity window is at most a year. Recurring budgets are not supported. */
 export const MAX_VALIDITY_MS = 366 * 24 * 60 * 60 * 1000;
@@ -232,60 +229,27 @@ export function parseCreateMandateRequest(
 }
 
 // ---------------------------------------------------------------------------
-// Authorization state: read from the grant store and the audit log
+// Authorization state: read from the audit log
 // ---------------------------------------------------------------------------
 
 /**
- * Where the payer's consent stands. COMPAS keeps no second copy of it: it is
- * read from the gateway's GrantStore (the grant itself, `compas.payer_grants`
- * with a database) and from the mandate's audit events.
+ * Whether the payer confirmed the budget. On PayPal, confirming asks nothing
+ * of PayPal: the payer approves each purchase's order at PayPal instead, so
+ * no standing permission to charge the payer's account exists anywhere.
  */
 export type ConsentState =
-  /** COMPAS never asked the payer's wallet for a grant. */
+  /** The payer has not confirmed the budget. It authorizes nothing yet. */
   | "NOT_STARTED"
-  /** A grant was requested. The payer has not finished consent, or the request was lost. */
-  | "WAITING_FOR_PAYER"
-  /** The finish callback verified the consent and the grant is, or was, active. */
+  /** The payer confirmed the budget. Each purchase still needs their PayPal approval. */
   | "GRANTED";
 
-export type GrantCancellationState =
-  /** No grant was ever requested, so nothing to cancel at the provider. */
-  | "NOT_NEEDED"
-  /** COMPAS already blocks the mandate. The grant still exists: the provider has not confirmed the cancellation. */
-  | "PENDING"
-  /** The grant is gone: cancelled at the provider, or it never finished. */
-  | "DONE";
-
-/** Mandate lifecycle events in the audit log. Payloads hold codes only, never a token. */
+/** Mandate lifecycle events in the audit log. Payloads hold codes only. */
 export const MANDATE_EVENTS = {
   created: "MANDATE_CREATED",
-  authorizationStarted: "MANDATE_AUTHORIZATION_STARTED",
-  authorizationFailed: "MANDATE_AUTHORIZATION_FAILED",
   activated: "MANDATE_ACTIVATED",
   revoked: "MANDATE_REVOKED",
   expired: "MANDATE_EXPIRED",
-  grantCancelled: "PAYER_GRANT_CANCELLED",
-  grantCancelFailed: "PAYER_GRANT_CANCEL_FAILED",
 } as const;
-
-/** The only thing the service reads from a stored grant. GrantStore satisfies it; tokens are never touched. */
-export type PayerGrantStateReader = {
-  get(grantKey: string): Promise<{ state: "PENDING" | "ACTIVE" } | undefined>;
-};
-
-type AuthorizationState = {
-  consent: ConsentState;
-  grantState?: "PENDING" | "ACTIVE";
-  grantCancellation?: GrantCancellationState;
-  lastError?: { operation: "AUTHORIZE" | "CANCEL"; code: string };
-};
-
-function lastOf(events: readonly AuditEvent[], types: readonly string[]): AuditEvent | undefined {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    if (types.includes(events[index].type)) return events[index];
-  }
-  return undefined;
-}
 
 // ---------------------------------------------------------------------------
 // Views
@@ -295,15 +259,13 @@ export type PartyView = { id: string; displayName: string };
 
 export type MandateAuthorizationView = {
   consent: ConsentState;
-  grantCancellation?: GrantCancellationState;
-  lastError?: { operation: "AUTHORIZE" | "CANCEL"; code: string };
   canAuthorize: boolean;
   canRevoke: boolean;
 };
 
 /**
- * One mandate for the person looking at it. No wallet address, grant, token
- * or Open Payments payload is in here. `authorization` is for the payer only.
+ * One mandate for the person looking at it. No PayPal account id, order id
+ * or token is in here. `authorization` is for the payer only.
  */
 export type MandateView = {
   id: string;
@@ -329,10 +291,6 @@ export type MandateView = {
   authorization?: MandateAuthorizationView;
 };
 
-export type PayerWalletView =
-  | { status: "RESOLVED"; assetCode: string; assetScale: number }
-  | { status: "NOT_CONFIGURED" | "OPEN_PAYMENTS_NOT_CONFIGURED" | "UNAVAILABLE" };
-
 // ---------------------------------------------------------------------------
 // Results
 // ---------------------------------------------------------------------------
@@ -342,36 +300,19 @@ export type MandateErrorCode =
   | "NOT_FOUND"
   | "NOT_THE_PAYER"
   | "NOT_THE_DELEGATE"
-  | "INVALID_STATE"
-  | "PAYER_WALLET_NOT_CONFIGURED"
-  | "OPEN_PAYMENTS_NOT_CONFIGURED"
-  | "PAYER_GRANTS_DISABLED_FOR_DEMO"
-  | "ASSET_MISMATCH"
-  | "AUTHORIZATION_FAILED";
+  | "INVALID_STATE";
 
 export type MandateFailure = {
   ok: false;
   code: MandateErrorCode;
   message: string;
   fieldErrors?: readonly FieldError[];
-  /** The gateway's error code, when the provider refused. Never a token or a payload. */
-  providerCode?: string;
 };
 
 export type MandateResult<T> = ({ ok: true } & T) | MandateFailure;
 
 function failure(code: MandateErrorCode, message: string, extra: Partial<MandateFailure> = {}): MandateFailure {
   return { ok: false, code, message, ...extra };
-}
-
-/**
- * Gateway errors carry a `code`. A gateway that is not configured throws
- * NotImplementedError. Nothing here reads a message for a token.
- */
-function gatewayErrorCode(error: unknown): string {
-  if (error instanceof NotImplementedError) return "NOT_CONFIGURED";
-  const code = (error as { code?: unknown } | null)?.code;
-  return typeof code === "string" && /^[A-Z_]{2,40}$/.test(code) ? code : "UPSTREAM";
 }
 
 // ---------------------------------------------------------------------------
@@ -382,30 +323,26 @@ export type MandateServiceDeps = {
   /** PostgresMandateRepository with DATABASE_URL, InMemoryMandateRepository without. */
   mandates: MandateRepository;
   parties: PartyDirectory;
-  payments: Pick<
-    OpenPaymentsGateway,
-    "resolveWallet" | "startPayerGrant" | "cancelPayerGrant" | "readGrantSpentAmounts"
-  >;
-  /** The same GrantStore instance the gateway writes. Only `state` is read. */
-  grants: PayerGrantStateReader;
   /** The mandate's lifecycle events. PostgresAuditRepository with DATABASE_URL. */
   audit: AuditRepository;
   spending: Pick<SpendingLog, "listByMandate">;
   /**
-   * Whether this caller may ask a payer's wallet for a grant. The server sets
-   * it to false for demo sessions against a configured Open Payments client,
-   * unless the operator opted in on the test network.
+   * Whether the payment rail takes a budget's asset. A budget in an asset
+   * PayPal can't charge, such as COP, could never pay anything. Without it,
+   * any well-formed asset is accepted.
    */
-  payerGrants?: { allowed: true } | { allowed: false; reason: string };
+  acceptsAsset?: (asset: Pick<MoneyAmount, "assetCode" | "assetScale">) => boolean;
+  /** Reconciles the mandate's open PayPal orders before its activity is read. */
+  settlement?: { refresh(mandateId: string): Promise<void> };
   now?: () => Date;
   newId?: () => string;
   logWarning?: (message: string) => void;
 };
 
-/** Statuses a delegate sees. Before the payer consents there is no permission to show. */
+/** Statuses a delegate sees. Before the payer confirms there is no permission to show. */
 const DELEGATE_VISIBLE: readonly MandateStatus[] = ["ACTIVE", "EXHAUSTED", "EXPIRED", "REVOKED"];
 /** Every status a mandate can be revoked from. */
-const REVOCABLE: readonly MandateStatus[] = ["DRAFT", "PENDING_AUTHORIZATION", "ACTIVE", "EXHAUSTED", "EXPIRED"];
+const REVOCABLE: readonly MandateStatus[] = ["DRAFT", "ACTIVE", "EXHAUSTED", "EXPIRED"];
 
 /**
  * Creating, authorizing, reading and revoking mandates. Access depends on the
@@ -435,19 +372,6 @@ export class MandateService {
       ...(actorId ? { actorId } : {}),
       payload,
     });
-  }
-
-  async payerWallet(actor: Actor): Promise<PayerWalletView> {
-    const party = await this.#deps.parties.getById(actor.partyId);
-    if (!party?.walletAddressUrl) return { status: "NOT_CONFIGURED" };
-    try {
-      const wallet = await this.#deps.payments.resolveWallet(party.walletAddressUrl);
-      return { status: "RESOLVED", assetCode: wallet.assetCode, assetScale: wallet.assetScale };
-    } catch (error) {
-      return gatewayErrorCode(error) === "NOT_CONFIGURED"
-        ? { status: "OPEN_PAYMENTS_NOT_CONFIGURED" }
-        : { status: "UNAVAILABLE" };
-    }
   }
 
   async self(actor: Actor): Promise<PartyView | undefined> {
@@ -483,17 +407,11 @@ export class MandateService {
       fieldErrors.push({ field: "delegateId", code: "SELF_DELEGATION", message: "the payer cannot be the delegate" });
     }
     if (!beneficiary) fieldErrors.push({ field: "beneficiaryId", code: "UNKNOWN_PARTY", message: "not a known party" });
-
-    // When the payer's wallet can be read, the budget must use its asset.
-    const wallet = await this.payerWallet(actor);
-    if (
-      wallet.status === "RESOLVED" &&
-      (wallet.assetCode !== input.budget.assetCode || wallet.assetScale !== input.budget.assetScale)
-    ) {
+    if (this.#deps.acceptsAsset && !this.#deps.acceptsAsset(input.budget)) {
       fieldErrors.push({
         field: "budget.assetCode",
-        code: "ASSET_MISMATCH",
-        message: `the payer wallet uses ${wallet.assetCode} with scale ${wallet.assetScale}`,
+        code: "ASSET_NOT_SUPPORTED",
+        message: `PayPal does not take ${input.budget.assetCode} with scale ${input.budget.assetScale}`,
       });
     }
     if (fieldErrors.length > 0 || !delegate || !beneficiary) {
@@ -523,7 +441,7 @@ export class MandateService {
     // The only full write of a mandate: it is new, so no reservation exists yet.
     await this.#deps.mandates.save(mandate);
     await this.#record(id, MANDATE_EVENTS.created, actor.partyId);
-    return { ok: true, mandate: this.#view(mandate, "PAYER", { consent: "NOT_STARTED" }) };
+    return { ok: true, mandate: this.#view(mandate, "PAYER", "NOT_STARTED") };
   }
 
   async list(actor: Actor, role: ViewerRole): Promise<readonly MandateView[]> {
@@ -535,7 +453,7 @@ export class MandateService {
     for (const stored of mandates) {
       const mandate = await this.#refresh(stored);
       if (role === "DELEGATE" && !DELEGATE_VISIBLE.includes(displayStatus(mandate))) continue;
-      views.push(this.#view(mandate, role, await this.#authorization(mandate)));
+      views.push(this.#view(mandate, role, await this.#consent(mandate)));
     }
     return views;
   }
@@ -543,103 +461,30 @@ export class MandateService {
   async get(actor: Actor, id: string): Promise<MandateResult<{ mandate: MandateView }>> {
     const access = await this.#access(actor, id);
     if (!access.ok) return access;
-    return { ok: true, mandate: this.#view(access.mandate, access.role, await this.#authorization(access.mandate)) };
+    return { ok: true, mandate: this.#view(access.mandate, access.role, await this.#consent(access.mandate)) };
   }
 
   /**
-   * Asks the payer's wallet for an outgoing-payment grant capped at the budget.
-   * The mandate becomes PENDING_AUTHORIZATION. It becomes ACTIVE only after
-   * the finish callback verified the consent and the stored grant is ACTIVE.
+   * The payer confirms the budget, and it becomes ACTIVE. Nothing is asked of
+   * PayPal and no money moves: each allowed purchase creates a PayPal order
+   * for that exact cart, which the payer approves at PayPal.
    */
-  async startAuthorization(
-    actor: Actor,
-    id: string,
-  ): Promise<MandateResult<{ mandate: MandateView; redirectUrl: string }>> {
+  async authorize(actor: Actor, id: string): Promise<MandateResult<{ mandate: MandateView }>> {
     const access = await this.#access(actor, id);
     if (!access.ok) return access;
     if (access.role !== "PAYER") return failure("NOT_THE_PAYER", "Only the payer can authorize this budget.");
-    const { mandate } = access;
-    if (mandate.status !== "DRAFT" && mandate.status !== "PENDING_AUTHORIZATION") {
-      return failure("INVALID_STATE", `A ${mandate.status} budget cannot be authorized.`);
+    if (access.mandate.status !== "DRAFT") {
+      return failure("INVALID_STATE", `A ${access.mandate.status} budget cannot be authorized.`);
     }
-    const policy = this.#deps.payerGrants ?? { allowed: true };
-    if (!policy.allowed) {
-      return failure("PAYER_GRANTS_DISABLED_FOR_DEMO", policy.reason);
-    }
-
-    const payer = await this.#deps.parties.getById(mandate.payer.id);
-    if (!payer?.walletAddressUrl) {
-      return failure("PAYER_WALLET_NOT_CONFIGURED", "The payer has no Open Payments wallet configured.");
-    }
-
-    let redirectUrl: string;
-    try {
-      ({ redirectUrl } = await this.#deps.payments.startPayerGrant({
-        grantKey: mandate.id,
-        payerWalletAddressUrl: payer.walletAddressUrl,
-        debitLimit: mandate.budget,
-      }));
-    } catch (error) {
-      const code = gatewayErrorCode(error);
-      await this.#record(id, MANDATE_EVENTS.authorizationFailed, actor.partyId, { code });
-      if (code === "NOT_CONFIGURED") {
-        return failure("OPEN_PAYMENTS_NOT_CONFIGURED", "Open Payments is not configured in this environment.");
-      }
-      if (code === "ASSET_MISMATCH") {
-        return failure("ASSET_MISMATCH", "The budget does not use the payer wallet's asset.", { providerCode: code });
-      }
-      return failure("AUTHORIZATION_FAILED", "The payer's wallet did not start the authorization.", { providerCode: code });
-    }
-
-    const pending =
-      (await this.#deps.mandates.transitionStatus(id, ["DRAFT", "PENDING_AUTHORIZATION"], "PENDING_AUTHORIZATION")) ??
-      (await this.#deps.mandates.getById(id)) ??
-      mandate;
-    await this.#record(id, MANDATE_EVENTS.authorizationStarted, actor.partyId);
-    return { ok: true, mandate: this.#view(pending, "PAYER", await this.#authorization(pending)), redirectUrl };
+    const activated = await this.#deps.mandates.transitionStatus(id, ["DRAFT"], "ACTIVE");
+    if (!activated) return failure("INVALID_STATE", "The budget changed while it was being authorized.");
+    await this.#record(id, MANDATE_EVENTS.activated, actor.partyId);
+    return { ok: true, mandate: this.#view(activated, "PAYER", "GRANTED") };
   }
 
   /**
-   * Called by the finish callback only after `finishPayerGrant` verified the
-   * interaction hash and the auth server issued an access token. It checks
-   * the stored grant again before activating. `payerAuthorization=granted` in
-   * a URL never reaches here on its own.
-   */
-  async completeAuthorization(grantKey: string): Promise<"ACTIVATED" | "CANCELLED_AFTER_REVOKE" | "IGNORED"> {
-    const stored = await this.#deps.mandates.getById(grantKey);
-    if (!stored) {
-      this.#deps.logWarning?.(`Grant finished for unknown mandate ${grantKey}.`);
-      return "IGNORED";
-    }
-    const grant = await this.#deps.grants.get(grantKey);
-    if (grant?.state !== "ACTIVE") {
-      this.#deps.logWarning?.(`Grant for mandate ${grantKey} is not ACTIVE in the grant store. Status unchanged.`);
-      return "IGNORED";
-    }
-    // With the stored grant ACTIVE, #refresh moves PENDING_AUTHORIZATION to ACTIVE
-    // in one conditional update and records the activation once.
-    const mandate = await this.#refresh(stored);
-
-    if (mandate.status === "REVOKED") {
-      // Revoked while the payer was consenting: the new grant must not stay usable.
-      await this.#cancelGrant(mandate.id);
-      return "CANCELLED_AFTER_REVOKE";
-    }
-    if (stored.status === "PENDING_AUTHORIZATION" && mandate.status === "ACTIVE") return "ACTIVATED";
-    if (mandate.status !== "PENDING_AUTHORIZATION") {
-      this.#deps.logWarning?.(`Grant finished for mandate ${grantKey} in status ${mandate.status}. Status unchanged.`);
-      return "IGNORED";
-    }
-    const activated = await this.#deps.mandates.transitionStatus(grantKey, ["PENDING_AUTHORIZATION"], "ACTIVE");
-    if (!activated) return "IGNORED";
-    await this.#record(grantKey, MANDATE_EVENTS.activated);
-    return "ACTIVATED";
-  }
-
-  /**
-   * Blocks the mandate in COMPAS first, then cancels the grant at the payer's
-   * wallet. If the provider can't be reached, the mandate stays REVOKED and
-   * the grant stays stored: the cancellation is PENDING. Revoking again retries it.
+   * Blocks the mandate. An order still waiting for the payer can't be paid
+   * afterwards: the settlement checks the mandate again before every capture.
    */
   async revoke(
     actor: Actor,
@@ -655,14 +500,13 @@ export class MandateService {
       mandate = (await this.#deps.mandates.transitionStatus(id, REVOCABLE, "REVOKED")) ?? (await this.#deps.mandates.getById(id)) ?? mandate;
       await this.#record(id, MANDATE_EVENTS.revoked, actor.partyId);
     }
-    if (await this.#deps.grants.get(id)) await this.#cancelGrant(id);
-    return { ok: true, mandate: this.#view(mandate, "PAYER", await this.#authorization(mandate)), alreadyRevoked };
+    return { ok: true, mandate: this.#view(mandate, "PAYER", await this.#consent(mandate)), alreadyRevoked };
   }
 
   /**
    * The mandate a delegate wants to spend under, for the purchase flow. Same
    * visibility as a read: a stranger gets NOT_FOUND and a delegate sees nothing
-   * before consent. The payer may read the mandate but never spend under it.
+   * before the payer confirms. The payer may read the mandate but never spend under it.
    * The purchase policy still checks status, validity and delegate itself.
    */
   async forDelegatePurchase(actor: Actor, id: string): Promise<MandateResult<{ mandate: Mandate }>> {
@@ -674,76 +518,45 @@ export class MandateService {
     return { ok: true, mandate: access.mandate };
   }
 
-  async activity(
-    actor: Actor,
-    id: string,
-  ): Promise<MandateResult<{ activity: MandateActivity; providerSpent?: MoneyAmount; providerSpentAvailable: boolean }>> {
+  /**
+   * The mandate's attempts. Open PayPal orders are reconciled first, so an
+   * order the payer approved, cancelled or let expire shows as such. Only the
+   * payer's view carries the links that approve an order at PayPal.
+   */
+  async activity(actor: Actor, id: string): Promise<MandateResult<{ activity: MandateActivity }>> {
     const access = await this.#access(actor, id);
     if (!access.ok) return access;
-    const records = await this.#deps.spending.listByMandate(id);
-    const activity = buildMandateActivity(access.mandate, records);
-
-    // The provider's own figure for what the grant has debited, for the payer.
-    let providerSpent: MoneyAmount | undefined;
-    let providerSpentAvailable = false;
-    if (access.role === "PAYER" && (await this.#deps.grants.get(id))?.state === "ACTIVE") {
+    if (this.#deps.settlement) {
       try {
-        const spent = await this.#deps.payments.readGrantSpentAmounts(id);
-        providerSpentAvailable = true;
-        if (spent.spentDebitAmount) providerSpent = spent.spentDebitAmount;
+        await this.#deps.settlement.refresh(id);
       } catch (error) {
-        this.#deps.logWarning?.(`Grant spent amounts unavailable for ${id}: ${gatewayErrorCode(error)}`);
+        this.#deps.logWarning?.(`PayPal orders of ${id} not reconciled: ${error instanceof Error ? error.name : "error"}`);
       }
     }
-    return { ok: true, activity, ...(providerSpent ? { providerSpent } : {}), providerSpentAvailable };
+    // Reconciling can give capacity back, so the mandate is read again.
+    const mandate = await this.#refresh((await this.#deps.mandates.getById(id)) ?? access.mandate);
+    const records = await this.#deps.spending.listByMandate(id);
+    const view = this.#view(mandate, access.role, "GRANTED");
+    return {
+      ok: true,
+      activity: buildMandateActivity(mandate, records, {
+        approvalLinks: access.role === "PAYER",
+        mandateUsable: view.usable,
+      }),
+    };
   }
 
   // -------------------------------------------------------------------------
 
-  async #cancelGrant(id: string): Promise<void> {
-    try {
-      await this.#deps.payments.cancelPayerGrant(id);
-      await this.#record(id, MANDATE_EVENTS.grantCancelled);
-    } catch (error) {
-      const code = gatewayErrorCode(error);
-      this.#deps.logWarning?.(`Grant cancellation pending for ${id}: ${code}`);
-      await this.#record(id, MANDATE_EVENTS.grantCancelFailed, undefined, { code });
-    }
-  }
-
-  /** Reads consent from the stored grant, then the audit log. Nothing here is a second copy of the grant. */
-  async #authorization(mandate: Mandate): Promise<AuthorizationState> {
-    const grant = await this.#deps.grants.get(mandate.id);
+  /** Read from the audit log. COMPAS keeps no other copy of the payer's confirmation. */
+  async #consent(mandate: Mandate): Promise<ConsentState> {
     const events = await this.#deps.audit.listByMandate(mandate.id);
-    const has = (type: string) => events.some((event) => event.type === type);
-
-    let consent: ConsentState = "NOT_STARTED";
-    if (grant?.state === "ACTIVE" || has(MANDATE_EVENTS.activated)) consent = "GRANTED";
-    else if (grant?.state === "PENDING" || has(MANDATE_EVENTS.authorizationStarted)) consent = "WAITING_FOR_PAYER";
-
-    const state: AuthorizationState = { consent, ...(grant ? { grantState: grant.state } : {}) };
-    if (mandate.status === "REVOKED") {
-      state.grantCancellation = grant ? "PENDING" : has(MANDATE_EVENTS.authorizationStarted) ? "DONE" : "NOT_NEEDED";
-      const cancel = lastOf(events, [MANDATE_EVENTS.grantCancelled, MANDATE_EVENTS.grantCancelFailed]);
-      if (grant && cancel?.type === MANDATE_EVENTS.grantCancelFailed) {
-        state.lastError = { operation: "CANCEL", code: cancel.payload.code ?? "UPSTREAM" };
-      }
-    } else {
-      const authorize = lastOf(events, [
-        MANDATE_EVENTS.authorizationStarted,
-        MANDATE_EVENTS.authorizationFailed,
-        MANDATE_EVENTS.activated,
-      ]);
-      if (authorize?.type === MANDATE_EVENTS.authorizationFailed) {
-        state.lastError = { operation: "AUTHORIZE", code: authorize.payload.code ?? "UPSTREAM" };
-      }
-    }
-    return state;
+    return events.some((event) => event.type === MANDATE_EVENTS.activated) ? "GRANTED" : "NOT_STARTED";
   }
 
   /**
    * Who may see this mandate, and as what. A stranger gets NOT_FOUND, so the
-   * mandate's existence is not revealed. A delegate sees nothing before consent.
+   * mandate's existence is not revealed. A delegate sees nothing before the payer confirms.
    */
   async #access(
     actor: Actor,
@@ -759,12 +572,7 @@ export class MandateService {
     return failure("NOT_FOUND", "No such budget.");
   }
 
-  /**
-   * Applies what time and the grant store say, each as a conditional status
-   * change: EXPIRED after `expiresAt`, and ACTIVE when a mandate is still
-   * waiting but its stored grant is ACTIVE (the finish callback succeeded at
-   * the provider, but its activation did not run).
-   */
+  /** Applies what time says, as a conditional status change: EXPIRED after `expiresAt`. */
   async #refresh(mandate: Mandate): Promise<Mandate> {
     const now = this.#now().getTime();
     if (mandate.status !== "REVOKED" && mandate.status !== "EXPIRED" && now >= new Date(mandate.expiresAt).getTime()) {
@@ -772,17 +580,10 @@ export class MandateService {
       if (expired) await this.#record(mandate.id, MANDATE_EVENTS.expired);
       return expired ?? (await this.#deps.mandates.getById(mandate.id)) ?? mandate;
     }
-    if (mandate.status === "PENDING_AUTHORIZATION" && (await this.#deps.grants.get(mandate.id))?.state === "ACTIVE") {
-      const activated = await this.#deps.mandates.transitionStatus(mandate.id, ["PENDING_AUTHORIZATION"], "ACTIVE");
-      if (activated) {
-        await this.#record(mandate.id, MANDATE_EVENTS.activated);
-        return activated;
-      }
-    }
     return mandate;
   }
 
-  #view(mandate: Mandate, role: ViewerRole, state: AuthorizationState): MandateView {
+  #view(mandate: Mandate, role: ViewerRole, consent: ConsentState): MandateView {
     const now = this.#now().getTime();
     const status = displayStatus(mandate);
     const party = (p: DirectoryParty | Mandate["payer"]): PartyView => ({ id: p.id, displayName: p.displayName });
@@ -810,11 +611,9 @@ export class MandateService {
     };
     if (role === "PAYER") {
       view.authorization = {
-        consent: state.consent,
-        ...(state.grantCancellation ? { grantCancellation: state.grantCancellation } : {}),
-        ...(state.lastError ? { lastError: state.lastError } : {}),
-        canAuthorize: mandate.status === "DRAFT" || mandate.status === "PENDING_AUTHORIZATION",
-        canRevoke: mandate.status !== "REVOKED" || state.grantCancellation === "PENDING",
+        consent,
+        canAuthorize: mandate.status === "DRAFT",
+        canRevoke: mandate.status !== "REVOKED",
       };
     }
     return view;
@@ -823,8 +622,8 @@ export class MandateService {
 
 /**
  * EXHAUSTED is shown, not stored: an ACTIVE mandate with no capacity left.
- * Keeping ACTIVE in storage means a reservation released after a failed
- * payment is usable again, and a purchase still can't reserve from zero.
+ * Keeping ACTIVE in storage means a reservation released after an unpaid
+ * order is usable again, and a purchase still can't reserve from zero.
  */
 export function displayStatus(mandate: Mandate): MandateStatus {
   return mandate.status === "ACTIVE" && /^0+$/.test(mandate.remainingAuthorizedAmount.value) ? "EXHAUSTED" : mandate.status;

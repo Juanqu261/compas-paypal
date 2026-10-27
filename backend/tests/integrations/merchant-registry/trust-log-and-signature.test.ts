@@ -14,7 +14,7 @@ function flag(id: string, submissionId: string): TrustLogEntry {
     submissionId,
     bodyDigest: "d",
     recordedAt: "2026-10-16T12:00:00Z",
-    walletAddressUrl: "https://wallet.example/a",
+    paypalMerchantId: "TESTMERCHANTA",
     category: "MEDICATION",
     note: "test",
   };
@@ -34,7 +34,7 @@ test("a repeated (source, submission) appends nothing", async () => {
   assert.equal(first.duplicate, false);
   assert.equal(second.duplicate, true);
   assert.equal(second.entry.id, "e1");
-  assert.equal((await log.listByWalletAddress("https://wallet.example/a")).length, 1);
+  assert.equal((await log.listByPayPalMerchant("TESTMERCHANTA")).length, 1);
 });
 
 test("stored entries are frozen copies", async () => {

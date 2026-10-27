@@ -68,8 +68,8 @@ function evidenceAllowed(source: CategorySource, submission: ParsedSubmission): 
     if (submission.declaredCategories.length > 0 && source.kind !== "MERCHANT") {
       return "only a MERCHANT source may self-declare categories";
     }
-    if (source.kind === "MERCHANT" && submission.subject.kind !== "WALLET_ADDRESS") {
-      return "a MERCHANT source may only make claims about a wallet address";
+    if (source.kind === "MERCHANT" && submission.subject.kind !== "PAYPAL_MERCHANT") {
+      return "a MERCHANT source may only make claims about its PayPal merchant id";
     }
   }
   if (submission.type === "LICENSE_CLAIM" && !source.allowedLicenses.includes(submission.licenseType)) {
@@ -88,7 +88,7 @@ class IdentifierError extends Error {
 }
 
 function toSubject(raw: RawSubject, subjectRef: (nit: string) => string): MerchantSubject {
-  if (raw.kind === "WALLET_ADDRESS") return raw;
+  if (raw.kind === "PAYPAL_MERCHANT") return raw;
   return { kind: "TAX_ID", subjectRef: taxIdRef(raw.taxId, subjectRef) };
 }
 
@@ -199,7 +199,7 @@ async function buildEntry(
       return {
         ...base,
         type: "IDENTITY_BINDING",
-        walletAddressUrl: submission.walletAddressUrl,
+        paypalMerchantId: submission.paypalMerchantId,
         subject: { kind: "TAX_ID", subjectRef: taxIdRef(submission.taxId, deps.subjectRef) },
         observedAt: submission.observedAt,
         ...(submission.validUntil ? { validUntil: submission.validUntil } : {}),
@@ -219,7 +219,7 @@ async function buildEntry(
       return {
         ...base,
         type: "FLAG",
-        walletAddressUrl: submission.walletAddressUrl,
+        paypalMerchantId: submission.paypalMerchantId,
         category: submission.category,
         note: submission.note,
       };

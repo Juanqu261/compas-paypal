@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  DemoIdentityProvider,
-  handleStartDemoSession,
-  readDemoIdentityMode,
-  readDemoPayerGrantsMode,
-} from "../../src/api/demo-identity.ts";
+import { DemoIdentityProvider, handleStartDemoSession, readDemoIdentityMode } from "../../src/api/demo-identity.ts";
 import { handleMandateRequest, isMandateApiPath, type RuntimeFacts } from "../../src/api/mandates.ts";
 import { StaticPartyDirectory } from "../../src/integrations/mandates/demo-party-directory.ts";
 import { ANDREA, medicationRequest, NOW, PEDRO, serviceKit, STRANGER } from "../application/mandate-test-kit.ts";
@@ -13,8 +8,8 @@ import { ANDREA, medicationRequest, NOW, PEDRO, serviceKit, STRANGER } from "../
 const FACTS: RuntimeFacts = {
   identity: "DEMO",
   persistence: "IN_MEMORY_DEMO",
-  openPayments: "configured",
-  payerGrants: "enabled",
+  paypal: "sandbox",
+  payerApproval: "PINNED",
   purchases: "disabled_for_demo",
 };
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
@@ -46,10 +41,10 @@ test("the full HTTP flow: create, authorize, list by role, revoke", async () => 
 
   const authorized = await call(kit, PEDRO, "POST", `/mandates/${mandate.id}/authorize`);
   assert.equal(authorized.status, 200);
-  assert.match(String(authorized.body.redirectUrl), /^https:\/\/auth\.test\//);
-
-  await kit.gateway.finishGrant(mandate.id);
-  await kit.service.completeAuthorization(mandate.id);
+  assert.equal((authorized.body.mandate as { status: string }).status, "ACTIVE");
+  assert.equal("redirectUrl" in authorized.body, false, "authorizing sends Pedro nowhere: he approves each order at PayPal");
+  const again = await call(kit, PEDRO, "POST", `/mandates/${mandate.id}/authorize`);
+  assert.equal(again.status, 409);
 
   const payerList = await call(kit, PEDRO, "GET", "/mandates?role=payer");
   assert.equal((payerList.body.mandates as unknown[]).length, 1);
@@ -60,10 +55,11 @@ test("the full HTTP flow: create, authorize, list by role, revoke", async () => 
   assert.equal(forbidden.status, 403);
   const revoked = await call(kit, PEDRO, "POST", `/mandates/${mandate.id}/revoke`);
   assert.equal(revoked.status, 200);
-  assert.equal(revoked.body.grantCancellation, "DONE");
+  assert.equal(revoked.body.alreadyRevoked, false);
 
   const spending = await call(kit, PEDRO, "GET", `/mandates/${mandate.id}/spending`);
   assert.equal(spending.status, 200);
+  assert.deepEqual(Object.keys(spending.body), ["activity"]);
 });
 
 test("errors map to HTTP statuses without leaking detail", async () => {
@@ -79,19 +75,6 @@ test("errors map to HTTP statuses without leaking detail", async () => {
   assert.equal(badRole.status, 400);
 });
 
-test("a revocation whose provider cancellation is pending answers 202", async () => {
-  const { fakeGateway } = await import("../application/mandate-test-kit.ts");
-  const kit = serviceKit({ gateway: fakeGateway({ cancel: "upstream" }) });
-  const created = await call(kit, PEDRO, "POST", "/mandates", medicationRequest());
-  const id = (created.body.mandate as { id: string }).id;
-  await call(kit, PEDRO, "POST", `/mandates/${id}/authorize`);
-  await kit.gateway.finishGrant(id);
-  await kit.service.completeAuthorization(id);
-  const revoked = await call(kit, PEDRO, "POST", `/mandates/${id}/revoke`);
-  assert.equal(revoked.status, 202);
-  assert.equal(revoked.body.grantCancellation, "PENDING");
-});
-
 test("GET /me and /demo/participants describe the demo environment", async () => {
   const kit = serviceKit();
   const me = await call(kit, PEDRO, "GET", "/me");
@@ -99,8 +82,9 @@ test("GET /me and /demo/participants describe the demo environment", async () =>
   assert.deepEqual(me.body.party, { id: PEDRO.partyId, displayName: "Pedro" });
   assert.equal(me.body.identity, "DEMO");
   assert.equal(me.body.persistence, "IN_MEMORY_DEMO");
-  assert.deepEqual(me.body.payerWallet, { status: "RESOLVED", assetCode: "USD", assetScale: 2 });
-  assert.equal(JSON.stringify(me.body).includes("wallet.test"), false, "no wallet address");
+  assert.equal(me.body.paypal, "sandbox");
+  assert.equal(me.body.payerApproval, "PINNED");
+  assert.equal(JSON.stringify(me.body).includes("TESTPAYERPEDR"), false, "no PayPal account id");
 
   const participants = await call(kit, PEDRO, "GET", "/demo/participants");
   assert.equal(participants.body.dataLabel, "demo/test data");
@@ -153,45 +137,4 @@ test("demo identities are off in production and when disabled", () => {
   assert.deepEqual(readDemoIdentityMode({}), { enabled: true });
   assert.equal(readDemoIdentityMode({ NODE_ENV: "production" }).enabled, false);
   assert.equal(readDemoIdentityMode({ COMPAS_DEMO_IDENTITY: "disabled" }).enabled, false);
-});
-
-test("demo sessions reach a real wallet only when the operator opted in, on the test network", () => {
-  const testNetwork = {
-    CLIENT_WALLET_ADDRESS: "https://ilp.interledger-test.dev/compas",
-    DEMO_PAYER_WALLET_ADDRESS: "$ilp.interledger-test.dev/pedro",
-  };
-  assert.equal(readDemoPayerGrantsMode(testNetwork).enabled, false, "off by default");
-  assert.deepEqual(readDemoPayerGrantsMode({ ...testNetwork, COMPAS_DEMO_PAYER_GRANTS: "enabled" }), { enabled: true });
-  assert.equal(
-    readDemoPayerGrantsMode({ ...testNetwork, COMPAS_DEMO_PAYER_GRANTS: "enabled", NODE_ENV: "production" }).enabled,
-    false,
-    "never in production",
-  );
-  assert.equal(
-    readDemoPayerGrantsMode({
-      COMPAS_DEMO_PAYER_GRANTS: "enabled",
-      CLIENT_WALLET_ADDRESS: "https://wallet.example.com/compas",
-      DEMO_PAYER_WALLET_ADDRESS: testNetwork.DEMO_PAYER_WALLET_ADDRESS,
-    }).enabled,
-    false,
-    "not off the test network",
-  );
-  assert.equal(
-    readDemoPayerGrantsMode({
-      COMPAS_DEMO_PAYER_GRANTS: "enabled",
-      CLIENT_WALLET_ADDRESS: "https://ilp.interledger-test.dev.evil.example/compas",
-      DEMO_PAYER_WALLET_ADDRESS: testNetwork.DEMO_PAYER_WALLET_ADDRESS,
-    }).enabled,
-    false,
-    "a look-alike host is refused",
-  );
-});
-
-test("authorize answers 403 PAYER_GRANTS_DISABLED_FOR_DEMO when demo grants are off", async () => {
-  const kit = serviceKit({ payerGrants: { allowed: false, reason: "off" } });
-  const created = await call(kit, PEDRO, "POST", "/mandates", medicationRequest());
-  const id = (created.body.mandate as { id: string }).id;
-  const response = await call(kit, PEDRO, "POST", `/mandates/${id}/authorize`);
-  assert.equal(response.status, 403);
-  assert.equal(response.body.error, "PAYER_GRANTS_DISABLED_FOR_DEMO");
 });

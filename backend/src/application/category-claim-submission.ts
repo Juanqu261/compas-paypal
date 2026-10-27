@@ -8,7 +8,7 @@ import {
   LICENSE_TYPES,
   type LicenseType,
 } from "../domain/merchant-category.ts";
-import { normalizeWalletAddressUrl } from "../domain/merchant-identifiers.ts";
+import { normalizePayPalAccountId } from "../domain/merchant-identifiers.ts";
 
 /**
  * Parser for the push and pull submission shape in
@@ -26,7 +26,7 @@ const MAX_TEXT_LENGTH = 280;
 const MAX_CODES = 4;
 
 export type RawSubject =
-  | { kind: "WALLET_ADDRESS"; walletAddressUrl: string }
+  | { kind: "PAYPAL_MERCHANT"; paypalMerchantId: string }
   | { kind: "TAX_ID"; taxId: string };
 
 export type RawCode = { system: CategoryCodeSystem; code: string; role?: CategoryCodeRole };
@@ -53,13 +53,13 @@ export type ParsedSubmission =
     })
   | (Base & {
       type: "IDENTITY_BINDING";
-      walletAddressUrl: string;
+      paypalMerchantId: string;
       taxId: string;
       observedAt: string;
       validUntil?: string;
     })
   | (Base & { type: "REVOCATION"; revokesSubmissionId: string; reason: string })
-  | (Base & { type: "FLAG"; walletAddressUrl: string; category: CompasCategory; note: string });
+  | (Base & { type: "FLAG"; paypalMerchantId: string; category: CompasCategory; note: string });
 
 export type ParseResult =
   | { ok: true; submission: ParsedSubmission }
@@ -109,9 +109,9 @@ function timestamp(value: unknown, where: string): string {
   return new Date(value).toISOString();
 }
 
-function walletAddress(value: unknown, where: string): string {
-  const normalized = typeof value === "string" ? normalizeWalletAddressUrl(value) : undefined;
-  if (!normalized) fail(`${where} must be a wallet address URL`);
+function paypalMerchantId(value: unknown, where: string): string {
+  const normalized = typeof value === "string" ? normalizePayPalAccountId(value) : undefined;
+  if (!normalized) fail(`${where} must be a PayPal merchant id`);
   return normalized;
 }
 
@@ -122,15 +122,15 @@ function category(value: unknown, where: string): CompasCategory {
 
 function subject(value: unknown, where: string): RawSubject {
   if (!isRecord(value)) fail(`${where} must be an object`);
-  if (value.kind === "WALLET_ADDRESS") {
-    onlyKeys(value, ["kind", "walletAddressUrl"], where);
-    return { kind: "WALLET_ADDRESS", walletAddressUrl: walletAddress(value.walletAddressUrl, `${where}.walletAddressUrl`) };
+  if (value.kind === "PAYPAL_MERCHANT") {
+    onlyKeys(value, ["kind", "paypalMerchantId"], where);
+    return { kind: "PAYPAL_MERCHANT", paypalMerchantId: paypalMerchantId(value.paypalMerchantId, `${where}.paypalMerchantId`) };
   }
   if (value.kind === "TAX_ID") {
     onlyKeys(value, ["kind", "taxId"], where);
     return { kind: "TAX_ID", taxId: textField(value.taxId, `${where}.taxId`, 32) };
   }
-  fail(`${where}.kind must be WALLET_ADDRESS or TAX_ID`);
+  fail(`${where}.kind must be PAYPAL_MERCHANT or TAX_ID`);
 }
 
 function codes(value: unknown, where: string): RawCode[] {
@@ -224,13 +224,13 @@ function parseShape(value: unknown): ParsedSubmission {
       };
     }
     case "IDENTITY_BINDING": {
-      onlyKeys(value, [...common, "walletAddressUrl", "taxId", "observedAt", "validUntil"], "submission");
+      onlyKeys(value, [...common, "paypalMerchantId", "taxId", "observedAt", "validUntil"], "submission");
       const observedAt = timestamp(value.observedAt, "observedAt");
       const validUntil = validity(observedAt, value.validUntil);
       return {
         ...base,
         type: "IDENTITY_BINDING",
-        walletAddressUrl: walletAddress(value.walletAddressUrl, "walletAddressUrl"),
+        paypalMerchantId: paypalMerchantId(value.paypalMerchantId, "paypalMerchantId"),
         taxId: textField(value.taxId, "taxId", 32),
         observedAt,
         ...(validUntil ? { validUntil } : {}),
@@ -245,11 +245,11 @@ function parseShape(value: unknown): ParsedSubmission {
         reason: textField(value.reason, "reason", MAX_TEXT_LENGTH),
       };
     case "FLAG":
-      onlyKeys(value, [...common, "walletAddressUrl", "category", "note"], "submission");
+      onlyKeys(value, [...common, "paypalMerchantId", "category", "note"], "submission");
       return {
         ...base,
         type: "FLAG",
-        walletAddressUrl: walletAddress(value.walletAddressUrl, "walletAddressUrl"),
+        paypalMerchantId: paypalMerchantId(value.paypalMerchantId, "paypalMerchantId"),
         category: category(value.category, "category"),
         note: textField(value.note, "note", MAX_TEXT_LENGTH),
       };

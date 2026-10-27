@@ -16,7 +16,7 @@ import {
   TRUST_MATRIX,
 } from "../application/purchase-test-kit.ts";
 
-const WALLET = "https://wallet.example/m";
+const WALLET = "TESTMERCHANTM";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * DAY_MS).toISOString();
 
@@ -30,7 +30,7 @@ function withHistory(
 ): MerchantHistoryInput {
   return {
     matrix: TRUST_MATRIX,
-    summaries: merchant.declarations.map((declared) => summary(merchant.walletAddressUrl, declared.category, counts)),
+    summaries: merchant.declarations.map((declared) => summary(merchant.paypalMerchantId, declared.category, counts)),
   };
 }
 

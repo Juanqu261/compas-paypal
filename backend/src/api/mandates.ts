@@ -15,11 +15,6 @@ const STATUS_BY_ERROR: Record<MandateErrorCode, number> = {
   NOT_THE_PAYER: 403,
   NOT_THE_DELEGATE: 403,
   INVALID_STATE: 409,
-  PAYER_WALLET_NOT_CONFIGURED: 409,
-  ASSET_MISMATCH: 409,
-  OPEN_PAYMENTS_NOT_CONFIGURED: 503,
-  PAYER_GRANTS_DISABLED_FOR_DEMO: 403,
-  AUTHORIZATION_FAILED: 502,
 };
 
 /** Facts about this runtime that every screen should be able to show. */
@@ -27,10 +22,14 @@ export type RuntimeFacts = {
   identity: "DEMO";
   /** IN_MEMORY_DEMO: a restart loses every mandate. POSTGRES: DATABASE_URL, the compas schema. */
   persistence: "IN_MEMORY_DEMO" | "POSTGRES";
-  openPayments: "configured" | "not_configured";
-  /** Whether a demo session may ask a payer's wallet for a grant. */
-  payerGrants: "enabled" | "disabled_for_demo" | "not_configured";
-  /** Whether a demo session may spend a payer's grant through POST /purchases. */
+  /** Whether the PayPal app is configured. COMPAS only ever talks to the sandbox. */
+  paypal: "sandbox" | "not_configured";
+  /**
+   * PINNED: only the payer's own PayPal account (DEMO_PAYER_PAYPAL_ID) can
+   * approve an order COMPAS captures. ANY_ACCOUNT: whoever approves it pays.
+   */
+  payerApproval: "PINNED" | "ANY_ACCOUNT";
+  /** Whether a demo session may create PayPal orders through POST /purchases. */
   purchases: "enabled" | "disabled_for_demo" | "not_configured";
 };
 
@@ -50,7 +49,6 @@ function fail(result: MandateFailure): JsonResponse {
       error: result.code,
       message: result.message,
       ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
-      ...(result.providerCode ? { providerCode: result.providerCode } : {}),
     },
   };
 }
@@ -58,7 +56,8 @@ function fail(result: MandateFailure): JsonResponse {
 /**
  * Mandate routes for an authenticated actor. The actor comes from the
  * session, never from the body or the query. Bodies are parsed JSON or
- * undefined. The response never carries a wallet address, grant or token.
+ * undefined. The response never carries a PayPal account id or token. Only
+ * the payer's spending view carries the links that approve an order at PayPal.
  */
 export async function handleMandateRequest(
   request: { method: string; url: URL; body?: unknown },
@@ -71,7 +70,7 @@ export async function handleMandateRequest(
   if (url.pathname === ME_PATH && method === "GET") {
     const party = await service.self(actor);
     if (!party) return { status: 401, body: { error: "UNAUTHENTICATED" } };
-    return { status: 200, body: { party, payerWallet: await service.payerWallet(actor), ...facts } };
+    return { status: 200, body: { party, ...facts } };
   }
 
   if (url.pathname === PARTICIPANTS_PATH && method === "GET") {
@@ -108,36 +107,18 @@ export async function handleMandateRequest(
     return result.ok ? { status: 200, body: { mandate: result.mandate } } : fail(result);
   }
   if (action === "authorize" && method === "POST") {
-    const result = await service.startAuthorization(actor, id);
-    return result.ok
-      ? {
-          status: 200,
-          body: { mandateId: id, redirectUrl: result.redirectUrl, mandate: result.mandate },
-        }
-      : fail(result);
+    const result = await service.authorize(actor, id);
+    return result.ok ? { status: 200, body: { mandateId: id, mandate: result.mandate } } : fail(result);
   }
   if (action === "revoke" && method === "POST") {
     const result = await service.revoke(actor, id);
-    if (!result.ok) return fail(result);
-    const cancellation = result.mandate.authorization?.grantCancellation ?? "NOT_NEEDED";
-    // 202: COMPAS already blocks the budget, the provider has not confirmed the cancellation.
-    return {
-      status: cancellation === "PENDING" ? 202 : 200,
-      body: { mandate: result.mandate, alreadyRevoked: result.alreadyRevoked, grantCancellation: cancellation },
-    };
+    return result.ok
+      ? { status: 200, body: { mandate: result.mandate, alreadyRevoked: result.alreadyRevoked } }
+      : fail(result);
   }
   if (action === "spending" && method === "GET") {
     const result = await service.activity(actor, id);
-    return result.ok
-      ? {
-          status: 200,
-          body: {
-            activity: result.activity,
-            providerSpentAvailable: result.providerSpentAvailable,
-            ...(result.providerSpent ? { providerSpent: result.providerSpent } : {}),
-          },
-        }
-      : fail(result);
+    return result.ok ? { status: 200, body: { activity: result.activity } } : fail(result);
   }
   return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
 }

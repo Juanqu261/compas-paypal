@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Actor, PartyView } from "../application/mandates.ts";
+import { normalizePayPalAccountId } from "../domain/merchant-identifiers.ts";
 import type { PartyDirectory } from "../ports/party-directory.ts";
 import type { JsonResponse } from "./merchant-categories.ts";
 
@@ -12,8 +13,8 @@ import type { JsonResponse } from "./merchant-categories.ts";
  *
  * Anyone who can reach this backend can start a session as any demo party.
  * That is acceptable only because no money moves on a COMPAS session alone:
- * a budget becomes ACTIVE only after the payer consents at their own Open
- * Payments wallet, and the demo wallets are on the test network. It is never
+ * every payment is a PayPal order the payer approves while logged in to
+ * their own PayPal, and COMPAS talks only to the PayPal sandbox. It is never
  * enabled with NODE_ENV=production, and `COMPAS_DEMO_IDENTITY=disabled`
  * turns it off. Replace it with the host wallet's real authentication.
  */
@@ -35,73 +36,30 @@ export function readDemoIdentityMode(env: NodeJS.ProcessEnv = process.env): Demo
   return { enabled: true };
 }
 
-/** The Interledger test network. Wallets here hold test money only. */
-const TEST_NETWORK_HOST = "interledger-test.dev";
-
-function onTestNetwork(walletAddress: string | undefined): boolean {
-  const raw = walletAddress?.trim();
-  if (!raw) return false;
-  try {
-    const host = new URL(raw.startsWith("$") ? `https://${raw.slice(1)}` : raw).hostname;
-    return host === TEST_NETWORK_HOST || host.endsWith(`.${TEST_NETWORK_HOST}`);
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Whether a DEMO session may ask a payer's wallet for a real Open Payments
- * grant. Off by default: anyone can start a demo session as Pedro, so a demo
- * session alone must not reach a real wallet. The operator turns it on with
- * `COMPAS_DEMO_PAYER_GRANTS=enabled` for a supervised demo, and only when the
- * COMPAS client and Pedro's wallet are on the Interledger test network.
- * Never in production. The payer still consents at their own wallet.
- */
-export function readDemoPayerGrantsMode(env: NodeJS.ProcessEnv = process.env): DemoIdentityMode {
-  if (env.NODE_ENV?.trim() === "production") {
-    return { enabled: false, reason: "Demo sessions never ask a wallet for a grant in production." };
-  }
-  if (env.COMPAS_DEMO_PAYER_GRANTS?.trim().toLowerCase() !== "enabled") {
-    return {
-      enabled: false,
-      reason: "Demo sessions can't ask a real wallet for a grant. Set COMPAS_DEMO_PAYER_GRANTS=enabled for a supervised test-network demo.",
-    };
-  }
-  if (!onTestNetwork(env.CLIENT_WALLET_ADDRESS) || !onTestNetwork(env.DEMO_PAYER_WALLET_ADDRESS)) {
-    return {
-      enabled: false,
-      reason: `COMPAS_DEMO_PAYER_GRANTS needs CLIENT_WALLET_ADDRESS and DEMO_PAYER_WALLET_ADDRESS on ${TEST_NETWORK_HOST}.`,
-    };
-  }
-  return { enabled: true };
-}
-
-/**
- * Whether a DEMO session may spend a payer's grant through `POST /purchases`.
- * Off by default, for the same reason as payer grants: anyone can start a demo
- * session as Andrea, so a demo session alone must not move money. The operator
- * turns it on with `COMPAS_DEMO_PURCHASES=enabled` for a supervised demo, and
- * only when the COMPAS client, Pedro's wallet and the merchant's wallet are on
- * the Interledger test network. Never in production. The policy still decides.
+ * Whether a DEMO session may create PayPal orders through `POST /purchases`.
+ * Off by default: anyone can start a demo session as Andrea, so a demo
+ * session alone must not put orders in front of a real PayPal account. The
+ * operator turns it on with `COMPAS_DEMO_PURCHASES=enabled` for a supervised
+ * demo, which also needs the pharmacy's sandbox account in
+ * `DEMO_MERCHANT_PAYPAL_ID`. COMPAS talks to the PayPal sandbox only, and
+ * never in production. The policy still decides, and the payer still
+ * approves every order at PayPal.
  */
 export function readDemoPurchasesMode(env: NodeJS.ProcessEnv = process.env): DemoIdentityMode {
   if (env.NODE_ENV?.trim() === "production") {
-    return { enabled: false, reason: "Demo sessions never spend a payer's grant in production." };
+    return { enabled: false, reason: "Demo sessions never create PayPal orders in production." };
   }
   if (env.COMPAS_DEMO_PURCHASES?.trim().toLowerCase() !== "enabled") {
     return {
       enabled: false,
-      reason: "Demo sessions can't spend a payer's grant. Set COMPAS_DEMO_PURCHASES=enabled for a supervised test-network demo.",
+      reason: "Demo sessions can't create PayPal orders. Set COMPAS_DEMO_PURCHASES=enabled for a supervised sandbox demo.",
     };
   }
-  if (
-    !onTestNetwork(env.CLIENT_WALLET_ADDRESS) ||
-    !onTestNetwork(env.DEMO_PAYER_WALLET_ADDRESS) ||
-    !onTestNetwork(env.DEMO_MERCHANT_WALLET_ADDRESS)
-  ) {
+  if (!normalizePayPalAccountId(env.DEMO_MERCHANT_PAYPAL_ID ?? "")) {
     return {
       enabled: false,
-      reason: `COMPAS_DEMO_PURCHASES needs CLIENT_WALLET_ADDRESS, DEMO_PAYER_WALLET_ADDRESS and DEMO_MERCHANT_WALLET_ADDRESS on ${TEST_NETWORK_HOST}.`,
+      reason: "COMPAS_DEMO_PURCHASES needs DEMO_MERCHANT_PAYPAL_ID, the merchant id of the pharmacy's PayPal sandbox business account.",
     };
   }
   return { enabled: true };

@@ -5,7 +5,7 @@ import type { MerchantObservation, PurchaseVerdict } from "../../src/domain/merc
 import { gradeMerchantHistory, summarizeMerchantHistory } from "../../src/policy/merchant-history.ts";
 import { NOW, summary, TRUST_MATRIX } from "../application/purchase-test-kit.ts";
 
-const SHOP = "https://wallet.example/shop";
+const SHOP = "TESTSTALL2222";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * DAY_MS).toISOString();
 
@@ -27,7 +27,7 @@ function purchase(options: {
     type: "PAID",
     id: `${id}:paid`,
     spendingRecordId: id,
-    merchantWalletAddressUrl: shop,
+    paypalMerchantId: shop,
     payerRef: options.payer,
     delegateRef: `delegate-of-${options.payer}`,
     mandateCategories: options.mandate ?? ["MEDICATION"],
@@ -42,7 +42,7 @@ function purchase(options: {
       type: "PAYER_VERDICT",
       id: `${id}:verdict`,
       spendingRecordId: id,
-      merchantWalletAddressUrl: shop,
+      paypalMerchantId: shop,
       payerRef: options.verdictBy ?? options.payer,
       verdict: options.verdict,
       observedAt: daysAgo(options.daysAgo - 1),
@@ -52,7 +52,7 @@ function purchase(options: {
 }
 
 function summarize(observations: MerchantObservation[], category: CompasCategory = "MEDICATION") {
-  return summarizeMerchantHistory({ observations, walletAddressUrl: SHOP, category, asOf: NOW, matrix: TRUST_MATRIX });
+  return summarizeMerchantHistory({ observations, paypalMerchantId: SHOP, category, asOf: NOW, matrix: TRUST_MATRIX });
 }
 
 const grade = (observations: MerchantObservation[]) => gradeMerchantHistory(summarize(observations), TRUST_MATRIX);
@@ -100,7 +100,7 @@ test("purchases outside the window, after asOf, or at another shop are ignored",
     ...purchase({ payer: "old", daysAgo: 180, verdict: "MATCH" }),
     ...purchase({ payer: "inside", daysAgo: 179, verdict: "MATCH" }),
     ...purchase({ payer: "future", daysAgo: -2, verdict: "MATCH" }),
-    ...purchase({ payer: "elsewhere", daysAgo: 30, verdict: "MATCH", shop: "https://wallet.example/other" }),
+    ...purchase({ payer: "elsewhere", daysAgo: 30, verdict: "MATCH", shop: "TESTELSEWHERE" }),
   ];
   const result = summarize(observations);
   assert.deepEqual([result.paidPurchases, result.confirmingPayers], [1, 1]);

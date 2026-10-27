@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MANDATE_EVENTS } from "../../src/application/mandates.ts";
 import { InMemoryMandateRepository } from "../../src/integrations/mandates/in-memory-mandate-repository.ts";
-import { ANDREA, fakeGateway, medicationRequest, PEDRO, serviceKit } from "./mandate-test-kit.ts";
+import { ANDREA, medicationRequest, PEDRO, serviceKit } from "./mandate-test-kit.ts";
 import { mandate as fixtureMandate } from "./purchase-test-kit.ts";
 
 /**
@@ -17,9 +17,7 @@ async function activeMandate(kit: ReturnType<typeof serviceKit>) {
   const created = await kit.service.create(PEDRO, medicationRequest());
   assert.ok(created.ok);
   const id = created.mandate.id;
-  assert.ok((await kit.service.startAuthorization(PEDRO, id)).ok);
-  await kit.gateway.finishGrant(id);
-  assert.equal(await kit.service.completeAuthorization(id), "ACTIVATED");
+  assert.ok((await kit.service.authorize(PEDRO, id)).ok);
   return id;
 }
 
@@ -82,7 +80,7 @@ test("a mandate with no capacity left shows EXHAUSTED and comes back when a rese
   assert.equal(asAndrea[0].status, "EXHAUSTED");
   assert.equal(await kit.mandates.reserveCapacity(id, USD("1")), false);
 
-  // The payment failed, so purchaseUnderMandate gives the reservation back.
+  // The payer cancelled the PayPal order, so the settlement gives the reservation back.
   await kit.mandates.releaseCapacity(id, USD("4000"));
   const again = await kit.service.get(PEDRO, id);
   assert.ok(again.ok);
@@ -90,64 +88,16 @@ test("a mandate with no capacity left shows EXHAUSTED and comes back when a rese
   assert.equal((await kit.mandates.getById(id))?.status, "ACTIVE");
 });
 
-test("a mandate whose stored grant is ACTIVE is activated on read if its callback hook never ran", async () => {
-  const kit = serviceKit();
-  const created = await kit.service.create(PEDRO, medicationRequest());
-  assert.ok(created.ok);
-  await kit.service.startAuthorization(PEDRO, created.mandate.id);
-  await kit.gateway.finishGrant(created.mandate.id);
-  const read = await kit.service.get(PEDRO, created.mandate.id);
-  assert.ok(read.ok);
-  assert.equal(read.mandate.status, "ACTIVE");
-  assert.equal(read.mandate.authorization?.consent, "GRANTED");
-});
-
-test("consent comes from the grant store and the audit log, not a second copy", async () => {
+test("the payer's confirmation is read from the audit log, which keeps codes only", async () => {
   const kit = serviceKit();
   const id = await activeMandate(kit);
-  assert.equal((await kit.gateway.grants.get(id))?.state, "ACTIVE");
   await kit.service.revoke(PEDRO, id);
-  assert.equal(await kit.gateway.grants.get(id), undefined, "cancelled at the provider");
   const read = await kit.service.get(PEDRO, id);
   assert.ok(read.ok);
   assert.equal(read.mandate.authorization?.consent, "GRANTED", "the audit log remembers the activation");
-  assert.equal(read.mandate.authorization?.grantCancellation, "DONE");
 
   const types = (await kit.audit.listByMandate(id)).map((event) => event.type);
-  assert.deepEqual(types, [
-    MANDATE_EVENTS.created,
-    MANDATE_EVENTS.authorizationStarted,
-    MANDATE_EVENTS.activated,
-    MANDATE_EVENTS.revoked,
-    MANDATE_EVENTS.grantCancelled,
-  ]);
+  assert.deepEqual(types, [MANDATE_EVENTS.created, MANDATE_EVENTS.activated, MANDATE_EVENTS.revoked]);
   const payloads = JSON.stringify(await kit.audit.listByMandate(id));
   assert.equal(payloads.includes("token"), false, "audit payloads carry codes, never tokens");
-});
-
-test("a demo session can't ask a real wallet for a grant unless the operator opted in", async () => {
-  const kit = serviceKit({ payerGrants: { allowed: false, reason: "demo sessions are off" } });
-  const created = await kit.service.create(PEDRO, medicationRequest());
-  assert.ok(created.ok);
-  const result = await kit.service.startAuthorization(PEDRO, created.mandate.id);
-  assert.equal(result.ok ? "" : result.code, "PAYER_GRANTS_DISABLED_FOR_DEMO");
-  assert.equal(kit.gateway.calls.start.length, 0, "the wallet was never contacted");
-  const read = await kit.service.get(PEDRO, created.mandate.id);
-  assert.ok(read.ok);
-  assert.equal(read.mandate.status, "DRAFT");
-});
-
-test("a failed cancellation keeps the grant stored, reports PENDING, and a retry finishes it", async () => {
-  const gateway = fakeGateway({ cancel: "upstream" });
-  const kit = serviceKit({ gateway });
-  const id = await activeMandate(kit);
-  const first = await kit.service.revoke(PEDRO, id);
-  assert.ok(first.ok);
-  assert.equal(first.mandate.authorization?.grantCancellation, "PENDING");
-  assert.ok(await gateway.grants.get(id), "the grant still exists at COMPAS");
-  assert.equal(await kit.mandates.reserveCapacity(id, USD("100")), false, "but COMPAS already blocks it");
-  gateway.failCancel("ok");
-  const retry = await kit.service.revoke(PEDRO, id);
-  assert.ok(retry.ok);
-  assert.equal(retry.mandate.authorization?.grantCancellation, "DONE");
 });

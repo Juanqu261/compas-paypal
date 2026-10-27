@@ -10,8 +10,8 @@ import { loadCategoryMappings } from "../../src/integrations/merchant-registry/j
 import { StaticCategorySourceRegistry } from "../../src/integrations/merchant-registry/static-source-registry.ts";
 import { createSubjectRefFn } from "../../src/integrations/merchant-registry/subject-ref.ts";
 
-export const PHARMACY = "https://wallet.example/pharmacy";
-export const LIQUOR = "https://wallet.example/liquor";
+export const PHARMACY = "TESTPHARMACY2";
+export const LIQUOR = "TESTLAGERBAR2";
 /** DIAN's own NIT, a public check-digit test vector. */
 export const VALID_NIT = "800197268-4";
 export const NOW = new Date("2026-10-16T15:00:00Z");
@@ -95,8 +95,8 @@ export function createBench(extraSources: readonly CategorySource[] = []) {
   return { key, sources, sourceList, trustLog, mappings, subjectRef, deps, encode, submit, submitOk };
 }
 
-export function walletSubject(walletAddressUrl: string) {
-  return { kind: "WALLET_ADDRESS", walletAddressUrl };
+export function merchantSubject(paypalMerchantId: string) {
+  return { kind: "PAYPAL_MERCHANT", paypalMerchantId };
 }
 
 export function ciiuClaim(

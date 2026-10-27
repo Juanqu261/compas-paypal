@@ -1,140 +1,182 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { purchaseUnderMandate } from "../../src/application/purchase-under-mandate.ts";
+import { PayPalOrderSettlement } from "../../src/application/settle-paypal-order.ts";
 import { buildSpendingReport } from "../../src/application/spending-report.ts";
+import { StaticPartyDirectory } from "../../src/integrations/mandates/demo-party-directory.ts";
 import { InMemoryMandateRepository } from "../../src/integrations/mandates/in-memory-mandate-repository.ts";
+import { PayPalRestGateway } from "../../src/integrations/paypal/paypal-rest-gateway.ts";
+import { PayPalRestClient } from "../../src/integrations/paypal/rest-client.ts";
 import { InMemorySpendingLog } from "../../src/integrations/spending/in-memory-spending-log.ts";
-import { InMemoryGrantStore } from "../../src/integrations/open-payments/in-memory-grant-store.ts";
-import { computeInteractionHash } from "../../src/integrations/open-payments/interaction-hash.ts";
-import { InterledgerOpenPaymentsGateway } from "../../src/integrations/open-payments/interledger-open-payments-gateway.ts";
+import { API_BASE_URL, fakePayPalApi, TEST_CLIENT } from "../integrations/paypal/fake-paypal-api.ts";
 import {
-  createFakeSdk,
-  MERCHANT,
-  PAYER,
-  PAYER_CONSENT,
-} from "../integrations/open-payments/fake-sdk.ts";
-import {
+  fakePayPal,
   historyDeps,
   intent,
-  LIQUOR_WALLET,
+  LIQUOR_PAYPAL_ID,
   mandate,
   NOW,
-  PAYER_WALLET,
-  PHARMACY_WALLET,
-  recordingPayments,
-  resolution,
+  PHARMACY_PAYPAL_ID,
   stubRegistry,
 } from "./purchase-test-kit.ts";
 
-function setup(debitValue?: string) {
-  const op = recordingPayments(debitValue);
+function setup() {
+  const paypal = fakePayPal();
   const spending = new InMemorySpendingLog();
   let ids = 0;
   const deps = {
     merchants: stubRegistry(),
-    payments: op.payments,
+    payments: paypal.gateway,
     spending,
     history: historyDeps(),
     now: () => NOW,
     newId: () => `decision-${++ids}`,
   };
-  return { op, spending, deps };
+  return { paypal, spending, deps };
 }
 
-test("ENFORCED pharmacy purchase: Open Payments runs once, and the record shows the match", async () => {
-  const { op, deps } = setup();
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
-    deps,
-  );
+test("ENFORCED pharmacy purchase: one PayPal order for the payer to approve, and the record shows the match", async () => {
+  const { paypal, deps } = setup();
+  const result = await purchaseUnderMandate({ mandate: mandate("ENFORCED"), intent: intent(PHARMACY_PAYPAL_ID, "MEDICATION") }, deps);
 
   assert.equal(result.decision.outcome, "ALLOW");
-  assert.deepEqual([op.calls.incoming.length, op.calls.quote.length, op.calls.outgoing.length], [1, 1, 1]);
-  assert.deepEqual(op.calls.outgoing[0], {
-    grantKey: "demo-mandate-medication",
-    quoteId: `${PAYER_WALLET}/quotes/1`,
-    metadata: { compasMandateId: "demo-mandate-medication", compasDecisionId: "decision-1" },
+  assert.equal(paypal.calls.create.length, 1);
+  assert.deepEqual(paypal.calls.create[0], {
+    requestId: "decision-1",
+    payeeMerchantId: PHARMACY_PAYPAL_ID,
+    amount: { value: "1120", assetCode: "USD", assetScale: 2 },
+    lineAmounts: [{ value: "1120", assetCode: "USD", assetScale: 2 }],
+    metadata: {
+      compasMandateId: "demo-mandate-medication",
+      compasDecisionId: "decision-1",
+      externalReference: "intent-MEDICATION",
+    },
   });
-  assert.deepEqual(op.calls.incoming[0].metadata, {
-    compasMandateId: "demo-mandate-medication",
-    externalReference: "intent-MEDICATION",
-  });
+  assert.equal(paypal.calls.capture.length, 0, "nothing is captured before the payer approves");
 
+  assert.equal(result.order?.status, "PAYER_ACTION_REQUIRED");
   assert.equal(result.record.monitoredException, false);
   assert.deepEqual(result.record.merchantCategories, [{ category: "MEDICATION", trustLevel: "PROVIDER_VERIFIED" }]);
-  assert.equal(result.record.openPayments.outgoingPaymentUrl, `${PAYER_WALLET}/outgoing-payments/1`);
-  assert.equal(result.record.openPayments.state, "PENDING");
-  assert.deepEqual(result.record.debitAmount, { value: "1120", assetCode: "USD", assetScale: 2 });
+  assert.deepEqual(result.record.lineCategories, ["MEDICATION"]);
+  assert.deepEqual(result.record.paypal, {
+    orderId: result.order?.id,
+    approvalUrl: result.order?.approvalUrl,
+    state: "AWAITING_PAYER_APPROVAL",
+  });
 });
 
-test("ENFORCED liquor purchase: no Open Payments call at all, but the attempt is recorded", async () => {
-  const { op, spending, deps } = setup();
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(LIQUOR_WALLET, "ALCOHOL"), payerWalletAddressUrl: PAYER_WALLET },
-    deps,
-  );
+test("ENFORCED liquor purchase: no PayPal call at all, but the attempt is recorded", async () => {
+  const { paypal, spending, deps } = setup();
+  const result = await purchaseUnderMandate({ mandate: mandate("ENFORCED"), intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL") }, deps);
 
   assert.equal(result.decision.outcome, "DENY");
-  assert.equal(result.payment, undefined);
-  assert.equal(op.totalCalls(), 0);
+  assert.equal(result.order, undefined);
+  assert.equal(paypal.totalCalls(), 0);
   const [record] = await spending.listByMandate("demo-mandate-medication");
   assert.deepEqual(record.merchantCategories.map((c) => c.category), ["ALCOHOL", "TOBACCO"]);
-  assert.equal(record.debitAmount, undefined);
-  assert.deepEqual(record.openPayments, {});
+  assert.deepEqual(record.paypal, {});
 });
 
-test("MONITORED liquor purchase: paid, flagged, and the failed match stays on the record", async () => {
-  const { op, deps } = setup();
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("MONITORED"), intent: intent(LIQUOR_WALLET, "ALCOHOL"), payerWalletAddressUrl: PAYER_WALLET },
-    deps,
-  );
+test("REVIEW never creates a PayPal order", async () => {
+  const { paypal, deps } = setup();
+  const result = await purchaseUnderMandate({ mandate: mandate("ENFORCED"), intent: intent(PHARMACY_PAYPAL_ID, undefined) }, deps);
+  assert.equal(result.decision.outcome, "REVIEW");
+  assert.deepEqual(result.decision.reasons.map((r) => r.code), ["CLASSIFICATION_UNCERTAIN"]);
+  assert.equal(paypal.totalCalls(), 0);
+});
+
+test("MONITORED liquor purchase: ordered, flagged, and the failed match stays on the record", async () => {
+  const { paypal, deps } = setup();
+  const result = await purchaseUnderMandate({ mandate: mandate("MONITORED"), intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL") }, deps);
 
   assert.equal(result.decision.outcome, "ALLOW");
-  assert.equal(op.calls.outgoing.length, 1);
+  assert.equal(paypal.calls.create.length, 1);
   assert.equal(result.record.monitoredException, true);
   assert.equal(result.record.purposeCheck?.outcome, "DENY");
   assert.equal(result.record.purposeCheck?.enforced, false);
-  assert.deepEqual(result.record.merchantCategories.map((c) => c.category), ["ALCOHOL", "TOBACCO"]);
-  // Open Payments metadata stays opaque, whatever the purpose check said.
-  assert.deepEqual(Object.keys(op.calls.outgoing[0].metadata).sort(), ["compasDecisionId", "compasMandateId"]);
+  // PayPal metadata stays opaque, whatever the purpose check said.
+  assert.deepEqual(Object.keys(paypal.calls.create[0].metadata).sort(), [
+    "compasDecisionId",
+    "compasMandateId",
+    "externalReference",
+  ]);
 });
 
-test("MONITORED does not lift mandate rules: a stranger never reaches Open Payments", async () => {
-  const { op, deps } = setup();
+test("MONITORED does not lift mandate rules: a stranger never reaches PayPal", async () => {
+  const { paypal, deps } = setup();
+  const result = await purchaseUnderMandate(
+    { mandate: mandate("MONITORED"), intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL", { delegateId: "someone-else" }) },
+    deps,
+  );
+  assert.equal(result.decision.outcome, "DENY");
+  assert.equal(paypal.totalCalls(), 0);
+});
+
+test("MONITORED does not lift the budget: an over-budget charge is denied before PayPal", async () => {
+  const { paypal, deps } = setup();
+  const over = { value: "5000", assetCode: "USD", assetScale: 2 };
   const result = await purchaseUnderMandate(
     {
       mandate: mandate("MONITORED"),
-      intent: intent(LIQUOR_WALLET, "ALCOHOL", { delegateId: "someone-else" }),
-      payerWalletAddressUrl: PAYER_WALLET,
+      intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL", {
+        amount: over,
+        lineItems: [{ id: "line-1", description: "Item", category: "ALCOHOL", amount: over }],
+      }),
     },
     deps,
   );
   assert.equal(result.decision.outcome, "DENY");
-  assert.equal(op.totalCalls(), 0);
-});
-
-test("MONITORED does not lift the budget: an over-budget quote is denied after quoting", async () => {
-  const { op, deps } = setup("5000");
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("MONITORED"), intent: intent(LIQUOR_WALLET, "ALCOHOL"), payerWalletAddressUrl: PAYER_WALLET },
-    deps,
-  );
-  assert.equal(result.decision.outcome, "DENY");
   assert.deepEqual(result.decision.reasons.map((r) => r.code), ["BUDGET_EXCEEDED"]);
-  assert.deepEqual([op.calls.incoming.length, op.calls.quote.length, op.calls.outgoing.length], [1, 1, 0]);
+  assert.equal(paypal.totalCalls(), 0);
   assert.equal(result.record.purposeCheck?.outcome, "DENY", "the purpose result is still recorded");
 });
 
-test("the spending report shows where the budget went and which shops matched", async () => {
-  const { spending, deps } = setup();
-  const monitored = mandate("MONITORED");
-  await purchaseUnderMandate({ mandate: monitored, intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET }, deps);
-  await purchaseUnderMandate({ mandate: monitored, intent: intent(LIQUOR_WALLET, "ALCOHOL"), payerWalletAddressUrl: PAYER_WALLET }, deps);
-  await purchaseUnderMandate(
-    { mandate: monitored, intent: intent(LIQUOR_WALLET, "ALCOHOL", { delegateId: "someone-else" }), payerWalletAddressUrl: PAYER_WALLET },
+test("a charge in another currency is denied before PayPal: COMPAS does not convert", async () => {
+  const { paypal, deps } = setup();
+  const eur = { value: "1000", assetCode: "EUR", assetScale: 2 };
+  const result = await purchaseUnderMandate(
+    {
+      mandate: mandate("ENFORCED"),
+      intent: intent(PHARMACY_PAYPAL_ID, "MEDICATION", {
+        amount: eur,
+        lineItems: [{ id: "line-1", description: "Item", category: "MEDICATION", amount: eur }],
+      }),
+    },
     deps,
   );
+  assert.equal(result.decision.outcome, "DENY");
+  assert.match(result.decision.reasons[0].message, /does not convert/);
+  assert.equal(paypal.totalCalls(), 0);
+});
+
+test("the spending report counts only what PayPal captured", async () => {
+  const { paypal, spending, deps } = setup();
+  const monitored = mandate("MONITORED");
+  const mandates = new InMemoryMandateRepository();
+  await mandates.save(monitored);
+  const capacity = { ...deps, capacity: mandates };
+  const pharmacy = await purchaseUnderMandate({ mandate: monitored, intent: intent(PHARMACY_PAYPAL_ID, "MEDICATION") }, capacity);
+  const liquor = await purchaseUnderMandate({ mandate: monitored, intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL") }, capacity);
+  await purchaseUnderMandate(
+    { mandate: monitored, intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL", { delegateId: "someone-else" }) },
+    capacity,
+  );
+
+  const before = await buildSpendingReport(monitored, spending);
+  assert.equal(before.totals.paidCount, 0, "an order waiting for the payer is not paid");
+
+  const settlement = new PayPalOrderSettlement({
+    payments: paypal.gateway,
+    spending,
+    mandates,
+    parties: new StaticPartyDirectory([]),
+    history: deps.history,
+    now: () => NOW,
+  });
+  for (const order of [pharmacy.order!, liquor.order!]) {
+    paypal.approve(order.id);
+    assert.equal((await settlement.approved(order.id)).result, "COMPLETED");
+  }
 
   const report = await buildSpendingReport(monitored, spending);
   assert.equal(report.enforcement, "MONITORED");
@@ -150,188 +192,68 @@ test("the spending report shows where the budget went and which shops matched", 
   assert.equal(JSON.stringify(report).includes("Item"), false, "line-item descriptions are not in the report");
 });
 
-test("with the real adapter: ENFORCED liquor never reaches outgoingPayment.create; MONITORED reaches it once", async () => {
-  for (const [enforcement, expectedCreates] of [["ENFORCED", 0], ["MONITORED", 1]] as const) {
-    const fake = createFakeSdk();
-    const gateway = new InterledgerOpenPaymentsGateway({
-      sdk: fake.sdk,
-      grants: new InMemoryGrantStore(),
-      finishUri: "http://localhost:4000/open-payments/finish",
-      createNonce: () => "NONCE",
-      // The fake SDK's quote expires at 12:05 on the demo day.
-      now: () => new Date("2026-10-16T12:00:00Z"),
+test("with the real adapter: ENFORCED liquor never reaches PayPal; MONITORED creates one order and no capture", async () => {
+  for (const [enforcement, expectedOrders] of [["ENFORCED", 0], ["MONITORED", 1]] as const) {
+    const api = fakePayPalApi();
+    const gateway = new PayPalRestGateway({
+      client: new PayPalRestClient({ config: { ...TEST_CLIENT, apiBaseUrl: API_BASE_URL }, fetch: api.fetch }),
+      returnUrl: "http://localhost:4000/paypal/orders/return",
+      cancelUrl: "http://localhost:4000/paypal/orders/cancel",
     });
-    await gateway.startPayerGrant({
-      grantKey: "demo-mandate-medication",
-      payerWalletAddressUrl: PAYER.id,
-      debitLimit: { value: "4000", assetCode: "USD", assetScale: 2 },
-    });
-    await gateway.finishPayerGrant({
-      grantKey: "demo-mandate-medication",
-      interactRef: "REF",
-      hash: computeInteractionHash({
-        clientNonce: "NONCE",
-        finishNonce: PAYER_CONSENT.finishNonce,
-        interactRef: "REF",
-        grantEndpoint: PAYER.authServer,
-      }),
-    });
-
-    // The fake SDK's merchant wallet plays a liquor store here.
-    const liquorAtMerchant = resolution(MERCHANT.id, [["ALCOHOL", "PROVIDER_VERIFIED"]]);
     const result = await purchaseUnderMandate(
-      {
-        mandate: mandate(enforcement),
-        intent: intent(MERCHANT.id, "ALCOHOL"),
-        payerWalletAddressUrl: PAYER.id,
-      },
-      {
-        merchants: stubRegistry({ [MERCHANT.id]: liquorAtMerchant }),
-        payments: gateway,
-        spending: new InMemorySpendingLog(),
-        history: historyDeps(),
-        now: () => NOW,
-      },
+      { mandate: mandate(enforcement), intent: intent(LIQUOR_PAYPAL_ID, "ALCOHOL", { lineItems: [
+        { id: "line-1", description: "Aguardiente", category: "ALCOHOL", amount: { value: "1120", assetCode: "USD", assetScale: 2 } },
+      ] }) },
+      { merchants: stubRegistry(), payments: gateway, spending: new InMemorySpendingLog(), history: historyDeps(), now: () => NOW },
     );
 
-    assert.equal(fake.callsTo("outgoingPayment.create").length, expectedCreates, enforcement);
+    assert.equal(api.callsTo("POST", /^\/v2\/checkout\/orders$/).length, expectedOrders, enforcement);
+    assert.equal(api.callsTo("POST", /\/capture$/).length, 0, enforcement);
     assert.equal(result.decision.outcome, enforcement === "ENFORCED" ? "DENY" : "ALLOW");
+    assert.equal(JSON.stringify(api.requests).includes("Aguardiente"), false, "no product name reaches PayPal");
   }
 });
 
-test("with a mandate repository, an ALLOW reserves the quoted debit before it is recorded", async () => {
-  const { op, deps } = setup();
+test("with a mandate repository, an ALLOW reserves the charge before it is recorded", async () => {
+  const { paypal, deps } = setup();
   const mandates = new InMemoryMandateRepository();
   await mandates.save(mandate("ENFORCED"));
   const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_PAYPAL_ID, "MEDICATION") },
     { ...deps, capacity: mandates },
   );
   assert.equal(result.decision.outcome, "ALLOW");
-  assert.equal(op.calls.outgoing.length, 1);
+  assert.equal(paypal.calls.create.length, 1);
   assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "2880");
 });
 
-test("when another purchase used the capacity first, the ALLOW becomes DENY BUDGET_EXCEEDED and nothing is paid", async () => {
-  const { op, spending, deps } = setup();
+test("when another purchase used the capacity first, the ALLOW becomes DENY BUDGET_EXCEEDED and no order exists", async () => {
+  const { paypal, spending, deps } = setup();
   const mandates = new InMemoryMandateRepository();
   // The caller's copy still says 4000, the repository only has 1000 left.
   await mandates.save(mandate("ENFORCED", { remainingAuthorizedAmount: { value: "1000", assetCode: "USD", assetScale: 2 } }));
   const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
+    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_PAYPAL_ID, "MEDICATION") },
     { ...deps, capacity: mandates },
   );
   assert.equal(result.decision.outcome, "DENY");
   assert.deepEqual(result.decision.reasons.map((r) => r.code), ["BUDGET_EXCEEDED"]);
-  assert.equal(op.calls.outgoing.length, 0);
+  assert.equal(paypal.calls.create.length, 0);
   assert.equal((await spending.listByMandate("demo-mandate-medication"))[0].decision.outcome, "DENY");
   assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "1000");
 });
 
-test("if creating the outgoing payment throws, the reservation is given back", async () => {
-  const { op, deps } = setup();
+test("if creating the PayPal order throws, the reservation is given back", async () => {
+  const { paypal, deps } = setup();
   const mandates = new InMemoryMandateRepository();
   await mandates.save(mandate("ENFORCED"));
-  const failing = {
-    ...op.payments,
-    async createOutgoingPayment(): Promise<never> {
-      throw new Error("wallet unavailable");
-    },
-  };
+  paypal.failures.create = Object.assign(new Error("PayPal unavailable"), { code: "UPSTREAM" });
   await assert.rejects(
     purchaseUnderMandate(
-      { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
-      { ...deps, payments: failing, capacity: mandates },
+      { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_PAYPAL_ID, "MEDICATION") },
+      { ...deps, capacity: mandates },
     ),
-    /wallet unavailable/,
+    /PayPal unavailable/,
   );
   assert.equal((await mandates.getById("demo-mandate-medication"))?.remainingAuthorizedAmount.value, "4000");
 });
-
-test("a PENDING payment is read again until the wallet completes it, and the record says COMPLETED", async () => {
-  const { spending, deps } = setup();
-  const reads: string[] = [];
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
-    {
-      ...deps,
-      confirmation: {
-        attempts: 5,
-        intervalMs: 1000,
-        sleep: async () => {},
-        read: async ({ grantKey, outgoingPaymentUrl }) => {
-          reads.push(`${grantKey} ${outgoingPaymentUrl}`);
-          const payment = (await spending.listByMandate("demo-mandate-medication"))[0];
-          assert.equal(payment.openPayments.outgoingPaymentUrl, undefined, "the record waits for the confirmed state");
-          return { ...confirmedPayment(), state: reads.length < 2 ? "PENDING" : "COMPLETED" };
-        },
-      },
-    },
-  );
-
-  assert.deepEqual(reads, [
-    `demo-mandate-medication ${PAYER_WALLET}/outgoing-payments/1`,
-    `demo-mandate-medication ${PAYER_WALLET}/outgoing-payments/1`,
-  ]);
-  assert.equal(result.payment?.state, "COMPLETED");
-  assert.equal(result.record.openPayments.state, "COMPLETED");
-});
-
-test("a failed read keeps the payment PENDING and the purchase stands", async () => {
-  const { deps } = setup();
-  const warnings: string[] = [];
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(PHARMACY_WALLET, "MEDICATION"), payerWalletAddressUrl: PAYER_WALLET },
-    {
-      ...deps,
-      confirmation: {
-        attempts: 5,
-        intervalMs: 1000,
-        sleep: async () => {},
-        read: async () => {
-          throw Object.assign(new Error("down"), { code: "UPSTREAM" });
-        },
-        logWarning: (message) => warnings.push(message),
-      },
-    },
-  );
-
-  assert.equal(result.decision.outcome, "ALLOW");
-  assert.equal(result.record.openPayments.state, "PENDING");
-  assert.equal(result.record.openPayments.outgoingPaymentUrl, `${PAYER_WALLET}/outgoing-payments/1`);
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /UPSTREAM/);
-});
-
-test("a denied purchase is never read: there is no payment to confirm", async () => {
-  const { deps } = setup();
-  let reads = 0;
-  const result = await purchaseUnderMandate(
-    { mandate: mandate("ENFORCED"), intent: intent(LIQUOR_WALLET, "ALCOHOL"), payerWalletAddressUrl: PAYER_WALLET },
-    {
-      ...deps,
-      confirmation: {
-        attempts: 5,
-        intervalMs: 1000,
-        sleep: async () => {},
-        read: async () => {
-          reads += 1;
-          throw new Error("unreachable");
-        },
-      },
-    },
-  );
-  assert.equal(result.decision.outcome, "DENY");
-  assert.equal(reads, 0);
-});
-
-function confirmedPayment() {
-  return {
-    url: `${PAYER_WALLET}/outgoing-payments/1`,
-    receiverUrl: `${PHARMACY_WALLET}/incoming-payments/1`,
-    debitAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
-    receiveAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
-    sentAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
-    createdAt: NOW.toISOString(),
-  };
-}

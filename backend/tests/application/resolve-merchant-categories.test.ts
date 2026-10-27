@@ -11,7 +11,7 @@ import {
   NOW,
   PHARMACY,
   VALID_NIT,
-  walletSubject,
+  merchantSubject,
 } from "./category-test-kit.ts";
 
 function resolve(bench: ReturnType<typeof createBench>, wallet = PHARMACY, now = NOW) {
@@ -31,7 +31,7 @@ const binding = (sourceId: string, submissionId: string, wallet = PHARMACY) => (
   sourceId,
   submissionId,
   type: "IDENTITY_BINDING",
-  walletAddressUrl: wallet,
+  paypalMerchantId: wallet,
   taxId: VALID_NIT,
   observedAt: "2026-10-16T12:00:00Z",
 });
@@ -42,13 +42,13 @@ test("the demo ladder: self-declared, then the wallet's KYB attestation", async 
     sourceId: "merchant",
     submissionId: "s1",
     type: "CATEGORY_CLAIM",
-    subject: walletSubject(PHARMACY),
+    subject: merchantSubject(PHARMACY),
     declaredCategories: ["MEDICATION"],
     observedAt: "2026-10-16T12:00:00Z",
   });
   assert.equal(levelOf(await resolve(bench), "MEDICATION"), "SELF_DECLARED");
 
-  await bench.submitOk(ciiuClaim("wallet", "s2", walletSubject(PHARMACY), [{ code: "4773", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s2", merchantSubject(PHARMACY), [{ code: "4773", role: "PRIMARY" }]));
   const resolution = await resolve(bench);
   assert.equal(levelOf(resolution, "MEDICATION"), "PROVIDER_VERIFIED");
   assert.equal(levelOf(resolution, "PERSONAL_CARE"), "PROVIDER_VERIFIED");
@@ -61,7 +61,7 @@ test("the demo ladder: self-declared, then the wallet's KYB attestation", async 
 test("an expired claim is ignored", async () => {
   const bench = createBench();
   await bench.submitOk(
-    ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773" }], { validUntil: "2026-10-16T14:00:00Z" }),
+    ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773" }], { validUntil: "2026-10-16T14:00:00Z" }),
   );
   assert.equal(levelOf(await resolve(bench, PHARMACY, new Date("2026-10-16T13:00:00Z")), "MEDICATION"), "PROVIDER_VERIFIED");
   assert.deepEqual((await resolve(bench)).categories, []);
@@ -69,7 +69,7 @@ test("an expired claim is ignored", async () => {
 
 test("a revoked claim is ignored", async () => {
   const bench = createBench();
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773" }]));
   await bench.submitOk({ sourceId: "wallet", submissionId: "r1", type: "REVOCATION", revokesSubmissionId: "s1", reason: "closed" });
   assert.deepEqual((await resolve(bench)).categories, []);
 });
@@ -94,7 +94,7 @@ test("a pharmacy license is purpose-specific evidence", async () => {
     sourceId: "health",
     submissionId: "l1",
     type: "LICENSE_CLAIM",
-    subject: walletSubject(PHARMACY),
+    subject: merchantSubject(PHARMACY),
     licenseType: "CO_PHARMACY_ESTABLISHMENT",
     licenseRef: "demo-license",
     observedAt: "2026-10-16T12:00:00Z",
@@ -107,7 +107,7 @@ test("a pharmacy license is purpose-specific evidence", async () => {
 test("verified main activities that share no category conflict", async () => {
   const bench = createBench();
   await bench.submitOk(binding("wallet", "b1"));
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773", role: "PRIMARY" }]));
   await bench.submitOk(ciiuClaim("registry", "s2", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4724", role: "PRIMARY" }]));
 
   const { conflicts } = await resolve(bench);
@@ -117,9 +117,9 @@ test("verified main activities that share no category conflict", async () => {
 
 test("a secondary activity does not conflict with a main one", async () => {
   const bench = createBench();
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }]));
   await bench.submitOk(
-    ciiuClaim("health", "s2", walletSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }, { code: "4724", role: "SECONDARY" }]),
+    ciiuClaim("health", "s2", merchantSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }, { code: "4724", role: "SECONDARY" }]),
   );
   const resolution = await resolve(bench);
   assert.deepEqual(resolution.conflicts, []);
@@ -128,12 +128,12 @@ test("a secondary activity does not conflict with a main one", async () => {
 
 test("a self-declared claim never creates a conflict", async () => {
   const bench = createBench();
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
   await bench.submitOk({
     sourceId: "merchant",
     submissionId: "s2",
     type: "CATEGORY_CLAIM",
-    subject: walletSubject(LIQUOR),
+    subject: merchantSubject(LIQUOR),
     declaredCategories: ["MEDICATION"],
     observedAt: "2026-10-16T12:00:00Z",
   });
@@ -144,8 +144,8 @@ test("a self-declared claim never creates a conflict", async () => {
 
 test("flags and unmapped codes are reported; unmapped codes give no category", async () => {
   const bench = createBench();
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "9609" }]));
-  await bench.submitOk({ sourceId: "wallet", submissionId: "f1", type: "FLAG", walletAddressUrl: PHARMACY, category: "MEDICATION", note: "basket mismatch" });
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "9609" }]));
+  await bench.submitOk({ sourceId: "wallet", submissionId: "f1", type: "FLAG", paypalMerchantId: PHARMACY, category: "MEDICATION", note: "basket mismatch" });
   const resolution = await resolve(bench);
   assert.deepEqual(resolution.categories, []);
   assert.deepEqual(resolution.unmappedEvidence, ["CIIU_REV4_AC:9609"]);
@@ -154,11 +154,11 @@ test("flags and unmapped codes are reported; unmapped codes give no category", a
 
 test("evidence from a source that is no longer registered is ignored", async () => {
   const bench = createBench();
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773" }]));
-  const entries = await bench.trustLog.listByWalletAddress(PHARMACY);
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773" }]));
+  const entries = await bench.trustLog.listByPayPalMerchant(PHARMACY);
   const withoutWallet = new Map(bench.sourceList.filter((s) => s.id !== "wallet").map((s) => [s.id, s]));
   const resolution = resolveMerchantCategories({
-    walletAddressUrl: PHARMACY,
+    paypalMerchantId: PHARMACY,
     entries,
     sources: withoutWallet,
     mappings: bench.mappings,
@@ -171,7 +171,7 @@ const declare = (submissionId: string, categories: string[], wallet = PHARMACY) 
   sourceId: "merchant",
   submissionId,
   type: "CATEGORY_CLAIM",
-  subject: walletSubject(wallet),
+  subject: merchantSubject(wallet),
   declaredCategories: categories,
   observedAt: "2026-10-16T12:00:00Z",
 });
@@ -190,7 +190,7 @@ test("declarations: a tienda with only its own declaration is UNCORROBORATED", a
 test("declarations: KYB that includes the declared category corroborates it, even as a secondary activity", async () => {
   const bench = createBench();
   await bench.submitOk(declare("d1", ["MEDICATION"]));
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }, { code: "4773", role: "SECONDARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4711", role: "PRIMARY" }, { code: "4773", role: "SECONDARY" }]));
   assert.equal(corroborationOf(await resolve(bench), "MEDICATION"), "PROVIDER_VERIFIED");
 });
 
@@ -215,7 +215,7 @@ test("declarations: a Cámara claim through a self-typed NIT is REGISTRY_UNBOUND
 test("declarations: KYB placing the shop elsewhere contradicts a bare declaration", async () => {
   const bench = createBench();
   await bench.submitOk(declare("d1", ["MEDICATION"], LIQUOR));
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
   const declared = (await resolve(bench, LIQUOR)).declarations[0];
   assert.equal(declared.corroboration, "CONTRADICTED");
   assert.equal(declared.contradictingEntryIds.length, 1);
@@ -227,14 +227,14 @@ test("declarations: a stronger contradiction outranks a weaker registry match", 
   await bench.submitOk(declare("d1", ["MEDICATION"], LIQUOR));
   await bench.submitOk(ciiuClaim("registry", "r1", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4773", role: "PRIMARY" }]));
   await bench.submitOk(binding("merchant", "b1", LIQUOR));
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(LIQUOR), [{ code: "4724", role: "PRIMARY" }]));
   assert.equal(corroborationOf(await resolve(bench, LIQUOR), "MEDICATION"), "CONTRADICTED");
 });
 
 test("declarations: an unmapped registry activity neither supports nor contradicts", async () => {
   const bench = createBench();
   await bench.submitOk(declare("d1", ["FOOD"]));
-  await bench.submitOk(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "9609", role: "PRIMARY" }]));
+  await bench.submitOk(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "9609", role: "PRIMARY" }]));
   assert.equal(corroborationOf(await resolve(bench), "FOOD"), "UNCORROBORATED");
 });
 

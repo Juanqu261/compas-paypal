@@ -19,10 +19,10 @@ import type { CategorySourceRegistry } from "../ports/category-source-registry.t
 import type { MerchantTrustLog } from "../ports/merchant-trust-log.ts";
 
 export type ResolveMerchantCategoriesInput = {
-  walletAddressUrl: string;
+  paypalMerchantId: string;
   /**
-   * Entries about the wallet, entries about subjects bound to it, bindings of
-   * those subjects to other wallets, and revocations of any of them.
+   * Entries about the PayPal merchant, entries about subjects bound to it, bindings of
+   * those subjects to other merchants, and revocations of any of them.
    */
   entries: readonly TrustLogEntry[];
   /** Currently registered sources. Evidence from a removed source is ignored. */
@@ -58,7 +58,7 @@ function tierRank(tier: CorroborationTier): number {
 /**
  * A claim from anyone but the merchant. Its capped level sets how much it
  * counts. A verified source capped by a self-declared NIT binding still counts
- * a little: the registry agrees, but nobody checked that the NIT belongs to the wallet.
+ * a little: the registry agrees, but nobody checked that the NIT belongs to the PayPal account.
  */
 function independentTier(source: CategorySource, trustLevel: MerchantTrustLevel): IndependentTier | undefined {
   if (source.kind === "MERCHANT") return undefined;
@@ -74,7 +74,7 @@ function independentTier(source: CategorySource, trustLevel: MerchantTrustLevel)
 export function resolveMerchantCategories(
   input: ResolveMerchantCategoriesInput,
 ): MerchantCategoryResolution {
-  const { walletAddressUrl, sources, mappings, now } = input;
+  const { paypalMerchantId, sources, mappings, now } = input;
 
   const revoked = new Set(
     input.entries.flatMap((entry) => (entry.type === "REVOCATION" ? [entry.revokesEntryId] : [])),
@@ -92,7 +92,7 @@ export function resolveMerchantCategories(
     if (entry.type !== "IDENTITY_BINDING") continue;
     const binding = { entryId: entry.id, level: sources.get(entry.sourceId)!.trustLevel };
     const ref = entry.subject.subjectRef;
-    if (entry.walletAddressUrl !== walletAddressUrl) {
+    if (entry.paypalMerchantId !== paypalMerchantId) {
       elsewhere.set(ref, [...(elsewhere.get(ref) ?? []), binding]);
       continue;
     }
@@ -108,8 +108,8 @@ export function resolveMerchantCategories(
 
     let trustLevel: MerchantTrustLevel;
     let viaSubjectRef: string | undefined;
-    if (entry.subject.kind === "WALLET_ADDRESS") {
-      if (entry.subject.walletAddressUrl !== walletAddressUrl) continue;
+    if (entry.subject.kind === "PAYPAL_MERCHANT") {
+      if (entry.subject.paypalMerchantId !== paypalMerchantId) continue;
       trustLevel = source.trustLevel;
     } else {
       const binding = bindings.get(entry.subject.subjectRef);
@@ -191,9 +191,9 @@ export function resolveMerchantCategories(
     }
   }
 
-  // One NIT bound to this wallet and, at least as strongly, to another wallet:
-  // nobody can tell which wallet owns the business, so its evidence is contested.
-  // A weaker binding elsewhere does not touch this wallet, so a self-declared
+  // One NIT bound to this account and, at least as strongly, to another account:
+  // nobody can tell which account owns the business, so its evidence is contested.
+  // A weaker binding elsewhere does not touch this account, so a self-declared
   // binding cannot push a KYB-verified owner into REVIEW.
   for (const [ref, here] of bindings) {
     const joined = claims.filter((claim) => claim.viaSubjectRef === ref);
@@ -207,13 +207,13 @@ export function resolveMerchantCategories(
   }
 
   const flags = live.flatMap((entry) =>
-    entry.type === "FLAG" && entry.walletAddressUrl === walletAddressUrl
+    entry.type === "FLAG" && entry.paypalMerchantId === paypalMerchantId
       ? [{ entryId: entry.id, category: entry.category }]
       : [],
   );
 
   return {
-    walletAddressUrl,
+    paypalMerchantId,
     categories,
     declarations: declarationsOf(claims),
     conflicts,
@@ -265,12 +265,12 @@ export type LoadMerchantCategoriesDeps = {
 
 /** Gathers the relevant trust-log entries and resolves them. */
 export async function loadMerchantCategoryResolution(
-  walletAddressUrl: string,
+  paypalMerchantId: string,
   deps: LoadMerchantCategoriesDeps,
 ): Promise<MerchantCategoryResolution> {
-  const walletEntries = await deps.trustLog.listByWalletAddress(walletAddressUrl);
+  const merchantEntries = await deps.trustLog.listByPayPalMerchant(paypalMerchantId);
   const subjectRefs = new Set(
-    walletEntries.flatMap((entry) => (entry.type === "IDENTITY_BINDING" ? [entry.subject.subjectRef] : [])),
+    merchantEntries.flatMap((entry) => (entry.type === "IDENTITY_BINDING" ? [entry.subject.subjectRef] : [])),
   );
   const subjectEntries = (
     await Promise.all(
@@ -281,9 +281,9 @@ export async function loadMerchantCategoryResolution(
     )
   )
     .flat()
-    // This wallet's own bindings are already in walletEntries.
-    .filter((entry) => entry.type !== "IDENTITY_BINDING" || entry.walletAddressUrl !== walletAddressUrl);
-  const related = [...walletEntries, ...subjectEntries];
+    // This account's own bindings are already in merchantEntries.
+    .filter((entry) => entry.type !== "IDENTITY_BINDING" || entry.paypalMerchantId !== paypalMerchantId);
+  const related = [...merchantEntries, ...subjectEntries];
   const revocations = await deps.trustLog.listRevocationsFor(related.map((entry) => entry.id));
 
   const sources = new Map<string, CategorySource>();
@@ -293,7 +293,7 @@ export async function loadMerchantCategoryResolution(
   }
 
   return resolveMerchantCategories({
-    walletAddressUrl,
+    paypalMerchantId,
     entries: [...related, ...revocations],
     sources,
     mappings: deps.mappings,

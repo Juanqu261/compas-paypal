@@ -4,7 +4,7 @@ import {
   nitCheckDigit,
   normalizeCategoryCode,
   normalizeNit,
-  normalizeWalletAddressUrl,
+  normalizePayPalAccountId,
 } from "../../src/domain/merchant-identifiers.ts";
 
 test("CIIU codes are four digits and keep leading zeros", () => {
@@ -29,17 +29,22 @@ test("a NIT normalizes to its base and a wrong check digit is refused", () => {
   assert.equal(normalizeNit("123"), undefined);
 });
 
-test("wallet addresses get one spelling", () => {
-  assert.equal(
-    normalizeWalletAddressUrl("$ilp.interledger-test.dev/drogueria"),
+test("PayPal account ids get one spelling", () => {
+  assert.equal(normalizePayPalAccountId("JYHT3DF634TAG"), "JYHT3DF634TAG");
+  assert.equal(normalizePayPalAccountId("  jyht3df634tag "), "JYHT3DF634TAG");
+});
+
+test("anything that is not a PayPal account id is refused", () => {
+  for (const bad of [
+    "JYHT3DF634TA", // 12 characters
+    "JYHT3DF634TAGG", // 14 characters
+    "JYHT3DF634TA0", // 0 is not in PayPal's alphabet
+    "JYHT3DF634TAI", // nor is I
+    "JYHT3DF634TA-",
     "https://ilp.interledger-test.dev/drogueria",
-  );
-  assert.equal(
-    normalizeWalletAddressUrl("https://ILP.example/alice/"),
-    "https://ilp.example/alice",
-  );
-  assert.equal(normalizeWalletAddressUrl("https://ilp.example/alice?x=1"), undefined);
-  assert.equal(normalizeWalletAddressUrl("https://user:pw@ilp.example/alice"), undefined);
-  assert.equal(normalizeWalletAddressUrl("ftp://ilp.example/alice"), undefined);
-  assert.equal(normalizeWalletAddressUrl("not a url"), undefined);
+    "$ilp.interledger-test.dev/drogueria",
+    "",
+  ]) {
+    assert.equal(normalizePayPalAccountId(bad), undefined, bad);
+  }
 });

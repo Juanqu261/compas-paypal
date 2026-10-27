@@ -8,11 +8,11 @@ export type SpendingReport = {
   enforcement: PurposeEnforcement;
   budget: MoneyAmount;
   totals: {
-    /** Sum of quoted debits for purchases that produced an outgoing payment. */
+    /** Sum of the charges PayPal captured, or accepted for capture. */
     paid: MoneyAmount;
     attempts: number;
     paidCount: number;
-    /** Attempts that produced no payment: denied, held for review, or failed before paying. */
+    /** Attempts that produced no payment: denied, held for review, waiting for the payer, cancelled or failed. */
     notPaidCount: number;
     /** Paid only because the payer chose MONITORED. */
     monitoredExceptions: number;
@@ -29,17 +29,15 @@ export async function buildSpendingReport(
   spending: Pick<SpendingLog, "listByMandate">,
 ): Promise<SpendingReport> {
   const records = await spending.listByMandate(mandate.id);
-  const paidRecords = records.filter((record) => record.openPayments.outgoingPaymentUrl);
+  const paidRecords = records.filter(
+    (record) => record.paypal.state === "COMPLETED" || record.paypal.state === "PENDING",
+  );
 
   let paid = 0n;
   for (const record of paidRecords) {
-    const debit = record.debitAmount;
-    if (
-      debit &&
-      debit.assetCode === mandate.budget.assetCode &&
-      debit.assetScale === mandate.budget.assetScale
-    ) {
-      paid += BigInt(debit.value);
+    const charge = record.requestedAmount;
+    if (charge.assetCode === mandate.budget.assetCode && charge.assetScale === mandate.budget.assetScale) {
+      paid += BigInt(charge.value);
     }
   }
 

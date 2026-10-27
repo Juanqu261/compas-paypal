@@ -14,7 +14,7 @@ import {
   NOW,
   PHARMACY,
   VALID_NIT,
-  walletSubject,
+  merchantSubject,
 } from "../application/category-test-kit.ts";
 
 function routes() {
@@ -38,7 +38,7 @@ function routes() {
 
 test("POST accepts a signed claim with 202, and a repeat with 200", async () => {
   const { deps, signed } = routes();
-  const { body, signature } = signed(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773" }]));
+  const { body, signature } = signed(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773" }]));
 
   const first = await handleIngestCategoryClaim(body, signature, deps);
   assert.equal(first.status, 202);
@@ -51,15 +51,15 @@ test("POST accepts a signed claim with 202, and a repeat with 200", async () => 
 
 test("POST refuses a missing or wrong signature with 401 and records nothing", async () => {
   const { bench, deps, signed } = routes();
-  const { body } = signed(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773" }]));
+  const { body } = signed(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773" }]));
 
   const unsigned = await handleIngestCategoryClaim(body, undefined, deps);
   assert.deepEqual([unsigned.status, unsigned.body.error], [401, "BAD_SIGNATURE"]);
 
-  const forged = signed(ciiuClaim("wallet", "s1", walletSubject(PHARMACY), [{ code: "4773" }]), newKey());
+  const forged = signed(ciiuClaim("wallet", "s1", merchantSubject(PHARMACY), [{ code: "4773" }]), newKey());
   const wrongKey = await handleIngestCategoryClaim(forged.body, forged.signature, deps);
   assert.equal(wrongKey.status, 401);
-  assert.equal((await bench.trustLog.listByWalletAddress(PHARMACY)).length, 0);
+  assert.equal((await bench.trustLog.listByPayPalMerchant(PHARMACY)).length, 0);
 });
 
 test("POST maps validation and permission errors to 400 and 403", async () => {
@@ -71,7 +71,7 @@ test("POST maps validation and permission errors to 400 and 403", async () => {
     sourceId: "wallet",
     submissionId: "s2",
     type: "CATEGORY_CLAIM",
-    subject: walletSubject(PHARMACY),
+    subject: merchantSubject(PHARMACY),
     declaredCategories: ["MEDICATION"],
     observedAt: "2026-10-16T12:00:00Z",
   });
@@ -84,18 +84,19 @@ test("GET returns categories and trust levels, never subject refs or entry ids",
     sourceId: "wallet",
     submissionId: "b1",
     type: "IDENTITY_BINDING",
-    walletAddressUrl: PHARMACY,
+    paypalMerchantId: PHARMACY,
     taxId: VALID_NIT,
     observedAt: "2026-10-16T12:00:00Z",
   });
   await bench.submitOk(ciiuClaim("registry", "s1", { kind: "TAX_ID", taxId: VALID_NIT }, [{ code: "4773", role: "PRIMARY" }]));
 
   const response = await handleGetMerchantCategories(
-    new URL(`http://localhost/merchants/categories?walletAddress=${encodeURIComponent(PHARMACY + "/")}`),
+    // Lower case and padded: the id is normalized before the lookup.
+    new URL(`http://localhost/merchants/categories?paypalMerchantId=${encodeURIComponent(` ${PHARMACY.toLowerCase()} `)}`),
     deps,
   );
   assert.equal(response.status, 200);
-  assert.equal(response.body.walletAddressUrl, PHARMACY);
+  assert.equal(response.body.paypalMerchantId, PHARMACY);
   assert.equal(response.body.dataLabel, "demo/test data");
   assert.deepEqual(response.body.categories, [
     { category: "MEDICATION", trustLevel: "PROVIDER_VERIFIED", sourceIds: ["registry"], simulated: true },
@@ -108,9 +109,9 @@ test("GET returns categories and trust levels, never subject refs or entry ids",
   assert.equal(serialized.includes("entry-"), false);
 });
 
-test("GET without a valid wallet address is 400", async () => {
+test("GET without a valid PayPal merchant id is 400", async () => {
   const { deps } = routes();
-  for (const query of ["", "?walletAddress=nope", "?walletAddress=https://x.example/a?b=1"]) {
+  for (const query of ["", "?paypalMerchantId=nope", "?paypalMerchantId=https://x.example/a", "?walletAddress=TESTPHARMACY2"]) {
     const response = await handleGetMerchantCategories(new URL(`http://localhost/merchants/categories${query}`), deps);
     assert.equal(response.status, 400, query);
   }

@@ -7,7 +7,6 @@ import {
   handlePurchaseRequest,
   isPurchaseApiPath,
 } from "../../src/api/purchases.ts";
-import { StaticPartyDirectory } from "../../src/integrations/mandates/demo-party-directory.ts";
 import {
   createDemoMerchantDirectory,
   DEMO_MERCHANT_IDS,
@@ -15,11 +14,10 @@ import {
 } from "../../src/integrations/merchants/demo-merchant-directory.ts";
 import { ANDREA, medicationRequest, NOW, PEDRO, serviceKit } from "../application/mandate-test-kit.ts";
 import {
+  fakePayPal,
   historyDeps,
-  LIQUOR_WALLET,
-  PAYER_WALLET,
-  PHARMACY_WALLET,
-  recordingPayments,
+  LIQUOR_PAYPAL_ID,
+  PHARMACY_PAYPAL_ID,
   resolution,
   stubRegistry,
 } from "../application/purchase-test-kit.ts";
@@ -29,21 +27,17 @@ async function activeMandate(execution: ConstructorParameters<typeof DelegatePur
   const created = await kit.service.create(PEDRO, medicationRequest());
   assert.ok(created.ok);
   const id = created.mandate.id;
-  await kit.service.startAuthorization(PEDRO, id);
-  await kit.gateway.finishGrant(id);
-  await kit.service.completeAuthorization(id);
-  const recording = recordingPayments();
+  assert.ok((await kit.service.authorize(PEDRO, id)).ok);
+  const recording = fakePayPal();
   const service = new DelegatePurchaseService({
     mandates: kit.service,
     merchants: new StaticMerchantDirectory([
-      { id: DEMO_MERCHANT_IDS.drogueria, displayName: "Droguería Central", walletAddressUrl: PHARMACY_WALLET },
-      { id: DEMO_MERCHANT_IDS.liquor, displayName: "Licorera de ejemplo", walletAddressUrl: LIQUOR_WALLET },
+      { id: DEMO_MERCHANT_IDS.drogueria, displayName: "Droguería Central", paypalMerchantId: PHARMACY_PAYPAL_ID },
+      { id: DEMO_MERCHANT_IDS.liquor, displayName: "Licorera de ejemplo", paypalMerchantId: LIQUOR_PAYPAL_ID },
     ]),
     registry: stubRegistry(),
     history: historyDeps(),
-    parties: new StaticPartyDirectory([{ id: PEDRO.partyId, displayName: "Pedro", walletAddressUrl: PAYER_WALLET }]),
-    grants: kit.gateway.grants,
-    payments: recording.payments,
+    payments: recording.gateway,
     spending: kit.spending,
     capacity: kit.mandates,
     execution,
@@ -104,23 +98,37 @@ test("an invalid body answers 400 with field errors", async () => {
   assert.ok(Array.isArray(invalid.body.fieldErrors));
 });
 
-test("demo purchases are off by default, in production and off the test network", () => {
-  const testNetwork = {
-    COMPAS_DEMO_PURCHASES: "enabled",
-    CLIENT_WALLET_ADDRESS: "https://ilp.interledger-test.dev/client-test",
-    DEMO_PAYER_WALLET_ADDRESS: "https://ilp.interledger-test.dev/payer-test",
-    DEMO_MERCHANT_WALLET_ADDRESS: "https://ilp.interledger-test.dev/merchant-test",
-  };
+test("demo purchases are off by default, in production and without the pharmacy's sandbox account", () => {
+  const sandbox = { COMPAS_DEMO_PURCHASES: "enabled", DEMO_MERCHANT_PAYPAL_ID: "SANDBXPHARMA2" };
   assert.equal(readDemoPurchasesMode({}).enabled, false);
-  assert.equal(readDemoPurchasesMode(testNetwork).enabled, true);
-  assert.equal(readDemoPurchasesMode({ ...testNetwork, NODE_ENV: "production" }).enabled, false);
-  assert.equal(readDemoPurchasesMode({ ...testNetwork, DEMO_MERCHANT_WALLET_ADDRESS: "https://wallet.example/x" }).enabled, false);
+  assert.equal(readDemoPurchasesMode({ DEMO_MERCHANT_PAYPAL_ID: "SANDBXPHARMA2" }).enabled, false, "off unless opted in");
+  assert.equal(readDemoPurchasesMode(sandbox).enabled, true);
+  assert.equal(readDemoPurchasesMode({ ...sandbox, NODE_ENV: "production" }).enabled, false);
+  assert.equal(readDemoPurchasesMode({ COMPAS_DEMO_PURCHASES: "enabled" }).enabled, false);
+  assert.equal(readDemoPurchasesMode({ ...sandbox, DEMO_MERCHANT_PAYPAL_ID: "https://wallet.example/x" }).enabled, false);
 });
 
-test("the demo merchant list hides wallets and says when no evidence source is registered", async () => {
+test("an allowed purchase answers with an order waiting for the payer, and no approval link", async () => {
+  const { id, recording, service } = await activeMandate({ allowed: true });
+  const amount = { value: "1120", assetCode: "USD", assetScale: 2 };
+  const allowed = await post(service, "/purchases", {
+    mandateId: id,
+    merchantId: DEMO_MERCHANT_IDS.drogueria,
+    amount,
+    lineItems: [{ category: "MEDICATION", amount }],
+    idempotencyKey: "demo-key-0000000002",
+  });
+  assert.equal(allowed.status, 201);
+  assert.deepEqual((allowed.body.purchase as { payment: unknown }).payment, { status: "CREATED", state: "AWAITING_PAYER_APPROVAL" });
+  assert.equal(recording.calls.create.length, 1);
+  assert.equal(JSON.stringify(allowed.body).includes("paypal.com"), false);
+  assert.equal(JSON.stringify(allowed.body).includes(PHARMACY_PAYPAL_ID), false);
+});
+
+test("the demo merchant list hides PayPal ids and says when no evidence source is registered", async () => {
   const listed = await handleListDemoMerchants({
     merchants: createDemoMerchantDirectory({}),
-    registry: stubRegistry({ "https://wallet.example/demo-drogueria-central": resolution("https://wallet.example/demo-drogueria-central", [["MEDICATION", "PROVIDER_VERIFIED"]]) }),
+    registry: stubRegistry({ DEMPHARMACY22: resolution("DEMPHARMACY22", [["MEDICATION", "PROVIDER_VERIFIED"]]) }),
     sources: { getById: async () => undefined },
     sourceCount: 0,
   });
@@ -128,6 +136,6 @@ test("the demo merchant list hides wallets and says when no evidence source is r
   assert.equal(listed.body.categorySources, "NONE_REGISTERED");
   const merchants = listed.body.merchants as Record<string, unknown>[];
   assert.deepEqual(merchants.map((merchant) => merchant.id), [DEMO_MERCHANT_IDS.drogueria, DEMO_MERCHANT_IDS.liquor]);
-  assert.ok(merchants.every((merchant) => !("walletAddressUrl" in merchant)));
+  assert.ok(merchants.every((merchant) => !("paypalMerchantId" in merchant)));
   assert.equal((merchants[0].categories as unknown[]).length, 1);
 });

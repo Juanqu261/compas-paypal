@@ -65,7 +65,7 @@ test("the extract corroborates a declared MEDICATION through a self-typed NIT as
     sourceId: "merchant",
     submissionId: "d1",
     type: "CATEGORY_CLAIM",
-    subject: { kind: "WALLET_ADDRESS", walletAddressUrl: PHARMACY },
+    subject: { kind: "PAYPAL_MERCHANT", paypalMerchantId: PHARMACY },
     declaredCategories: ["MEDICATION"],
     observedAt: "2026-10-16T12:00:00Z",
   });
@@ -73,7 +73,7 @@ test("the extract corroborates a declared MEDICATION through a self-typed NIT as
     sourceId: "merchant",
     submissionId: "b1",
     type: "IDENTITY_BINDING",
-    walletAddressUrl: PHARMACY,
+    paypalMerchantId: PHARMACY,
     taxId: PHARMACY_NIT,
     observedAt: "2026-10-16T12:00:00Z",
   });

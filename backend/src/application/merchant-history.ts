@@ -1,9 +1,8 @@
 import type { Mandate } from "../domain/mandate.ts";
-import { type CompasCategory, isCompasCategory } from "../domain/merchant-category.ts";
+import type { CompasCategory } from "../domain/merchant-category.ts";
 import type { PaidObservation } from "../domain/merchant-history.ts";
-import type { PurchaseIntent } from "../domain/purchase.ts";
+import type { SpendingRecord } from "../domain/spending.ts";
 import type { TrustMatrix } from "../domain/trust-matrix.ts";
-import type { PaymentState } from "../ports/open-payments-gateway.ts";
 import type { MerchantObservationLog } from "../ports/merchant-observation-log.ts";
 import type { MerchantHistoryInput } from "../policy/merchant-category-evidence.ts";
 import { historyWindowStart, summarizeMerchantHistory } from "../policy/merchant-history.ts";
@@ -17,7 +16,7 @@ export type MerchantHistoryDeps = {
 
 /** Summaries for the categories the merchant step needs, at decision time. */
 export async function loadMerchantHistory(
-  walletAddressUrl: string,
+  paypalMerchantId: string,
   categories: readonly CompasCategory[],
   asOf: Date,
   deps: Pick<MerchantHistoryDeps, "observations" | "matrix">,
@@ -25,48 +24,40 @@ export async function loadMerchantHistory(
   const observations =
     categories.length === 0
       ? []
-      : await deps.observations.listByMerchant(walletAddressUrl, historyWindowStart(asOf, deps.matrix));
+      : await deps.observations.listByMerchant(paypalMerchantId, historyWindowStart(asOf, deps.matrix));
   return {
     matrix: deps.matrix,
     summaries: categories.map((category) =>
-      summarizeMerchantHistory({ observations, walletAddressUrl, category, asOf, matrix: deps.matrix }),
+      summarizeMerchantHistory({ observations, paypalMerchantId, category, asOf, matrix: deps.matrix }),
     ),
   };
 }
 
 /**
- * Records a purchase that produced an outgoing payment. Only categories are
- * kept, never line descriptions or amounts. A failed payment is not history.
+ * Records a purchase PayPal captured, or accepted for capture. Only
+ * categories are kept, never line descriptions or amounts. An order that was
+ * never captured is not history.
  */
 export async function recordPaidPurchase(
   input: {
-    spendingRecordId: string;
+    record: Pick<SpendingRecord, "id" | "paypalMerchantId" | "lineCategories" | "hasUncategorizedLines">;
     mandate: Mandate;
-    intent: PurchaseIntent;
-    merchantWalletAddressUrl: string;
-    paymentState: PaymentState;
+    paymentState: PaidObservation["paymentState"];
     observedAt: Date;
   },
   deps: Pick<MerchantHistoryDeps, "observations" | "partyRef">,
-): Promise<PaidObservation | undefined> {
-  if (input.paymentState === "FAILED") return undefined;
-  const lineCategories = new Set<CompasCategory>();
-  let hasUncategorizedLines = false;
-  for (const line of input.intent.lineItems) {
-    if (isCompasCategory(line.category)) lineCategories.add(line.category);
-    else hasUncategorizedLines = true;
-  }
-
+): Promise<PaidObservation> {
+  const { record } = input;
   const observation: PaidObservation = {
     type: "PAID",
-    id: `${input.spendingRecordId}:paid`,
-    spendingRecordId: input.spendingRecordId,
-    merchantWalletAddressUrl: input.merchantWalletAddressUrl,
+    id: `${record.id}:paid`,
+    spendingRecordId: record.id,
+    paypalMerchantId: record.paypalMerchantId,
     payerRef: deps.partyRef(input.mandate.payer.id),
     delegateRef: deps.partyRef(input.mandate.delegate.id),
     mandateCategories: input.mandate.purposePolicy.eligibleCategories,
-    lineCategories: [...lineCategories],
-    hasUncategorizedLines,
+    lineCategories: record.lineCategories,
+    hasUncategorizedLines: record.hasUncategorizedLines,
     enforcement: input.mandate.purposePolicy.enforcement,
     paymentState: input.paymentState,
     observedAt: input.observedAt.toISOString(),

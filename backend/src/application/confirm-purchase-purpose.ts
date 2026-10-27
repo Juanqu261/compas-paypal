@@ -54,7 +54,7 @@ export async function confirmPurchasePurpose(
     type: "PAYER_VERDICT",
     id,
     spendingRecordId: input.spendingRecordId,
-    merchantWalletAddressUrl: paid.merchantWalletAddressUrl,
+    paypalMerchantId: paid.paypalMerchantId,
     payerRef,
     verdict: input.verdict,
     observedAt: (deps.now?.() ?? new Date()).toISOString(),

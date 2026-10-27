@@ -13,12 +13,11 @@ import type { SpendingRecord } from "../../../src/domain/spending.ts";
 import { loadMerchantHistory } from "../../../src/application/merchant-history.ts";
 import { JsonBusinessRegistryLookup } from "../../../src/integrations/category-sources/json-business-registry-lookup.ts";
 import { createMerchantHistoryService } from "../../../src/integrations/merchant-history/create-merchant-history-service.ts";
-import { DEMO_TIENDA_WALLET } from "../../../src/integrations/merchant-registry/demo-category-seed.ts";
+import { DEMO_DROGUERIA_PAYPAL_ID, DEMO_TIENDA_PAYPAL_ID } from "../../../src/integrations/merchant-registry/demo-category-seed.ts";
 import { createMerchantCategoryService } from "../../../src/integrations/merchant-registry/create-merchant-category-service.ts";
 import { connectDatabase } from "../../../src/integrations/postgres/database.ts";
 import { PostgresAuditRepository } from "../../../src/integrations/postgres/postgres-audit-repository.ts";
 import { PostgresBusinessRegistryLookup } from "../../../src/integrations/postgres/postgres-business-registry-lookup.ts";
-import { PostgresGrantStore } from "../../../src/integrations/postgres/postgres-grant-store.ts";
 import { PostgresMandateRepository } from "../../../src/integrations/postgres/postgres-mandate-repository.ts";
 import { PostgresObservationLog } from "../../../src/integrations/postgres/postgres-observation-log.ts";
 import { PostgresSpendingLog } from "../../../src/integrations/postgres/postgres-spending-log.ts";
@@ -26,7 +25,7 @@ import { PostgresTrustLog } from "../../../src/integrations/postgres/postgres-tr
 import { gradeMerchantHistory } from "../../../src/policy/merchant-history.ts";
 import { MANDATE_EVENTS } from "../../../src/application/mandates.ts";
 import { StaticPartyDirectory } from "../../../src/integrations/mandates/demo-party-directory.ts";
-import { fakeGateway, medicationRequest, PAYER_WALLET, serviceKit } from "../../application/mandate-test-kit.ts";
+import { medicationRequest, PAYER_PAYPAL_ID, serviceKit } from "../../application/mandate-test-kit.ts";
 import { mandate as fixtureMandate } from "../../application/purchase-test-kit.ts";
 
 const database = connectDatabase({ DATABASE_URL: process.env.TEST_DATABASE_URL });
@@ -34,6 +33,12 @@ const skip = database ? false : "set TEST_DATABASE_URL to run the Postgres adapt
 after(() => database?.end({ timeout: 5 }));
 
 const HMAC_LIKE = (seed: string) => Buffer.from(seed.padEnd(32, "x")).toString("base64url").slice(0, 43);
+
+/** A fresh id in PayPal's format, so runs never share a merchant. Names no PayPal account. */
+function freshMerchantId(): string {
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  return Array.from(randomUUID().replace(/-/g, "").slice(0, 13), (hex) => alphabet[parseInt(hex, 16) * 2]).join("");
+}
 
 function freshMandate(): Mandate {
   const run = randomUUID().slice(0, 8);
@@ -53,14 +58,15 @@ function spendingRecord(mandate: Mandate, id: string): SpendingRecord {
     id,
     mandateId: mandate.id,
     purchaseIntentId: `${id}-intent`,
-    merchantWalletAddressUrl: "https://wallet.test/drogueria-central",
+    paypalMerchantId: "TESTPHARMACY2",
     merchantDisplayName: "Droguería Central",
-    requestedAmount: { value: "1000", assetCode: "EUR", assetScale: 2 },
-    debitAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
+    requestedAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
     decision: { outcome: "ALLOW", reasons: [] },
     merchantCategories: [{ category: "MEDICATION", trustLevel: "PROVIDER_VERIFIED" }],
+    lineCategories: ["MEDICATION"],
+    hasUncategorizedLines: false,
     monitoredException: false,
-    openPayments: { incomingPaymentUrl: "https://wallet.test/incoming/1", quoteId: "https://wallet.test/quotes/1" },
+    paypal: {},
     recordedAt: "2026-10-16T15:00:00.000Z",
   };
 }
@@ -100,31 +106,50 @@ test("mandates: a status change keeps a reservation, and lists filter by payer a
   assert.deepEqual(await mandates.listByPayer("pg-nobody"), []);
 });
 
-test("spending log: append, record the payment once, list by mandate", { skip }, async () => {
+test("spending log: append, record the PayPal order once, move its state conditionally", { skip }, async () => {
   const mandate = freshMandate();
   await new PostgresMandateRepository(database!).save(mandate);
   const spending = new PostgresSpendingLog(database!);
   const record = spendingRecord(mandate, `pg-decision-${randomUUID()}`);
   await spending.append(record);
+  assert.deepEqual(await spending.listByMandate(mandate.id), [record]);
 
-  const paid = await spending.recordPayment(record.id, { outgoingPaymentUrl: "https://wallet.test/op/1", state: "PENDING" });
-  assert.deepEqual(paid, {
-    ...record,
-    openPayments: { ...record.openPayments, outgoingPaymentUrl: "https://wallet.test/op/1", state: "PENDING" },
-  });
-  await spending.recordPayment(record.id, { outgoingPaymentUrl: "https://wallet.test/op/1", state: "COMPLETED" });
+  const orderId = `PG${randomUUID().replace(/-/g, "").slice(0, 15).toUpperCase()}`;
+  const approvalUrl = `https://www.sandbox.paypal.com/checkoutnow?token=${orderId}`;
+  const ordered = await spending.recordOrder(record.id, { orderId, approvalUrl, state: "AWAITING_PAYER_APPROVAL" });
+  assert.deepEqual(ordered, { ...record, paypal: { orderId, approvalUrl, state: "AWAITING_PAYER_APPROVAL" } });
+  assert.deepEqual(await spending.recordOrder(record.id, { orderId, approvalUrl, state: "AWAITING_PAYER_APPROVAL" }), ordered);
   await assert.rejects(
-    spending.recordPayment(record.id, { outgoingPaymentUrl: "https://wallet.test/op/2", state: "PENDING" }),
-    /different outgoing payment/,
+    spending.recordOrder(record.id, { orderId: `${orderId}X`, state: "AWAITING_PAYER_APPROVAL" }),
+    /different PayPal order/,
   );
-  const [listed] = await spending.listByMandate(mandate.id);
-  assert.equal(listed.openPayments.state, "COMPLETED");
+  assert.deepEqual(await spending.findByPayPalOrderId(orderId), ordered);
+
+  const captured = await spending.transitionPayment(record.id, ["AWAITING_PAYER_APPROVAL"], {
+    state: "COMPLETED",
+    captureId: "PGCAPTURE1",
+  });
+  assert.deepEqual(captured?.paypal, { orderId, approvalUrl, captureId: "PGCAPTURE1", state: "COMPLETED" });
+  assert.equal(
+    await spending.transitionPayment(record.id, ["AWAITING_PAYER_APPROVAL"], { state: "CANCELLED" }),
+    undefined,
+    "a second settlement loses: the state already moved",
+  );
+
+  const failed = spendingRecord(mandate, `pg-decision-${randomUUID()}`);
+  await spending.append(failed);
+  await spending.recordOrder(failed.id, { orderId: `${orderId}F`, state: "AWAITING_PAYER_APPROVAL" });
+  const closed = await spending.transitionPayment(failed.id, ["AWAITING_PAYER_APPROVAL"], {
+    state: "FAILED",
+    failureCode: "MANDATE_NOT_USABLE",
+  });
+  assert.deepEqual(closed?.paypal, { orderId: `${orderId}F`, state: "FAILED", failureCode: "MANDATE_NOT_USABLE" });
 });
 
 test("trust log: idempotent append and every lookup the resolver uses", { skip }, async () => {
   const log = new PostgresTrustLog(database!);
   const run = randomUUID();
-  const wallet = `https://wallet.test/${run}/shop`;
+  const merchant = freshMerchantId();
   const subjectRef = HMAC_LIKE(run);
   const base = { sourceId: "nequi-negocios-sim/kyb", bodyDigest: "digest", recordedAt: "2026-10-16T12:00:00.000Z" };
   const claim: TrustLogEntry = {
@@ -132,7 +157,7 @@ test("trust log: idempotent append and every lookup the resolver uses", { skip }
     id: `${run}-1`,
     submissionId: `${run}-s1`,
     type: "CATEGORY_CLAIM",
-    subject: { kind: "WALLET_ADDRESS", walletAddressUrl: wallet },
+    subject: { kind: "PAYPAL_MERCHANT", paypalMerchantId: merchant },
     codes: [{ system: "CIIU_REV4_AC", code: "4773", role: "PRIMARY" }],
     declaredCategories: [],
     observedAt: "2026-10-16T12:00:00.000Z",
@@ -150,7 +175,7 @@ test("trust log: idempotent append and every lookup the resolver uses", { skip }
     id: `${run}-3`,
     submissionId: `${run}-s3`,
     type: "IDENTITY_BINDING",
-    walletAddressUrl: wallet,
+    paypalMerchantId: merchant,
     subject: { kind: "TAX_ID", subjectRef },
     observedAt: "2026-10-16T12:00:00.000Z",
   };
@@ -169,7 +194,7 @@ test("trust log: idempotent append and every lookup the resolver uses", { skip }
   assert.deepEqual(await log.append({ ...claim, id: `${run}-other` }), { entry: claim, duplicate: true });
   assert.deepEqual(await log.getById(registryClaim.id), registryClaim);
   assert.deepEqual(await log.findBySubmission(claim.sourceId, claim.submissionId), claim);
-  assert.deepEqual(await log.listByWalletAddress(wallet), [claim, binding]);
+  assert.deepEqual(await log.listByPayPalMerchant(merchant), [claim, binding]);
   assert.deepEqual(await log.listBySubjectRef(subjectRef), [registryClaim]);
   assert.deepEqual(await log.listBindingsBySubjectRef(subjectRef), [binding]);
   assert.deepEqual(await log.listRevocationsFor([claim.id, binding.id]), [revocation]);
@@ -183,12 +208,12 @@ test("observation log: paid and verdict per purchase, listed by merchant after a
   await new PostgresSpendingLog(database!).append(record);
 
   const log = new PostgresObservationLog(database!);
-  const wallet = `https://wallet.test/${randomUUID()}/shop`;
+  const merchant = freshMerchantId();
   const paid: MerchantObservation = {
     type: "PAID",
     id: `${record.id}:paid`,
     spendingRecordId: record.id,
-    merchantWalletAddressUrl: wallet,
+    paypalMerchantId: merchant,
     payerRef: HMAC_LIKE("payer"),
     delegateRef: HMAC_LIKE("delegate"),
     mandateCategories: ["MEDICATION"],
@@ -202,7 +227,7 @@ test("observation log: paid and verdict per purchase, listed by merchant after a
     type: "PAYER_VERDICT",
     id: `${record.id}:verdict`,
     spendingRecordId: record.id,
-    merchantWalletAddressUrl: wallet,
+    paypalMerchantId: merchant,
     payerRef: HMAC_LIKE("payer"),
     verdict: "MATCH",
     observedAt: "2026-10-16T16:00:00.000Z",
@@ -213,36 +238,8 @@ test("observation log: paid and verdict per purchase, listed by merchant after a
 
   assert.deepEqual(await log.findPaid(record.id), paid);
   assert.deepEqual(await log.findVerdict(record.id), verdict);
-  assert.deepEqual(await log.listByMerchant(wallet, new Date("2026-10-01T00:00:00Z")), [paid, verdict]);
-  assert.deepEqual(await log.listByMerchant(wallet, new Date("2026-10-16T15:30:00Z")), [verdict]);
-});
-
-test("grant store: pending, then active, then deleted", { skip }, async () => {
-  const mandate = freshMandate();
-  await new PostgresMandateRepository(database!).save(mandate);
-  const grants = new PostgresGrantStore(database!);
-  const base = {
-    grantKey: mandate.id,
-    payerWalletAddressUrl: "https://wallet.test/pedro",
-    resourceServer: "https://wallet.test",
-    continueUri: "https://auth.wallet.test/continue/1",
-    continueAccessToken: "continue-token",
-  };
-  const pending = { ...base, state: "PENDING" as const, grantEndpoint: "https://auth.wallet.test", clientNonce: "n1", finishNonce: "n2" };
-  await grants.put(pending);
-  assert.deepEqual(await grants.get(mandate.id), pending);
-
-  const active = {
-    ...base,
-    state: "ACTIVE" as const,
-    accessToken: "access-token",
-    manageUrl: "https://auth.wallet.test/token/1",
-    accessTokenExpiresAt: "2026-10-16T18:00:00.000Z",
-  };
-  await grants.put(active);
-  assert.deepEqual(await grants.get(mandate.id), active);
-  await grants.delete(mandate.id);
-  assert.equal(await grants.get(mandate.id), undefined);
+  assert.deepEqual(await log.listByMerchant(merchant, new Date("2026-10-01T00:00:00Z")), [paid, verdict]);
+  assert.deepEqual(await log.listByMerchant(merchant, new Date("2026-10-16T15:30:00Z")), [verdict]);
 });
 
 test("audit events: append and list by mandate", { skip }, async () => {
@@ -255,7 +252,7 @@ test("audit events: append and list by mandate", { skip }, async () => {
     occurredAt: "2026-10-16T15:00:00.000Z",
     mandateId: mandate.id,
     decisionId: "decision-1",
-    openPaymentsRefs: { quoteUrl: "https://wallet.test/quotes/1" },
+    paypalRefs: { orderId: "PGORDER1", captureId: "PGCAPTURE1" },
     payload: { outcome: "ALLOW" },
   };
   await audit.append(event);
@@ -280,30 +277,28 @@ test("registry: the Postgres lookup returns what the JSON seed holds for a compa
 test("category service on Postgres: a second start finds the demo seed already there and resolves the same", { skip }, async () => {
   const env = {
     MERCHANT_SUBJECT_HMAC_KEY: "test-hmac-key-test-hmac-key-test-hmac-key",
-    DEMO_MERCHANT_WALLET_ADDRESS: undefined,
-    DEMO_LIQUOR_WALLET_ADDRESS: undefined,
+    DEMO_MERCHANT_PAYPAL_ID: undefined,
+    DEMO_LIQUOR_PAYPAL_ID: undefined,
   };
   const first = await createMerchantCategoryService({ env, database: database!, now: () => new Date("2026-10-16T12:00:00Z") });
   const second = await createMerchantCategoryService({ env, database: database!, now: () => new Date("2026-10-17T12:00:00Z") });
-  const wallet = "https://wallet.example/demo-drogueria-central";
-  const { resolvedAt: _second, ...afterRestart } = await second.registry.resolve(wallet);
-  const { resolvedAt: _first, ...beforeRestart } = await first.registry.resolve(wallet);
+  const { resolvedAt: _second, ...afterRestart } = await second.registry.resolve(DEMO_DROGUERIA_PAYPAL_ID);
+  const { resolvedAt: _first, ...beforeRestart } = await first.registry.resolve(DEMO_DROGUERIA_PAYPAL_ID);
   assert.deepEqual(afterRestart, beforeRestart);
   assert.ok(beforeRestart.declarations.some((declared) => declared.category === "MEDICATION"));
 });
 
-test("mandate service on Postgres: activation from the shared grant store, revocation keeps the reservation", { skip }, async () => {
+test("mandate service on Postgres: activation, then revocation keeps the reservation", { skip }, async () => {
   const run = randomUUID().slice(0, 8);
   let n = 0;
   // Fresh parties, so a shared test database never shows these mandates to the demo's Pedro.
   const payer = { partyId: `pg-payer-${run}` };
   const kit = serviceKit({
     parties: new StaticPartyDirectory([
-      { id: payer.partyId, displayName: "Pedro", walletAddressUrl: PAYER_WALLET },
+      { id: payer.partyId, displayName: "Pedro", paypalPayerId: PAYER_PAYPAL_ID },
       { id: `pg-delegate-${run}`, displayName: "Andrea" },
       { id: `pg-beneficiary-${run}`, displayName: "Gladys" },
     ]),
-    gateway: fakeGateway({ grants: new PostgresGrantStore(database!) }),
     storage: {
       mandates: new PostgresMandateRepository(database!),
       audit: new PostgresAuditRepository(database!),
@@ -314,27 +309,16 @@ test("mandate service on Postgres: activation from the shared grant store, revoc
   const created = await kit.service.create(payer, medicationRequest({ delegateId: `pg-delegate-${run}`, beneficiaryId: `pg-beneficiary-${run}` }));
   assert.ok(created.ok);
   const id = created.mandate.id;
-  assert.ok((await kit.service.startAuthorization(payer, id)).ok);
-  assert.equal(await kit.service.completeAuthorization(id), "IGNORED", "a PENDING grant is not consent");
-  await kit.gateway.finishGrant(id);
-  assert.equal(await kit.service.completeAuthorization(id), "ACTIVATED");
+  assert.ok((await kit.service.authorize(payer, id)).ok);
 
   assert.ok(await kit.mandates.reserveCapacity(id, { value: "1120", assetCode: "USD", assetScale: 2 }));
   const revoked = await kit.service.revoke(payer, id);
   assert.ok(revoked.ok);
   assert.equal(revoked.mandate.status, "REVOKED");
   assert.equal(revoked.mandate.remainingAuthorizedAmount.value, "2880");
-  assert.equal(revoked.mandate.authorization?.grantCancellation, "DONE");
-  assert.equal(await kit.gateway.grants.get(id), undefined);
 
   const types = (await kit.audit.listByMandate(id)).map((event) => event.type);
-  assert.deepEqual(types, [
-    MANDATE_EVENTS.created,
-    MANDATE_EVENTS.authorizationStarted,
-    MANDATE_EVENTS.activated,
-    MANDATE_EVENTS.revoked,
-    MANDATE_EVENTS.grantCancelled,
-  ]);
+  assert.deepEqual(types, [MANDATE_EVENTS.created, MANDATE_EVENTS.activated, MANDATE_EVENTS.revoked]);
   assert.deepEqual((await kit.service.list(payer, "PAYER")).map((m) => m.id), [id], "the tienda's demo mandates are not this payer's");
 });
 
@@ -354,9 +338,9 @@ test("demo tienda history on Postgres: spending records and mandates behind ever
 
   const [record] = await new PostgresSpendingLog(database!).listByMandate("demo-food-mandate-1");
   assert.equal(record.id, "demo-tienda-purchase-1");
-  assert.equal(record.openPayments.state, "COMPLETED");
+  assert.equal(record.paypal.state, "COMPLETED");
 
-  const history = await loadMerchantHistory(DEMO_TIENDA_WALLET, ["FOOD"], new Date(), second);
+  const history = await loadMerchantHistory(DEMO_TIENDA_PAYPAL_ID, ["FOOD"], new Date(), second);
   const [summary] = history.summaries;
   assert.equal(summary.confirmingPayers, 12);
   assert.equal(gradeMerchantHistory(summary, second.matrix), "ESTABLISHED");

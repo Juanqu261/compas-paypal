@@ -6,24 +6,23 @@ import type { MoneyAmount } from "../domain/money.ts";
 import type { PolicyOutcome, PolicyReasonCode, PurposeCheck } from "../domain/policy-decision.ts";
 import type { PurchaseIntent } from "../domain/purchase.ts";
 import type { SpendingRecord } from "../domain/spending.ts";
+import type { PaymentState } from "../domain/spending.ts";
 import type { MandateRepository } from "../ports/mandate-repository.ts";
 import type { DirectoryMerchant, MerchantDirectory } from "../ports/merchant-directory.ts";
 import type { MerchantRegistry } from "../ports/merchant-registry.ts";
-import type { OpenPaymentsGateway, PaymentState } from "../ports/open-payments-gateway.ts";
-import type { PartyDirectory } from "../ports/party-directory.ts";
+import type { PayPalGateway } from "../ports/paypal-gateway.ts";
 import type { SpendingLog } from "../ports/spending-log.ts";
-import { checkMandateRules, evaluatePurposeCheck } from "../policy/evaluate-purchase.ts";
-import { categoriesNeedingHistory } from "../policy/merchant-category-evidence.ts";
 import {
-  type Actor,
-  type FieldError,
-  type MandateErrorCode,
-  type MandateService,
-  parseMoney,
-  type PayerGrantStateReader,
-} from "./mandates.ts";
+  applyConfidenceCap,
+  checkBudget,
+  checkMandateRules,
+  composeDecision,
+  evaluatePurposeCheck,
+} from "../policy/evaluate-purchase.ts";
+import { categoriesNeedingHistory } from "../policy/merchant-category-evidence.ts";
+import { type Actor, type FieldError, type MandateErrorCode, type MandateService, parseMoney } from "./mandates.ts";
 import { loadMerchantHistory, type MerchantHistoryDeps } from "./merchant-history.ts";
-import { type PaymentConfirmation, purchaseUnderMandate } from "./purchase-under-mandate.ts";
+import { purchaseUnderMandate } from "./purchase-under-mandate.ts";
 
 // ---------------------------------------------------------------------------
 // Request
@@ -38,7 +37,7 @@ export const MAX_PURCHASE_LINES = 20;
 export type PurchaseRequest = {
   mandateId: string;
   merchantId: string;
-  /** What the merchant charges, in the merchant wallet's asset. */
+  /** What the merchant charges. An allowed purchase's PayPal order is for exactly this. */
   amount: MoneyAmount;
   /** Categories and amounts only. Descriptions can name a medicine, so COMPAS doesn't take them. */
   lines: readonly { category?: CompasCategory; amount: MoneyAmount }[];
@@ -52,7 +51,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Validates the delegate's purchase. The delegate is never in it: it is the
  * authenticated actor. The merchant is an id from the server's directory, not
- * a wallet address or a category: those come from the backend.
+ * a PayPal account or a category: those come from the backend.
  */
 export function parsePurchaseRequest(
   body: unknown,
@@ -133,31 +132,31 @@ function purposeCheckView(check: PurposeCheck): PurposeCheckView {
 }
 
 /**
- * The checks COMPAS can run before Open Payments, with nothing written and
- * nothing asked of a wallet. It is not a decision: the budget and the cap for
- * a merchant below HIGH need the quoted debit, which only a quote gives.
+ * Every check COMPAS runs before PayPal, with nothing written, nothing
+ * reserved and nothing asked of PayPal. It is not a decision: another
+ * purchase can still use the capacity before this one is made.
  */
 export type PurchasePreview = {
   mandateId: string;
   merchant: { id: string; displayName: string };
   requestedAmount: MoneyAmount;
   mandateRules: { passed: boolean; reasonCodes: readonly PolicyReasonCode[] };
+  /** The charge against the remaining capacity. Absent when a mandate rule already stops the purchase. */
+  budget?: { passed: boolean; reasonCodes: readonly PolicyReasonCode[] };
   /** Absent when a mandate rule already stops the purchase. */
   purposeCheck?: PurposeCheckView;
   merchantCategories: readonly { category: CompasCategory; trustLevel: MerchantTrustLevel }[];
   /**
-   * What `purchaseUnderMandate` would do next. STOP_*: it would decide here,
-   * before any Open Payments call. QUOTE: it would ask Open Payments for an
-   * incoming payment and a quote, then check the budget.
+   * What `purchaseUnderMandate` would do now. STOP_*: it would decide DENY
+   * or REVIEW, and no PayPal order would exist. ORDER: it would decide ALLOW
+   * and create a PayPal order for the payer to approve.
    */
-  next: "STOP_DENY" | "STOP_REVIEW" | "QUOTE";
-  /** Checks that need the quote, still to run when `next` is QUOTE. */
-  pendingChecks: readonly ("BUDGET" | "CONFIDENCE_CAP")[];
+  next: "STOP_DENY" | "STOP_REVIEW" | "ORDER";
   /** Whether POST /purchases may run here. */
-  execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" | "OPEN_PAYMENTS_NOT_CONFIGURED";
+  execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED";
 };
 
-/** One purchase attempt as the delegate sees it. No wallet URL, quote id or token. */
+/** One purchase attempt as the delegate sees it. No PayPal account, order id, approval link or token. */
 export type PurchaseView = {
   decisionId: string;
   mandateId: string;
@@ -167,18 +166,17 @@ export type PurchaseView = {
   purposeCheck?: PurposeCheckView;
   monitoredException: boolean;
   requestedAmount: MoneyAmount;
-  /** From the Open Payments quote. Absent when COMPAS stopped before quoting. */
-  debitAmount?: MoneyAmount;
   /**
-   * NOT_CREATED: no outgoing payment exists for this attempt. CREATED: Open
-   * Payments accepted one. Its state is derived, and PENDING is not COMPLETED.
+   * NOT_CREATED: no PayPal order exists for this attempt. CREATED: PayPal
+   * holds one. AWAITING_PAYER_APPROVAL means the payer has not approved it
+   * yet, and only COMPLETED means the merchant was paid.
    */
   payment: { status: "NOT_CREATED" } | { status: "CREATED"; state: PaymentState };
   recordedAt: string;
 };
 
 function purchaseView(record: SpendingRecord, merchant: { id: string; displayName: string }): PurchaseView {
-  const { outgoingPaymentUrl, state } = record.openPayments;
+  const { orderId, state } = record.paypal;
   return {
     decisionId: record.id,
     mandateId: record.mandateId,
@@ -188,8 +186,7 @@ function purchaseView(record: SpendingRecord, merchant: { id: string; displayNam
     ...(record.purposeCheck ? { purposeCheck: purposeCheckView(record.purposeCheck) } : {}),
     monitoredException: record.monitoredException,
     requestedAmount: record.requestedAmount,
-    ...(record.debitAmount ? { debitAmount: record.debitAmount } : {}),
-    payment: outgoingPaymentUrl && state ? { status: "CREATED", state } : { status: "NOT_CREATED" },
+    payment: orderId && state ? { status: "CREATED", state } : { status: "NOT_CREATED" },
     recordedAt: record.recordedAt,
   };
 }
@@ -203,12 +200,14 @@ export type PurchaseErrorCode =
   | "INVALID_PURCHASE"
   | "UNKNOWN_MERCHANT"
   | "PURCHASES_DISABLED_FOR_DEMO"
-  | "GRANT_NOT_ACTIVE"
+  | "PAYPAL_NOT_CONFIGURED"
   | "IDEMPOTENCY_KEY_REUSED"
-  /** Nothing was paid: COMPAS failed before it asked Open Payments for the payment. Safe to retry. */
-  | "PAYMENT_NOT_STARTED"
-  /** COMPAS asked Open Payments for the payment and got no clear answer. Do not retry: read the activity. */
-  | "PAYMENT_OUTCOME_UNKNOWN";
+  /**
+   * Nothing was paid: the purchase stopped before COMPAS held a PayPal order
+   * for it. An order PayPal may have created anyway can never be captured,
+   * because no COMPAS purchase names it.
+   */
+  | "PAYMENT_NOT_STARTED";
 
 export type PurchaseFailure = {
   ok: false;
@@ -229,26 +228,22 @@ function failure(code: PurchaseErrorCode, message: string, extra: Partial<Purcha
 
 export type PurchaseExecutionMode =
   | { allowed: true }
-  | { allowed: false; code: "PURCHASES_DISABLED_FOR_DEMO" | "OPEN_PAYMENTS_NOT_CONFIGURED"; reason: string };
+  | { allowed: false; code: "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED"; reason: string };
 
 export type DelegatePurchaseDeps = {
   mandates: Pick<MandateService, "forDelegatePurchase">;
   merchants: MerchantDirectory;
   registry: MerchantRegistry;
   history: MerchantHistoryDeps;
-  parties: PartyDirectory;
-  /** The same GrantStore the gateway writes. Only `state` is read. */
-  grants: PayerGrantStateReader;
-  payments: Pick<OpenPaymentsGateway, "createIncomingPayment" | "createQuote" | "createOutgoingPayment">;
+  payments: Pick<PayPalGateway, "createOrder">;
   /** The same log MandateService reads, so the payer sees every attempt. */
   spending: SpendingLog;
-  /** Where the mandate's remaining capacity lives: an ALLOW reserves the quoted debit there. */
+  /** Where the mandate's remaining capacity lives: an ALLOW reserves the charge there. */
   capacity: Pick<MandateRepository, "reserveCapacity" | "releaseCapacity">;
-  /** Reads a new PENDING payment again until the payer's wallet settles it. */
-  confirmation?: PaymentConfirmation;
   /**
-   * Whether this caller may spend a payer's grant. Anyone can start a demo
-   * session as Andrea, so the server keeps it off unless the operator opted in.
+   * Whether this caller may create PayPal orders for the payer to approve.
+   * Anyone can start a demo session as Andrea, so the server keeps it off
+   * unless the operator opted in.
    */
   execution: PurchaseExecutionMode;
   now?: () => Date;
@@ -261,7 +256,7 @@ type Attempt = { fingerprint: string; result: Promise<PurchaseResult<{ purchase:
 /**
  * A delegate's purchase under a mandate. The policy and the payment are
  * `purchaseUnderMandate`'s: this service only checks who is asking, finds the
- * merchant's wallet on the server and keeps a retried attempt from paying twice.
+ * merchant's PayPal account on the server and keeps a retried attempt from ordering twice.
  */
 export class DelegatePurchaseService {
   readonly #deps: DelegatePurchaseDeps;
@@ -300,7 +295,7 @@ export class DelegatePurchaseService {
       id,
       mandateId: request.mandateId,
       delegateId: actor.partyId,
-      merchantWalletAddressUrl: merchant.walletAddressUrl,
+      paypalMerchantId: merchant.paypalMerchantId,
       merchantDisplayName: merchant.displayName,
       lineItems: request.lines.map((line, index) => ({
         id: `line-${index + 1}`,
@@ -314,7 +309,7 @@ export class DelegatePurchaseService {
     };
   }
 
-  /** The checks before Open Payments, with no write and no wallet call. Not a decision. */
+  /** Every check before PayPal, with no write, no reservation and no PayPal call. Not a decision. */
   async preview(actor: Actor, body: unknown): Promise<PurchaseResult<{ preview: PurchasePreview }>> {
     const parsed = parsePurchaseRequest(body, { requireIdempotencyKey: false });
     if (!parsed.ok) return failure("INVALID_PURCHASE", "The purchase is not valid.", { fieldErrors: parsed.errors });
@@ -339,42 +334,49 @@ export class DelegatePurchaseService {
           mandateRules: { passed: false, reasonCodes: mandateReasons.map((reason) => reason.code) },
           merchantCategories: [],
           next: "STOP_DENY",
-          pendingChecks: [],
         },
       };
     }
 
-    const resolution = await this.#deps.registry.resolve(merchant.walletAddressUrl);
+    const resolution = await this.#deps.registry.resolve(merchant.paypalMerchantId);
     const history = await loadMerchantHistory(
-      resolution.walletAddressUrl,
+      resolution.paypalMerchantId,
       categoriesNeedingHistory(resolution, mandate.purposePolicy),
       now,
       this.#deps.history,
     );
-    const check = evaluatePurposeCheck(mandate, intent, resolution, history);
-    const stops = check.enforced && check.outcome !== "ALLOW";
+    const check = applyConfidenceCap(
+      mandate,
+      evaluatePurposeCheck(mandate, intent, resolution, history),
+      intent.amount,
+    );
+    const budgetReasons = checkBudget(mandate, intent.amount);
+    const decision = composeDecision({
+      decisionId: intent.id,
+      mandate,
+      intent,
+      hardReasons: budgetReasons,
+      purposeCheck: check,
+      evaluatedAt: now,
+    });
     return {
       ok: true,
       preview: {
         ...base,
         mandateRules: { passed: true, reasonCodes: [] },
+        budget: { passed: budgetReasons.length === 0, reasonCodes: budgetReasons.map((reason) => reason.code) },
         purposeCheck: purposeCheckView(check),
         merchantCategories: resolution.categories.map(({ category, trustLevel }) => ({ category, trustLevel })),
-        next: stops ? (check.outcome === "DENY" ? "STOP_DENY" : "STOP_REVIEW") : "QUOTE",
-        pendingChecks: stops
-          ? []
-          : mandate.purposePolicy.merchantConfidence.maxDebitBelowHigh
-            ? ["BUDGET", "CONFIDENCE_CAP"]
-            : ["BUDGET"],
+        next: decision.outcome === "ALLOW" ? "ORDER" : decision.outcome === "DENY" ? "STOP_DENY" : "STOP_REVIEW",
       },
     };
   }
 
   /**
-   * Runs one purchase through `purchaseUnderMandate`: policy first, Open
-   * Payments only after the checks pass, `createOutgoingPayment` only after
-   * ALLOW. Every attempt is written to the spending log the payer reads.
-   * The same idempotency key returns the first attempt instead of paying again.
+   * Runs one purchase through `purchaseUnderMandate`: policy first, a PayPal
+   * order only after ALLOW, for the payer to approve at PayPal. Every attempt
+   * is written to the spending log the payer reads. The same idempotency key
+   * returns the first attempt instead of ordering again.
    */
   async purchase(
     actor: Actor,
@@ -406,7 +408,7 @@ export class DelegatePurchaseService {
     this.#attempts.set(intentId, { fingerprint, result });
     const settled = await result;
     // Nothing was paid, so the same key may try again. A refusal before the policy ran is not kept either.
-    if (!settled.ok && settled.code !== "PAYMENT_OUTCOME_UNKNOWN" && settled.code !== "IDEMPOTENCY_KEY_REUSED") {
+    if (!settled.ok && settled.code !== "IDEMPOTENCY_KEY_REUSED") {
       this.#attempts.delete(intentId);
     }
     return settled.ok ? { ...settled, replayed } : settled;
@@ -429,7 +431,7 @@ export class DelegatePurchaseService {
     );
     if (recorded) {
       const same =
-        recorded.merchantWalletAddressUrl === merchant.walletAddressUrl &&
+        recorded.paypalMerchantId === merchant.paypalMerchantId &&
         recorded.requestedAmount.value === request.amount.value &&
         recorded.requestedAmount.assetCode === request.amount.assetCode;
       if (!same) return failure("IDEMPOTENCY_KEY_REUSED", "This key was already used for a different purchase.");
@@ -437,36 +439,16 @@ export class DelegatePurchaseService {
       return { ok: true, purchase: purchaseView(recorded, merchantView) };
     }
 
-    const payer = await this.#deps.parties.getById(mandate.payer.id);
-    if (!payer?.walletAddressUrl) {
-      return failure("PAYER_WALLET_NOT_CONFIGURED", "The payer has no Open Payments wallet configured.");
-    }
-    // An ACTIVE mandate always has the payer's consented grant. Fail closed if it doesn't.
-    if (mandate.status === "ACTIVE" && (await this.#deps.grants.get(mandate.id))?.state !== "ACTIVE") {
-      return failure("GRANT_NOT_ACTIVE", "The payer's wallet has no active permission for this budget.");
-    }
-
     const now = this.#now();
-    let reachedPayment = false;
-    const payments: DelegatePurchaseDeps["payments"] = {
-      createIncomingPayment: (input) => this.#deps.payments.createIncomingPayment(input),
-      createQuote: (input) => this.#deps.payments.createQuote(input),
-      createOutgoingPayment: (input) => {
-        reachedPayment = true;
-        return this.#deps.payments.createOutgoingPayment(input);
-      },
-    };
-
     try {
       const { record } = await purchaseUnderMandate(
-        { mandate, intent: this.#intent(actor, request, intentId, merchant, now), payerWalletAddressUrl: payer.walletAddressUrl },
+        { mandate, intent: this.#intent(actor, request, intentId, merchant, now) },
         {
           merchants: this.#deps.registry,
-          payments,
+          payments: this.#deps.payments,
           spending: this.#deps.spending,
           history: this.#deps.history,
           capacity: this.#deps.capacity,
-          ...(this.#deps.confirmation ? { confirmation: this.#deps.confirmation } : {}),
           now: () => now,
           ...(this.#deps.newId ? { newId: this.#deps.newId } : {}),
         },
@@ -475,14 +457,9 @@ export class DelegatePurchaseService {
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
       this.#deps.logWarning?.(
-        `Purchase ${intentId} on ${mandate.id} failed ${reachedPayment ? "at" : "before"} the outgoing payment: ${typeof code === "string" ? code : "error"}`,
+        `Purchase ${intentId} on ${mandate.id} failed before a PayPal order was recorded: ${typeof code === "string" ? code : "error"}`,
       );
-      return reachedPayment
-        ? failure(
-            "PAYMENT_OUTCOME_UNKNOWN",
-            "COMPAS asked the payer's wallet for the payment and got no clear answer. Do not retry: check the budget's activity.",
-          )
-        : failure("PAYMENT_NOT_STARTED", "The purchase stopped before any payment was requested. Nothing was paid.");
+      return failure("PAYMENT_NOT_STARTED", "The purchase stopped before a PayPal order existed for it. Nothing was paid.");
     }
   }
 }

@@ -279,9 +279,9 @@ const header = {
   privacy:
     "Owners that are natural persons keep no identifier, because their NIT is their cédula. Company NITs are kept. Legal representatives are not included.",
   notes: [
-    "registryKey is the cámara code and the matrícula. It is a registry id, not a wallet address.",
+    "registryKey is the cámara code and the matrícula. It is a registry id, not a PayPal account.",
     "A CIIU code is registered activity, not proof of what a shop sells. 4773 also covers cosmetics and toiletries.",
-    "This file is evidence input. It does not bind any shop to an Open Payments wallet.",
+    "This file is evidence input. It does not bind any shop to a PayPal account.",
   ],
 };
 

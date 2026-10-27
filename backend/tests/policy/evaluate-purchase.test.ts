@@ -3,31 +3,36 @@ import test from "node:test";
 import { evaluatePurchase } from "../../src/policy/evaluate-purchase.ts";
 import {
   intent,
-  LIQUOR_WALLET,
+  LIQUOR_PAYPAL_ID,
   mandate,
   noHistory,
   NOW,
-  PHARMACY_WALLET,
+  PHARMACY_PAYPAL_ID,
   resolution,
 } from "../application/purchase-test-kit.ts";
 
-const debit = { value: "1120", assetCode: "USD", assetScale: 2 };
-const pharmacy = resolution(PHARMACY_WALLET, [["MEDICATION", "PROVIDER_VERIFIED"]]);
-const liquor = resolution(LIQUOR_WALLET, [["ALCOHOL", "PROVIDER_VERIFIED"], ["TOBACCO", "PROVIDER_VERIFIED"]]);
-const selfDeclaredPharmacy = resolution(PHARMACY_WALLET, [["MEDICATION", "SELF_DECLARED"]]);
+/** What the merchant charges. The PayPal order, on ALLOW, is for exactly this. */
+const charge = { value: "1120", assetCode: "USD", assetScale: 2 };
+const pharmacy = resolution(PHARMACY_PAYPAL_ID, [["MEDICATION", "PROVIDER_VERIFIED"]]);
+const liquor = resolution(LIQUOR_PAYPAL_ID, [["ALCOHOL", "PROVIDER_VERIFIED"], ["TOBACCO", "PROVIDER_VERIFIED"]]);
+const selfDeclaredPharmacy = resolution(PHARMACY_PAYPAL_ID, [["MEDICATION", "SELF_DECLARED"]]);
 
 function evaluate(
   enforcement: "ENFORCED" | "MONITORED",
   merchantResolution = pharmacy,
   /** null: a line item without a category. */
   lineCategory: string | null = "MEDICATION",
-  overrides: { mandate?: Parameters<typeof mandate>[1]; intent?: Parameters<typeof intent>[2]; debit?: typeof debit } = {},
+  overrides: { mandate?: Parameters<typeof mandate>[1]; intent?: Parameters<typeof intent>[2]; charge?: typeof charge } = {},
 ) {
+  const amount = overrides.charge ?? charge;
   return evaluatePurchase({
     decisionId: "d-1",
     mandate: mandate(enforcement, overrides.mandate),
-    intent: intent(merchantResolution.walletAddressUrl, lineCategory ?? undefined, overrides.intent),
-    debitAmount: overrides.debit ?? debit,
+    intent: intent(merchantResolution.paypalMerchantId, lineCategory ?? undefined, {
+      amount,
+      lineItems: [{ id: "line-1", description: "Item", ...(lineCategory ? { category: lineCategory } : {}), amount }],
+      ...overrides.intent,
+    }),
     merchantResolution,
     merchantHistory: noHistory(merchantResolution),
     now: NOW,
@@ -54,7 +59,7 @@ test("ENFORCED: a verified pharmacy selling medication is ALLOW", () => {
 });
 
 test("a merchant below HIGH confidence passes only within the mandate's per-purchase cap", () => {
-  const tienda = resolution(PHARMACY_WALLET, [["MEDICATION", "SELF_DECLARED"]]);
+  const tienda = resolution(PHARMACY_PAYPAL_ID, [["MEDICATION", "SELF_DECLARED"]]);
   const lowCap = (value: string, assetCode = "USD", enforcement: "ENFORCED" | "MONITORED" = "ENFORCED") => ({
     purposePolicy: {
       ...mandate(enforcement).purposePolicy,
@@ -125,13 +130,13 @@ test("mandate rules deny in both modes, before any purpose check", () => {
 
 test("the budget denies in both modes, and other assets fail closed", () => {
   for (const enforcement of ["ENFORCED", "MONITORED"] as const) {
-    const over = evaluate(enforcement, pharmacy, "MEDICATION", { debit: { value: "4001", assetCode: "USD", assetScale: 2 } });
+    const over = evaluate(enforcement, pharmacy, "MEDICATION", { charge: { value: "4001", assetCode: "USD", assetScale: 2 } });
     assert.deepEqual([over.outcome, codes(over)], ["DENY", ["BUDGET_EXCEEDED"]]);
 
-    const exact = evaluate(enforcement, pharmacy, "MEDICATION", { debit: { value: "4000", assetCode: "USD", assetScale: 2 } });
+    const exact = evaluate(enforcement, pharmacy, "MEDICATION", { charge: { value: "4000", assetCode: "USD", assetScale: 2 } });
     assert.equal(exact.outcome, "ALLOW");
 
-    const otherAsset = evaluate(enforcement, pharmacy, "MEDICATION", { debit: { value: "1", assetCode: "COP", assetScale: 2 } });
+    const otherAsset = evaluate(enforcement, pharmacy, "MEDICATION", { charge: { value: "1", assetCode: "COP", assetScale: 2 } });
     assert.deepEqual(codes(otherAsset), ["BUDGET_EXCEEDED"]);
   }
 });
