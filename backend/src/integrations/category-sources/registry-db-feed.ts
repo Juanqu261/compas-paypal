@@ -31,7 +31,7 @@ export function registrySubmissionId(record: Pick<RegistryMerchantRecord, "camar
  * - INACTIVE or CANCELLED: a REVOCATION of this source's claim for that renewal.
  * - ACTIVE but past its renewal deadline: nothing. Earlier claims expire on their own.
  *
- * Registry evidence is keyed by NIT. It reaches a wallet only through an
+ * Registry evidence is keyed by NIT. It reaches a PayPal account only through an
  * IDENTITY_BINDING, and a self-declared binding caps it at SELF_DECLARED.
  */
 export class RegistryDbFeed implements CategoryEvidenceFeed {

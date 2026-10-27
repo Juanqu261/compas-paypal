@@ -1,3 +1,4 @@
+import { normalizePayPalAccountId } from "../../domain/merchant-identifiers.ts";
 import type { DirectoryParty, PartyDirectory } from "../../ports/party-directory.ts";
 
 /**
@@ -5,8 +6,9 @@ import type { DirectoryParty, PartyDirectory } from "../../ports/party-directory
  * `data/fixtures/demo/` use. The ids carry no role. A role comes from the
  * mandate that names the party.
  *
- * Pedro's wallet is `DEMO_PAYER_WALLET_ADDRESS`, a test-network wallet. With
- * it unset, Pedro can draft a budget but not authorize it.
+ * Pedro approves each order in his PayPal sandbox personal account. With
+ * `DEMO_PAYER_PAYPAL_ID` set to that account's payer id, COMPAS captures
+ * only orders that account approved. Unset, it captures whoever approved.
  */
 export const DEMO_PARTY_IDS = {
   pedro: "demo-payer-pedro",
@@ -14,7 +16,7 @@ export const DEMO_PARTY_IDS = {
   gladys: "demo-beneficiary-gladys",
 } as const;
 
-/** demo/test data: contacts with no wallet, who can receive a budget like Andrea. */
+/** demo/test data: contacts with no PayPal account, who can receive a budget like Andrea. */
 export const DEMO_CONTACTS: readonly DirectoryParty[] = [
   { id: "demo-contact-camila", displayName: "Camila Rojas" },
   { id: "demo-contact-mateo", displayName: "Mateo Gómez" },
@@ -23,12 +25,12 @@ export const DEMO_CONTACTS: readonly DirectoryParty[] = [
 ];
 
 export function createDemoPartyDirectory(env: NodeJS.ProcessEnv = process.env): PartyDirectory {
-  const payerWallet = env.DEMO_PAYER_WALLET_ADDRESS?.trim();
+  const payerPayPalId = normalizePayPalAccountId(env.DEMO_PAYER_PAYPAL_ID ?? "");
   const parties: readonly DirectoryParty[] = [
     {
       id: DEMO_PARTY_IDS.pedro,
       displayName: "Pedro",
-      ...(payerWallet ? { walletAddressUrl: payerWallet } : {}),
+      ...(payerPayPalId ? { paypalPayerId: payerPayPalId } : {}),
     },
     { id: DEMO_PARTY_IDS.andrea, displayName: "Andrea" },
     { id: DEMO_PARTY_IDS.gladys, displayName: "Gladys" },
