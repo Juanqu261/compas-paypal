@@ -12,7 +12,7 @@ A delegate builds a cart at a merchant that accepts PayPal. COMPAS checks the ca
 
 The cap decision is settled: **per-order approval**. The sandbox app has no Vault permission, so there is no payer-absent charge. The budget and the cap below `HIGH` are COMPAS rules, checked before PayPal and reserved atomically, and the payer approves every order. A payer-absent charge for all-green purchases waits until PayPal enables Vault for the app. Ask before building it.
 
-Not built, and only when asked: the AI analyst behind the trust matrix, the Cámara binding through Log in with PayPal, INVIMA CUM mapping, errands, and the Compas MCP server for agents.
+Built in the backend only (no screens yet): the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, and errands. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md) and [ADR 0010](docs/adr/0010-errands.md). Not built, and only when asked: the Compas MCP server for agents, and the frontend for the analyst, onboarding and errands.
 
 ## Product
 
@@ -31,7 +31,10 @@ Terms:
 - A purpose category such as `MEDICATION` is a COMPAS concept, never a PayPal concept.
 - A merchant is named by its PayPal merchant id (`payee.merchant_id`), never by a URL the browser sends.
 - A `PROVIDER_VERIFIED` claim is a wallet's signed attestation about its own merchant. PayPal signs none: in the demo, the simulated Nequi Negocios source fills that tier.
-- An `EXTERNAL_VERIFIED` claim comes from a registry check, such as RUES at the Cámara de Comercio.
+- An `EXTERNAL_VERIFIED` claim comes from a registry check, such as RUES at the Cámara de Comercio. On PayPal it needs the Cámara binding: the certificate's email equals the PayPal account's, proven by Log in with PayPal. In the demo the Cámara is a fixture (`camara-fixture`, `demo/test data`).
+- **CUM** (INVIMA's medicine code) is the only product registry, because this MVP covers medicine only. Another category may need another registry with its own codes and verifier (ADR 0009). Don't generalize the code until a second category is asked for.
+- A **pointer** from the AI analyst ("SKU x is CUM y") counts only once a deterministic verifier re-reads it from the source. A **judgment** can only flag. See ADR 0009.
+- An **errand** is what the delegate confirmed may be bought, by CUM, with unit and amount caps. A cart that doesn't fit it is `REVIEW` `ERRAND_MISMATCH`, even under `MONITORED`. See ADR 0010.
 
 ## Invariants
 
@@ -40,7 +43,8 @@ Terms:
 - Policy must return `ALLOW` before any PayPal order. `DENY` and `REVIEW` never create one.
 - No money moves until the payer approves the order at PayPal, and COMPAS captures only after checking the mandate and the order again.
 - A payer may choose a `MONITORED` budget. Purpose checks are then recorded, not enforced. Mandate rules (status, validity, delegate, budget) always apply, and the payer still approves every order.
-- AI never authorizes payments.
+- AI never authorizes payments. The analyst and the errand drafter reach no PayPal port (a test walks their imports), a model's output is parsed before use and fails closed, and only a human withdraws an analyst flag.
+- Errands are health data. They never reach PayPal, the analyst or the Elastic index.
 - Purpose categories belong to COMPAS.
 - PayPal must never be faked. An unimplemented or unconfigured gateway throws.
 - COMPAS talks to the PayPal sandbox only.
@@ -75,7 +79,9 @@ The frontend must not import `backend/src`. The backend must not import `fronten
 
 Storage is in memory by default, and a restart loses it. With `DATABASE_URL` set, the backend uses Supabase Postgres through `backend/src/integrations/postgres/`. See `backend/.env.example`. The PayPal migration (`data/migrations/20261026120000_paypal_rail.sql`) was applied to the team's project on 2026-10-27. It empties the COMPAS runtime tables when it runs, so never run it again.
 
-Secrets (`PAYPAL_CLIENT_SECRET`, `DATABASE_URL`) stay in the backend environment. They must not be exposed as `NEXT_PUBLIC_*` variables.
+Secrets (`PAYPAL_CLIENT_SECRET`, `DATABASE_URL`, `ELASTICSEARCH_API_KEY`, `ANTHROPIC_API_KEY`, `COMPAS_OPERATOR_TOKEN`) stay in the backend environment. They must not be exposed as `NEXT_PUBLIC_*` variables.
+
+Elastic does CUM search, behind a port, over `fetch` (`backend/src/integrations/elastic/`): an Elasticsearch index of INVIMA's CUM dataset finds candidates. The analyst's model is Claude (`claude-haiku-5-5`) through the official SDK (`backend/src/integrations/anthropic/`) when `ANTHROPIC_API_KEY` is set, else a `chat_completion` endpoint of Elastic's Inference API. Unconfigured, both throw. The index only proposes: mappings are verified against datos.gov.co (`SocrataCumRegistry`), or the committed subset with `CUM_REGISTRY=demo`. Catalogs, mappings, findings, merchant logins and errands are in memory; their tables are in `data/migrations/20261027170000_analyst_errands.sql`, applied on 2026-10-27 and empty until there are Postgres adapters. Analyst FLAGs and the Cámara's claims go to the trust log, which is Postgres when `DATABASE_URL` is set.
 
 ## PayPal
 
@@ -121,6 +127,8 @@ npm run typecheck
 npm test
 npm run paypal:smoke  # one real PayPal sandbox payment: order, approval in the browser, capture; needs backend/.env
 npm run compas:smoke  # the policy layer on top of real PayPal sandbox orders; see backend/README.md
+npm run cum:index     # build the Elastic CUM index from datos.gov.co (--demo: the committed subset)
+npm run analyst:smoke # the analyst on the demo catalogs, live Elastic and Claude, in-memory trust log
 ```
 
 There is no root `package.json`. Domain and policy tests live in `backend/tests`. The frontend's `npm test` checks its labels and demo-charge logic. With `TEST_DATABASE_URL`, `npm test` in `backend/` also runs the Postgres adapter tests.
@@ -134,13 +142,17 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 ## Scope ladder
 
 - **Built (PayPal):** Pedro's medication mandate, authorized in COMPAS → Andrea's pharmacy purchase → `ALLOW` → PayPal order payable to the pharmacy → Pedro approves at PayPal → COMPAS re-checks and captures → completed. Alcohol → `PURPOSE_MISMATCH`, and no `createOrder` call. Cancel, expiry, revocation and a mismatched order close the purchase unpaid and give the capacity back.
+- **Built (backend, no screens):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, and errands with `ERRAND_MISMATCH`.
 - **Next, only when asked:**
   - Payer exception approval: `REVIEW` → the payer approves a one-off PayPal order for the held cart.
   - Refunds and disputes, through PayPal webhooks. A refund must restore capacity.
   - A payer-absent charge for all-green purchases, once PayPal enables Vault for the app.
   - `PROVIDER_VERIFIED` claims from a simulated wallet node with signature checks.
-  - An AI classifier for ambiguous lines.
-  - The idea doc's AI analyst, Cámara binding (Log in with PayPal), CUM mapping, errands and MCP server.
+  - An AI classifier for ambiguous lines at checkout.
+  - The Compas MCP server for agents (errand-scoped OAuth, `search_eligible_merchants`), and agent sub-delegates.
+  - Frontend for merchant onboarding, analyst findings and errands.
+  - Postgres adapters for the analyst and errand stores (their tables exist).
+  - A flag confirmed into `CONTESTED`, and AI contradiction of captured lines.
 - **Roadmap (pitch only unless asked):**
   - State bonus mandates such as Medellín Cero Hambre, with split tender: the bonus paid first.
   - An NFC card + PIN for a beneficiary with no smartphone (Web NFC, Android Chrome only).
@@ -159,4 +171,4 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 - `docs/00-product-vision.md` to `docs/07-security-privacy-ethics.md`: vision, demo story, domain model, architecture, PayPal mapping, policy engine, AI classification, security and privacy.
 - `docs/09-research-and-prior-art.md`: purpose-bound money and other prior art.
 - `docs/10-reference.md`: PayPal facts checked against the sandbox, CIIU categories, the Colombian research the design rests on, and sources.
-- `docs/adr/`: architecture decisions. ADR 0008 is the PayPal rail.
+- `docs/adr/`: architecture decisions. ADR 0008 is the PayPal rail, ADR 0009 the AI analyst's evidence, ADR 0010 errands.
