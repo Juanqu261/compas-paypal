@@ -109,7 +109,7 @@ export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) =>
             <button
               type="button"
               onClick={() => setHint(false)}
-              className="mt-2 text-sm font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route"
+              className="mt-1.5 inline-flex cursor-pointer rounded-md bg-ink/10 px-2.5 py-0.5 text-sm font-semibold text-ink transition-colors duration-200 hover:bg-ink/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route motion-reduce:transition-none"
             >
               Got it
             </button>
