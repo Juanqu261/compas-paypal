@@ -18,6 +18,7 @@ type PhoneFrameProps = {
 
 /** Assumed while rendering on the server, where there is no window. */
 const SERVER_WINDOW_HEIGHT = 1000;
+const SERVER_WINDOW_WIDTH = 1440;
 
 function subscribe(onChange: () => void) {
   window.addEventListener("resize", onChange);
@@ -25,12 +26,9 @@ function subscribe(onChange: () => void) {
 }
 
 function useDeviceScale(): number {
-  const height = useSyncExternalStore(
-    subscribe,
-    () => window.innerHeight,
-    () => SERVER_WINDOW_HEIGHT,
-  );
-  return deviceScale(height);
+  const height = useSyncExternalStore(subscribe, () => window.innerHeight, () => SERVER_WINDOW_HEIGHT);
+  const width = useSyncExternalStore(subscribe, () => window.innerWidth, () => SERVER_WINDOW_WIDTH);
+  return deviceScale(height, width);
 }
 
 const BODY =

@@ -273,8 +273,8 @@ function CompasCallout({
         </span>
         <span className="block text-[13px] leading-snug text-(--pp-muted)">
           {config.enabled && accepted
-            ? `Cobra pedidos pagados con presupuestos con propósito: ${accepted.toLowerCase()}.`
-            : "Cobra pedidos pagados con presupuestos con propósito."}
+            ? `Cobra con propósito: ${accepted.toLowerCase()}.`
+            : "Cobra con propósito."}
         </span>
       </span>
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white">

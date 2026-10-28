@@ -86,7 +86,7 @@ export const paypalDemoPayer: PayPalDemoProfile = {
       incoming: false,
     },
   ],
-  compasBlurb: "Presupuestos con propósito para tu familia. Apruebas cada pago en PayPal.",
+  compasBlurb: "Presupuestos con propósito.",
 };
 
 export const paypalDemoDelegate: PayPalDemoProfile = {
@@ -124,5 +124,5 @@ export const paypalDemoDelegate: PayPalDemoProfile = {
       incoming: false,
     },
   ],
-  compasBlurb: "Compras con propósito que te autorizó tu familia. Quien te autorizó aprueba cada pago en PayPal.",
+  compasBlurb: "Compras con propósito.",
 };

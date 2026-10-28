@@ -92,7 +92,7 @@ function ScenarioPicker() {
 
 function DemoPhones() {
   return (
-    <div className="flex snap-x snap-mandatory gap-8 overflow-x-auto px-4 pt-2 pb-10 sm:px-8 xl:justify-center xl:overflow-visible">
+    <div className="flex snap-x snap-mandatory gap-8 overflow-x-auto px-4 pt-2 pb-10 sm:px-8 lg:justify-center lg:overflow-visible">
       {surfaces.map((surface) => (
         <div key={surface.id} className="shrink-0 snap-center space-y-4">
           <div className="flex items-baseline gap-3 px-2">
@@ -223,7 +223,7 @@ export function DemoStage({
           </div>
           <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
             <ScenarioPicker />
-            <ChargeEvidence onShowAnalyst={() => show(1)} />
+            <ChargeEvidence onShowAnalyst={() => show(1)} />
           </div>
         </div>
       </Activity>

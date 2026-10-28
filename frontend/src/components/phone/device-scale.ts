@@ -9,14 +9,23 @@ export const DEVICE_WIDTH = SCREEN_WIDTH + 2 * BEZEL;
 export const DEVICE_HEIGHT = SCREEN_HEIGHT + 2 * BEZEL;
 
 /** The device is shown smaller than its logical size: it only has to look like a phone. */
-export const MAX_SCALE = 0.9;
+export const MAX_SCALE = 0.8;
 /** Below this, text on the screen gets too small to read: the page scrolls instead. */
-export const MIN_SCALE = 0.75;
-/** What the device shares the window with: the person's name above it and some air. */
+export const MIN_SCALE = 0.7;
+/** What a phone shares the window's height with: the person's name above it and some air. */
 export const RESERVED_HEIGHT = 176;
 
-/** The device's scale for a window height: as large as fits, between the two limits. */
-export function deviceScale(windowHeight: number): number {
-  const fit = (windowHeight - RESERVED_HEIGHT) / DEVICE_HEIGHT;
-  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
+/** The demo shows this many phones side by side. */
+export const PHONES_ACROSS = 3;
+/** What they share the window's width with: the page's side margins and the gaps between phones. */
+export const RESERVED_WIDTH = 128;
+
+/**
+ * The device's scale for a window: as large as fits both ways, between the two
+ * limits. Height decides in a short window, width in a narrow one.
+ */
+export function deviceScale(windowHeight: number, windowWidth = Number.POSITIVE_INFINITY): number {
+  const byHeight = (windowHeight - RESERVED_HEIGHT) / DEVICE_HEIGHT;
+  const byWidth = (windowWidth - RESERVED_WIDTH) / (PHONES_ACROSS * DEVICE_WIDTH);
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(byHeight, byWidth)));
 }
