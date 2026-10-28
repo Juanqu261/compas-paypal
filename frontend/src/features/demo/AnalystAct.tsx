@@ -139,7 +139,7 @@ function FlagCard({ flag, model }: { flag: StandingFlag; model: string }) {
  * on the backend. What the model says is shown as the model's; only the
  * verifier's outcome counts, and a flag can only hold a merchant for review.
  */
-export function AnalystAct({ onNext }: { onNext: () => void }) {
+export function AnalystAct() {
   const [merchantId, setMerchantId] = useState<string>(PHARMACIES[0].id);
   const [runs, setRuns] = useState<Record<string, Run>>({});
   const run = runs[merchantId];
@@ -378,16 +378,6 @@ export function AnalystAct({ onNext }: { onNext: () => void }) {
         </div>
       ) : null}
 
-      <div className="mt-10 flex flex-wrap items-center gap-4 border-t border-ink/15 pt-6">
-        <button
-          type="button"
-          onClick={onNext}
-          className="rounded-xl border border-ink/25 bg-paper px-5 py-3 font-semibold text-ink transition-colors duration-200 hover:border-ink/50 motion-reduce:transition-none"
-        >
-          Next: the purchase →
-        </button>
-        <p className="text-sm text-ink-soft">No AI is called at checkout. COMPAS reads what was settled here.</p>
-      </div>
     </section>
   );
 }
