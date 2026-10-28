@@ -36,7 +36,7 @@ export function AuthorizeAgent({ requestId }: { requestId: string | null }) {
 
   return (
     <main className="mx-auto max-w-xl px-4 py-12 sm:px-8">
-      <p className="text-sm font-semibold tracking-wide text-route uppercase">Demo · you are signed in as Andrea</p>
+      <p className="text-sm font-semibold tracking-wide text-route-deep uppercase">Demo · you are signed in as Andrea</p>
       <h1 className="mt-1 font-display text-3xl text-ink">An AI agent is asking for access</h1>
       <div className="mt-6">
         {!requestId ? (

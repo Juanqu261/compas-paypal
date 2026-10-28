@@ -43,7 +43,7 @@ export function AgentConsentCard({
           <PersonIcon className="size-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-route uppercase">Andrea’s phone · Compas</p>
+          <p className="text-xs font-semibold tracking-wide text-route-deep uppercase">Andrea’s phone · Compas</p>
           <h3 id="consent-title" className="font-semibold text-ink">
             <span className="break-words">{request.client.name}</span> wants to shop for you
           </h3>

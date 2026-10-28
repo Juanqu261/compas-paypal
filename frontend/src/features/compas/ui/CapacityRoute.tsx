@@ -5,7 +5,7 @@ import { capacityLabel, isAuthorized } from "../lib/labels";
 
 /**
  * COMPAS's signature: the authorized capacity drawn as a route on a chart.
- * The solid magenta stretch is permission still available. It is permission,
+ * The solid blue stretch is permission still available. It is permission,
  * never a balance, so the label says "capacidad", not "saldo". Before the
  * payer confirms, nothing is drawn as available: the route is only dotted.
  * Built from spans so it is valid inside a button.

@@ -266,7 +266,7 @@ export function AnalystAct() {
     <section aria-labelledby="act-1-title" className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold tracking-wide text-route uppercase">Days before anyone buys</p>
+          <p className="text-sm font-semibold tracking-wide text-route-deep uppercase">Days before anyone buys</p>
           <h2 id="act-1-title" className="mt-1 font-display text-3xl text-ink sm:text-4xl">
             How COMPAS checks a pharmacy
           </h2>

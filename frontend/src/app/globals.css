@@ -2,8 +2,9 @@
 
 /*
  * COMPAS site tokens. The site borrows the nautical chart: chart paper,
- * shoal water, sounding ink and the magenta that charts use for routes and
- * compass roses. Magenta means permission or the allowed route, nothing else.
+ * shoal water and sounding ink, with the blue of the COMPAS mark for routes
+ * and compass roses. That blue means permission or the allowed route,
+ * nothing else. `route-deep` is the same blue, darker, for small text.
  * These tokens style the site around the phones, never the simulated apps.
  */
 @theme inline {
@@ -12,8 +13,8 @@
   --color-shoal-deep: #a9cbd8;
   --color-ink: #14304a;
   --color-ink-soft: #4a6176;
-  --color-route: #c2187a;
-  --color-route-deep: #9c1262;
+  --color-route: #0172ff;
+  --color-route-deep: #0059d6;
   --color-buff: #ead9a8;
   --color-bezel: #0e2338;
 
@@ -210,10 +211,10 @@ body {
   0%,
   45%,
   100% {
-    box-shadow: 0 0 0 0 rgb(194 24 122 / 0);
+    box-shadow: 0 0 0 0 rgb(1 114 255 / 0);
   }
   20% {
-    box-shadow: 0 0 0 9px rgb(194 24 122 / 0.2);
+    box-shadow: 0 0 0 9px rgb(1 114 255 / 0.2);
   }
 }
 .flow-reveal {

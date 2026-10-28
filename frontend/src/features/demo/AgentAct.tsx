@@ -40,11 +40,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const BUTTON =
   "rounded-lg bg-ink px-4 py-2 font-semibold text-paper transition-colors hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none";
 
-const STEP_CARD = "flex flex-col rounded-2xl border border-ink/15 bg-paper p-4";
+/** A tinted panel, like Act 1's: it sets a group of things apart from the page. */
+const PANEL = "rounded-3xl border border-ink/10 bg-shoal/35 p-4 sm:p-6";
+
+const STEP_CARD = "flex flex-col rounded-2xl border border-ink/10 bg-white p-4";
 const STEP_LABEL = "text-sm font-semibold tracking-wide text-ink-soft uppercase";
 const STEP_VALUE = "mt-1 font-display text-2xl leading-tight text-ink";
 const STEP_NOTE = "mt-1 text-sm text-ink-soft";
 const STEP_ARROW = "grid rotate-90 place-items-center text-2xl text-ink-soft lg:rotate-0";
+
+/** The agent's card is the one solid block: it is the thing to press. */
+const CTA_CARD = "flex flex-col rounded-2xl border border-route bg-route p-4 text-paper";
+const CTA_BUTTON =
+  "mt-2 w-full rounded-lg bg-paper px-6 py-3 text-lg font-semibold text-ink transition-colors hover:bg-paper/90 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none";
 
 const OUTCOME_CHIP: Record<PolicyOutcome, string> = {
   ALLOW: "bg-route text-paper",
@@ -65,13 +73,21 @@ const MOMENT_EDGE: Record<NonNullable<Moment["result"]>["tone"] | "none", string
 };
 
 const RESULT_CHIP: Record<NonNullable<Moment["result"]>["tone"], { chip: string; mark: string }> = {
-  ok: { chip: "bg-route/10 text-route-deep", mark: "✓" },
+  ok: { chip: "bg-route text-paper", mark: "✓" },
   stopped: { chip: "bg-buff text-ink", mark: "✕" },
   info: { chip: "bg-ink/[0.06] text-ink", mark: "i" },
   waiting: { chip: "bg-paper text-ink ring-1 ring-ink/25 motion-safe:animate-pulse", mark: "…" },
 };
 
 const ACTOR_NAME: Record<Moment["actor"], string> = { Andrea: "Andrea", Agent: "The agent", Compas: "Compas", "Web page": "A web page" };
+
+/** Who is acting, by color: the agent dark, Andrea light, Compas blue, the planted page sand. */
+const ACTOR_PILL: Record<Moment["actor"], string> = {
+  Agent: "bg-ink text-paper",
+  Andrea: "bg-shoal-deep text-ink",
+  Compas: "bg-route text-paper",
+  "Web page": "bg-buff text-ink",
+};
 
 /** The run in plain words: who did what, and what Compas answered. */
 function Story({ moments, active, starting }: { moments: readonly Moment[]; active: boolean; starting: boolean }) {
@@ -82,7 +98,7 @@ function Story({ moments, active, starting }: { moments: readonly Moment[]; acti
 
   if (moments.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-ink/25 p-6 text-ink-soft">
+      <p className="rounded-2xl border border-dashed border-ink/25 bg-paper/60 p-6 text-ink-soft">
         {starting ? "Starting…" : "What happens appears here, one step at a time."}
       </p>
     );
@@ -95,10 +111,13 @@ function Story({ moments, active, starting }: { moments: readonly Moment[]; acti
           <li
             key={moment.n}
             ref={index === moments.length - 1 ? last : undefined}
-            className={`rounded-r-xl border-l-4 bg-paper py-2.5 pr-3 pl-4 ${MOMENT_EDGE[result?.tone ?? "none"]}`}
+            className={`rounded-r-xl border-l-4 bg-white py-2.5 pr-3 pl-4 ${MOMENT_EDGE[result?.tone ?? "none"]}`}
           >
             <p className="text-ink">
-              <span className="font-semibold">{ACTOR_NAME[moment.actor]}</span> {moment.text}
+              <span className={`mr-1.5 inline-flex rounded-full px-2 py-0.5 align-baseline text-xs font-semibold ${ACTOR_PILL[moment.actor]}`}>
+                {ACTOR_NAME[moment.actor]}
+              </span>{" "}
+              {moment.text}
             </p>
             {moment.quote ? (
               <blockquote
@@ -427,7 +446,7 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         <AgentReplaces />
       </div>
 
-      <ol className="mt-6 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.2fr)] lg:items-stretch">
+      <ol className={`mt-6 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.2fr)] lg:items-stretch ${PANEL}`}>
         <li className={STEP_CARD}>
           <p className={STEP_LABEL}>Pedro sets aside</p>
           <p className={STEP_VALUE}>{budgetValue}</p>
@@ -444,26 +463,21 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         <li aria-hidden className={STEP_ARROW}>
           →
         </li>
-        <li className={`${STEP_CARD} border-route/40 bg-route/5`}>
-          <p className={STEP_LABEL}>Then the agent shops</p>
-          <button
-            type="button"
-            onClick={runAgent}
-            disabled={active || busy !== null || Boolean(blockedReason)}
-            className={`${BUTTON} mt-2 w-full px-6 py-3 text-lg`}
-          >
+        <li className={CTA_CARD}>
+          <p className="text-sm font-semibold tracking-wide text-paper/85 uppercase">Then the agent shops</p>
+          <button type="button" onClick={runAgent} disabled={active || busy !== null || Boolean(blockedReason)} className={CTA_BUTTON}>
             {active ? "Running…" : run ? "Run it again" : "Watch an agent do the errand"}
           </button>
           {blockedReason ? (
-            <p className="mt-2 text-sm text-ink">
+            <p className="mt-2 text-sm text-paper">
               {blockedReason}{" "}
-              <button type="button" onClick={onAnalyst} className="font-semibold text-route-deep underline-offset-2 hover:underline">
+              <button type="button" onClick={onAnalyst} className="font-semibold underline underline-offset-2 hover:no-underline">
                 Go to Act 1
               </button>
             </p>
           ) : null}
           {facts && facts.purchases !== undefined && facts.purchases !== "enabled" ? (
-            <p className="mt-2 text-sm text-ink-soft">PayPal orders are off on this server, so the last step stops before PayPal.</p>
+            <p className="mt-2 text-sm text-paper/85">PayPal orders are off on this server, so the last step stops before PayPal.</p>
           ) : null}
         </li>
       </ol>
@@ -473,7 +487,8 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         </p>
       ) : null}
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      {/* The run gets its own panel once there is something to follow. */}
+      <div className={`mt-6 grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] ${run || starting ? PANEL : ""}`}>
         <div className="flex flex-col gap-4">
           <Story moments={moments} active={active} starting={starting} />
           {run?.status === "AWAITING_CONSENT" && consent.resource.status === "ready" ? (
@@ -494,7 +509,7 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         </div>
         <div className="flex flex-col gap-4">
           {ordered ? (
-            <div className="rounded-2xl border border-route/40 bg-route/5 p-4">
+            <div className="rounded-2xl border-2 border-route bg-paper p-4">
               <p className="font-semibold text-ink">A PayPal order is waiting for Pedro</p>
               <p className="mt-1 text-sm text-ink-soft">The agent can’t approve it. Pedro approves it at PayPal, on the phone in Act 2.</p>
               <button type="button" onClick={onApproval} className={`${BUTTON} mt-3`}>

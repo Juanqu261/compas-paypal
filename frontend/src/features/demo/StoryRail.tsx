@@ -50,7 +50,7 @@ export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) =>
   return (
     <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-8">
       <div className="flex items-baseline justify-between gap-4">
-        <p className="text-sm font-semibold tracking-wide text-route uppercase">Follow the story</p>
+        <p className="text-sm font-semibold tracking-wide text-route-deep uppercase">Follow the story</p>
         {hintShown ? null : (
           <button
             type="button"
