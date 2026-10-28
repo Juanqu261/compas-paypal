@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Fragment, startTransition, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { compasApi, errorCode } from "@/features/compas/api/client";
 import type { AnalystFinding, AnalystJob, AnalyzedSku } from "@/features/compas/api/contracts";
@@ -75,6 +76,11 @@ function PharmacyName({ name, lookalike }: { name: string; lookalike: boolean })
 
 type Step = {
   icon: (props: { className?: string }) => ReactNode;
+  /**
+   * A real party's own logo, in color in every state, in place of the icon. A
+   * square mark sits in a white circle; a wide wordmark stands on its own.
+   */
+  logo?: { src: string; alt: string; width: number; height: number; wide?: boolean };
   title: ReactNode;
   caption: string;
   metric?: string;
@@ -118,18 +124,36 @@ function FlowDiagram({ steps, state }: { steps: readonly Step[]; state: "idle" |
           <li
             className="flex flex-1 flex-col items-center rounded-2xl border border-ink/10 bg-paper px-3 py-5 text-center lg:min-w-0"
           >
-            <span
-              style={style}
-              className={`flow-ring grid size-16 place-items-center rounded-full transition-colors duration-300 motion-reduce:transition-none ${
-                state === "idle"
-                  ? "bg-ink/[0.06] text-ink-soft"
-                  : state === "running"
-                    ? "bg-paper text-ink ring-1 ring-ink/15"
-                    : RING_TONE[step.tone]
-              }`}
-            >
-              <Icon className="size-8" />
-            </span>
+            {step.logo?.wide ? (
+              <span style={style} className="flow-ring grid h-16 place-items-center rounded-xl px-1">
+                <Image
+                  src={step.logo.src}
+                  alt={step.logo.alt}
+                  width={step.logo.width}
+                  height={step.logo.height}
+                  className="h-12 w-auto"
+                />
+              </span>
+            ) : (
+              <span
+                style={style}
+                className={`flow-ring grid size-16 place-items-center rounded-full transition-colors duration-300 motion-reduce:transition-none ${
+                  step.logo
+                    ? "bg-white ring-1 ring-ink/10"
+                    : state === "idle"
+                      ? "bg-ink/[0.06] text-ink-soft"
+                      : state === "running"
+                        ? "bg-paper text-ink ring-1 ring-ink/15"
+                        : RING_TONE[step.tone]
+                }`}
+              >
+                {step.logo ? (
+                  <Image src={step.logo.src} alt={step.logo.alt} width={step.logo.width} height={step.logo.height} className="size-9" />
+                ) : (
+                  <Icon className="size-8" />
+                )}
+              </span>
+            )}
             <span className="mt-3 text-xs font-semibold text-ink-soft">{index + 1}</span>
             <span className="font-semibold text-ink">{step.title}</span>
             <span className="mt-0.5 text-sm leading-snug text-ink-soft lg:min-h-[2.5rem]">{step.caption}</span>
@@ -309,6 +333,8 @@ export function AnalystAct({ onNext }: { onNext: () => void }) {
     },
     {
       icon: IndexSearchIcon,
+      // Elastic's own mark, unmodified, from its EUI repo (packages/eui/src/components/icon/svgs/logo_elastic.svg).
+      logo: { src: "/brand/elastic-logo.svg", alt: "Elastic", width: 36, height: 36 },
       title: "Elastic",
       caption: "Finds similar medicines in INVIMA’s list",
       ...(result ? { metric: `${proposed} candidates`, detail: "Suggestions, not proof" } : {}),
@@ -317,6 +343,8 @@ export function AnalystAct({ onNext }: { onNext: () => void }) {
     },
     {
       icon: ModelIcon,
+      // Claude's mark from claude.ai, unmodified. Shown only when the backend's model is Claude.
+      ...(model === "Claude" ? { logo: { src: "/brand/claude-logo.svg", alt: "Claude", width: 36, height: 36 } } : {}),
       title: model === "Claude" ? "Claude" : "AI model",
       caption: "Picks the exact medicine, or none",
       ...(result ? { metric: `${medicines} medicines`, ...(others > 0 ? { detail: `${others} not medicine` } : {}) } : {}),
@@ -324,6 +352,8 @@ export function AnalystAct({ onNext }: { onNext: () => void }) {
     },
     {
       icon: RegistryIcon,
+      // INVIMA's wordmark, cut from the co-branded lockup on invima.gov.co (custom_event_badge/static/src/img/invima_logo.png).
+      logo: { src: "/brand/invima-logo.png", alt: "INVIMA", width: 480, height: 198, wide: true },
       title: "INVIMA",
       caption: "The official record confirms",
       ...(result
