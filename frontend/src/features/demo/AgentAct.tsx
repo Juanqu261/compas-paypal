@@ -30,8 +30,7 @@ import {
   toolLabel,
   type RpcStep,
 } from "./agent-view";
-import { Connector, FlowDiagram, type Step } from "./flow-diagram";
-import { BoxIcon, CheckBadgeIcon, ExternalIcon, PersonIcon, PillIcon, StoreIcon } from "./flow-icons";
+import { AgentReplaces } from "./AgentReplaces";
 
 const ANDREA = DEMO_PARTY_IDS.andrea;
 const PEDRO = DEMO_PARTY_IDS.pedro;
@@ -41,19 +40,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const BUTTON =
   "rounded-lg bg-ink px-4 py-2 font-semibold text-paper transition-colors hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none";
 
-/** Act 2's manual steps: the work an AI agent replaces. */
-const REPLACED: readonly Step[] = [
-  { icon: StoreIcon, title: "Find a pharmacy", caption: "Looks for one", tone: "model", state: "done" },
-  { icon: PillIcon, title: "Choose the medicine", caption: "Picks it", tone: "model", state: "done" },
-  { icon: BoxIcon, title: "Build the order", caption: "Fills the cart", tone: "model", state: "done" },
-  { icon: ExternalIcon, title: "Send it", caption: "Sends it to Compas", tone: "model", state: "done" },
-];
-
-/** The steps that never change, agent or not. */
-const KEPT: readonly Step[] = [
-  { icon: CheckBadgeIcon, title: "Compas checks", caption: "Pharmacy, medicine, budget", tone: "ok", state: "done" },
-  { icon: PersonIcon, title: "Pedro approves", caption: "At PayPal", tone: "ok", state: "done" },
-];
+const STEP_CARD = "flex flex-col rounded-2xl border border-ink/15 bg-paper p-4";
+const STEP_LABEL = "text-sm font-semibold tracking-wide text-ink-soft uppercase";
+const STEP_VALUE = "mt-1 font-display text-2xl leading-tight text-ink";
+const STEP_NOTE = "mt-1 text-sm text-ink-soft";
+const STEP_ARROW = "grid rotate-90 place-items-center text-2xl text-ink-soft lg:rotate-0";
 
 const OUTCOME_CHIP: Record<PolicyOutcome, string> = {
   ALLOW: "bg-route text-paper",
@@ -421,58 +412,61 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
   const finished = run !== undefined && !active;
   const blockedReason = blocked ?? (needsAnalyst && suggested && !suggested.available ? suggested.reason : null);
 
-  const budgetLine = mandate ? `${formatMoney(mandate.budget)} for ${mandate.beneficiary.displayName}’s medicine` : "USD 40 for Gladys’s medicine";
-  const errandLine = errand
-    ? `${errand.items.map((item) => `${item.maxUnits} × ${item.label}`).join(", ")}, up to ${formatMoney(errand.maxAmount)}`
-    : suggested?.available
-      ? `1 × Losartán 50 mg, up to ${formatMoney(suggested.errand.maxAmount)}`
-      : "1 × Losartán 50 mg";
+  const budgetValue = mandate ? formatMoney(mandate.budget) : "40.00 USD";
+  const budgetNote = `for ${mandate ? mandate.beneficiary.displayName : "Gladys"}’s medicine`;
+  const errandValue = errand ? errand.items.map((item) => `${item.maxUnits} × ${item.label}`).join(", ") : "1 × Losartán 50 mg";
+  const errandMax = errand?.maxAmount ?? (suggested?.available ? suggested.errand.maxAmount : undefined);
+  const errandNote = errandMax ? `Up to ${formatMoney(errandMax)}. All the agent may buy.` : "All the agent may buy.";
 
   return (
     <section aria-labelledby="act-3-title" className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
-      <p className="text-sm font-semibold tracking-wide text-route uppercase">Same errand, no legwork</p>
-      <h2 id="act-3-title" className="mt-1 font-display text-3xl text-ink sm:text-4xl">
-        An AI agent can do Andrea’s part
-      </h2>
-
-      <div className="mt-6 flex flex-col items-stretch gap-2 lg:flex-row">
-        <div className="rounded-2xl border-2 border-dashed border-route/50 p-3 lg:flex-[4]">
-          <p className="mb-3 text-center text-sm font-semibold text-route-deep">The work the agent replaces</p>
-          <FlowDiagram steps={REPLACED} state="done" />
-        </div>
-        <ol aria-hidden className="flex items-center justify-center self-center lg:pt-10">
-          <Connector />
-        </ol>
-        <div className="border-2 border-transparent p-3 lg:flex-[2]">
-          <p className="mb-3 text-center text-sm font-semibold text-ink-soft">Never changes</p>
-          <FlowDiagram steps={KEPT} state="done" startAt={REPLACED.length + 1} />
-        </div>
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+        <h2 id="act-3-title" className="font-display text-3xl text-ink sm:text-4xl">
+          An AI agent does Andrea’s part
+        </h2>
+        <AgentReplaces />
       </div>
 
-      <h3 className="mt-10 font-display text-2xl text-ink">See it work</h3>
-      <dl className="mt-3 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-        <dt className="font-semibold text-ink">Pedro’s budget</dt>
-        <dd className="text-ink-soft">{budgetLine}</dd>
-        <dt className="font-semibold text-ink">Andrea’s errand</dt>
-        <dd className="text-ink-soft">{errandLine}. This is all the agent may buy.</dd>
-      </dl>
-
-      <div className="mt-4 flex flex-wrap items-center gap-4">
-        <button type="button" onClick={runAgent} disabled={active || busy !== null || Boolean(blockedReason)} className={`${BUTTON} px-6 py-3 text-lg whitespace-nowrap`}>
-          {active ? "Running…" : run ? "Run it again" : "Watch an agent do the errand"}
-        </button>
-        {blockedReason ? (
-          <p className="text-sm text-ink">
-            {blockedReason}{" "}
-            <button type="button" onClick={onAnalyst} className="font-semibold text-route-deep underline-offset-2 hover:underline">
-              Go to Act 1
-            </button>
-          </p>
-        ) : null}
-        {facts && facts.purchases !== undefined && facts.purchases !== "enabled" ? (
-          <p className="text-sm text-ink-soft">PayPal orders are off on this server, so the last step stops before PayPal.</p>
-        ) : null}
-      </div>
+      <ol className="mt-6 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.2fr)] lg:items-stretch">
+        <li className={STEP_CARD}>
+          <p className={STEP_LABEL}>Pedro sets aside</p>
+          <p className={STEP_VALUE}>{budgetValue}</p>
+          <p className={STEP_NOTE}>{budgetNote}</p>
+        </li>
+        <li aria-hidden className={STEP_ARROW}>
+          →
+        </li>
+        <li className={STEP_CARD}>
+          <p className={STEP_LABEL}>Andrea’s errand</p>
+          <p className={STEP_VALUE}>{errandValue}</p>
+          <p className={STEP_NOTE}>{errandNote}</p>
+        </li>
+        <li aria-hidden className={STEP_ARROW}>
+          →
+        </li>
+        <li className={`${STEP_CARD} border-route/40 bg-route/5`}>
+          <p className={STEP_LABEL}>Then the agent shops</p>
+          <button
+            type="button"
+            onClick={runAgent}
+            disabled={active || busy !== null || Boolean(blockedReason)}
+            className={`${BUTTON} mt-2 w-full px-6 py-3 text-lg`}
+          >
+            {active ? "Running…" : run ? "Run it again" : "Watch an agent do the errand"}
+          </button>
+          {blockedReason ? (
+            <p className="mt-2 text-sm text-ink">
+              {blockedReason}{" "}
+              <button type="button" onClick={onAnalyst} className="font-semibold text-route-deep underline-offset-2 hover:underline">
+                Go to Act 1
+              </button>
+            </p>
+          ) : null}
+          {facts && facts.purchases !== undefined && facts.purchases !== "enabled" ? (
+            <p className="mt-2 text-sm text-ink-soft">PayPal orders are off on this server, so the last step stops before PayPal.</p>
+          ) : null}
+        </li>
+      </ol>
       {problem ? (
         <p role="alert" className="mt-3 text-sm font-medium text-route-deep">
           {problem === "RUN_ACTIVE" ? "A run is already in progress." : `Something went wrong (${problem}).`}
