@@ -1,6 +1,7 @@
 import type {
   AgentAuthorizationRequest,
   AgentClient,
+  AgentEvent,
   AgentGrant,
   AgentTokenRecord,
 } from "../domain/agent.ts";
@@ -31,4 +32,9 @@ export interface AgentRepository {
   getToken(hash: string): Promise<AgentTokenRecord | undefined>;
   /** Conditional: sets `usedAt` once. True only for the call that set it. */
   markTokenUsed(hash: string, at: string): Promise<boolean>;
+
+  /** Appends to the grant's log. The newest MAX_EVENTS_PER_GRANT are kept. */
+  addEvent(event: AgentEvent): Promise<void>;
+  /** Oldest first. */
+  listEvents(grantId: string): Promise<readonly AgentEvent[]>;
 }

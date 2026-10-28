@@ -12,7 +12,7 @@ A delegate builds a cart at a merchant that accepts PayPal. COMPAS checks the ca
 
 The cap decision is settled: **per-order approval**. The sandbox app has no Vault permission, so there is no payer-absent charge. The budget and the cap below `HIGH` are COMPAS rules, checked before PayPal and reserved atomically, and the payer approves every order. A payer-absent charge for all-green purchases waits until PayPal enables Vault for the app. Ask before building it.
 
-Built in the backend: the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, errands, and the Compas MCP server for agents. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md), [ADR 0010](docs/adr/0010-errands.md) and [ADR 0011](docs/adr/0011-agents-mcp.md). The analyst has one screen: Act 1 of `/demo` runs it live on a pharmacy's catalog, and Act 2's "Why…?" panel reads its record for the charge's merchant. Not built, and only when asked: the frontend for onboarding, appeals, errands and the agent consent screen, and a reference agent.
+Built in the backend: the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, errands, and the Compas MCP server for agents. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md), [ADR 0010](docs/adr/0010-errands.md) and [ADR 0011](docs/adr/0011-agents-mcp.md). The analyst has one screen: Act 1 of `/demo` runs it live on a pharmacy's catalog, and Act 2's "Why…?" panel reads its record for the charge's merchant. Act 3 of `/demo` shows an agent doing Andrea's part of Act 2 through that MCP server: one button sets up Pedro's budget and Andrea's errand if they are missing, then runs a scripted agent (its words are written, its calls are real) with a plain-language story, Andrea's consent card, and a technical view with the exact calls and the server's own log; `/agents/authorize` is the page a real MCP client's browser lands on. Not built, and only when asked: the frontend for merchant onboarding, appeals and errand screens beyond what Act 3 sets up.
 
 ## Product
 
@@ -151,7 +151,7 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
   - A payer-absent charge for all-green purchases, once PayPal enables Vault for the app.
   - `PROVIDER_VERIFIED` claims from a simulated wallet node with signature checks.
   - An AI classifier for ambiguous lines at checkout.
-  - Frontend for the agent consent screen (`COMPAS_AGENT_CONSENT_URL`, `/agents/authorize`), merchant onboarding, flag appeals and errands, and a reference agent for the demo.
+  - Frontend for merchant onboarding, flag appeals, and errand screens beyond what Act 3 sets up. A live-model agent beside Act 3's scripted one, and an observer view of any real agent's calls.
   - An analyst job for a shop an agent names that COMPAS has never seen.
   - Postgres adapters for the analyst and errand stores (their tables exist), and for agent clients, grants and tokens (no tables yet).
   - A flag confirmed into `CONTESTED`, and AI contradiction of captured lines.
@@ -166,6 +166,7 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 - Say plainly that purpose enforcement and the budget are COMPAS's job. PayPal enforces the payer's consent: Pedro approves every payment at PayPal.
 - The PayPal and PayPal Business app screens and Nequi are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
 - The demo is in USD. COMPAS does not convert, and PayPal takes no COP. Any COP figure is labeled `demo/test data`.
+- Act 3's agent is a script. Say so: the calls to the MCP server are real, the reasoning is written. Its "planted prompt injections" are demo/test data, not an observed attack.
 - Don't claim fraud that isn't documented, such as bonus resale. Do cite the documented problems in `docs/10-reference.md`.
 
 ## Docs

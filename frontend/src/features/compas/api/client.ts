@@ -1,9 +1,16 @@
 import type {
+  AgentConsentRequest,
+  AgentEvent,
+  AgentRun,
+  AgentScenario,
   AnalystFindingsResponse,
   AnalystJob,
   AuthorizeResponse,
   CreateMandateBody,
   DemoMerchantsResponse,
+  ErrandBody,
+  ErrandSuggestion,
+  ErrandView,
   FieldError,
   HealthResponse,
   MandateView,
@@ -179,6 +186,33 @@ export const compasApi = {
     if (!response.ok) throw await readError(response);
     return (await response.json()) as MerchantPayPalPaymentsResponse;
   },
+  // ---- Act 3: agents over MCP ----
+  /** The errand card, pre-filled from the analyst's verified CUM. Stores nothing. */
+  suggestAgentErrand: (partyId: string, mandateId: string) =>
+    request<ErrandSuggestion>(partyId, `/demo/agent-errand?mandateId=${encodeURIComponent(mandateId)}`),
+  /** The delegate confirms an errand. `confirmed: true` is the delegate's own tap. */
+  confirmErrand: (partyId: string, body: ErrandBody) =>
+    request<{ errand: ErrandView }>(partyId, "/errands", { method: "POST", body: { ...body, confirmed: true } }).then((result) => result.errand),
+  listErrands: (partyId: string, mandateId: string) =>
+    request<{ errands: ErrandView[] }>(partyId, `/errands?mandateId=${encodeURIComponent(mandateId)}`).then((result) => result.errands),
+  startAgentRun: (partyId: string, body: { errandId: string; scenario: AgentScenario }) =>
+    request<{ run: AgentRun }>(partyId, "/demo/agent-runs", { method: "POST", body }).then((result) => result.run),
+  agentRun: (partyId: string, id: string) =>
+    request<{ run: AgentRun }>(partyId, `/demo/agent-runs/${encodeURIComponent(id)}`).then((result) => result.run),
+  /** The browser's part of the OAuth redirect: hands the run the URL the consent answer produced. */
+  deliverAgentConsent: (partyId: string, runId: string, redirectTo: string) =>
+    request<{ run: AgentRun }>(partyId, `/demo/agent-runs/${encodeURIComponent(runId)}/consent`, { method: "POST", body: { redirectTo } }).then((result) => result.run),
+  agentConsentRequest: (partyId: string, requestId: string) =>
+    request<AgentConsentRequest>(partyId, `/agents/requests/${encodeURIComponent(requestId)}`),
+  /** The delegate answers the agent's request: the errands they give it, or a refusal. */
+  answerAgentConsent: (partyId: string, requestId: string, answer: { approve: true; errandIds: readonly string[] } | { approve: false }) =>
+    request<{ redirectTo: string }>(partyId, `/agents/requests/${encodeURIComponent(requestId)}/${answer.approve ? "approve" : "deny"}`, {
+      method: "POST",
+      body: answer.approve ? { errandIds: answer.errandIds } : {},
+    }).then((result) => result.redirectTo),
+  /** What the server recorded about the agent's calls, for the delegate and the payer. */
+  agentEvents: (partyId: string, grantId: string) =>
+    request<{ events: AgentEvent[] }>(partyId, `/agents/grants/${encodeURIComponent(grantId)}/events`).then((result) => result.events),
   analystFindings: async (merchantId: string) => {
     const response = await send(`/analyst/findings?merchantId=${encodeURIComponent(merchantId)}`, { method: "GET" });
     if (!response.ok) throw await readError(response);

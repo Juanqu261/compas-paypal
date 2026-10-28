@@ -47,7 +47,15 @@ function reachable(entry: string): string[] {
 }
 
 const THROUGH_THE_DOOR = ["api/mcp.ts", "application/agent-shopping.ts"];
-const NEVER = ["api/oauth.ts", "application/agent-auth.ts", "integrations/agents/in-memory-agent-repository.ts", "ports/agent-repository.ts"];
+// The scripted demo agent is an HTTP client of the MCP endpoint: it must not even import the door.
+const NEVER = [
+  "api/oauth.ts",
+  "api/demo-agent.ts",
+  "application/agent-auth.ts",
+  "application/demo-agent-run.ts",
+  "integrations/agents/in-memory-agent-repository.ts",
+  "ports/agent-repository.ts",
+];
 
 for (const entry of [...THROUGH_THE_DOOR, ...NEVER]) {
   test(`${entry} reaches no PayPal port except through the purchase service`, () => {

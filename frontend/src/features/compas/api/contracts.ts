@@ -326,4 +326,94 @@ export type HealthResponse = {
   cumRegistry?: string;
   storage?: "postgres" | "memory";
   analystJobs?: "enabled" | "disabled";
+  /** Whether a demo session may create PayPal orders. Act 3's clean cart needs "enabled". */
+  purchases?: "enabled" | "disabled_for_demo" | "not_configured";
+};
+
+// ---------------------------------------------------------------------------
+// Act 3: an AI agent over MCP (ADR 0011)
+// ---------------------------------------------------------------------------
+
+export const AGENT_SCENARIOS = ["arc", "lookalike", "extra-product", "extra-boxes", "other-errand"] as const;
+export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
+
+/**
+ * What the scripted demo agent did. `say` and `page` are the script's words;
+ * `http`, `rpc` and `consent` are what crossed the wire to the MCP server.
+ */
+export type AgentRunStep =
+  | { n: number; at: string; kind: "task"; text: string }
+  | { n: number; at: string; kind: "say"; text: string }
+  | { n: number; at: string; kind: "page"; source: string; text: string }
+  | { n: number; at: string; kind: "http"; method: string; url: string; status: number; note: string }
+  | { n: number; at: string; kind: "consent"; state: "WAITING" | "APPROVED" | "REFUSED"; requestId?: string }
+  | { n: number; at: string; kind: "rpc"; method: string; tool?: string; request: unknown; status: number; response: unknown; ms: number };
+
+export type AgentRunStatus = "STARTING" | "AWAITING_CONSENT" | "RUNNING" | "COMPLETED" | "REFUSED" | "FAILED";
+
+export type AgentRun = {
+  id: string;
+  scenario: AgentScenario;
+  errandId: string;
+  status: AgentRunStatus;
+  mcpUrl: string;
+  consentRequestId?: string;
+  grantId?: string;
+  steps: readonly AgentRunStep[];
+  startedAt: string;
+  finishedAt?: string;
+  error?: string;
+};
+
+/** What COMPAS recorded on the server about one tool call. No cart, no SKUs. */
+export type AgentEvent = {
+  id: string;
+  at: string;
+  grantId: string;
+  tool: string;
+  errandId?: string;
+  merchantId?: string;
+  outcome?: PolicyOutcome;
+  reasonCodes: readonly string[];
+  error?: string;
+};
+
+export type ErrandKind = "ONE_OFF" | "STANDING";
+
+export type ErrandItem = { label: string; acceptedCums: readonly string[]; maxUnits: number };
+
+/** The body of `POST /errands`, without `confirmed`: the delegate's tap adds that. */
+export type ErrandBody = {
+  mandateId: string;
+  kind: ErrandKind;
+  items: readonly ErrandItem[];
+  maxAmount: Money;
+  expiresAt: string;
+};
+
+export type ErrandSuggestion =
+  | { available: true; errand: ErrandBody; dataLabel: string }
+  | { available: false; reason: string };
+
+export type ErrandView = ErrandBody & {
+  id: string;
+  delegateId: string;
+  status: "ACTIVE" | "CANCELLED";
+  displayStatus: "ACTIVE" | "CANCELLED" | "EXPIRED" | "FULFILLED";
+  used: { units: readonly number[]; amount: Money };
+};
+
+/** The consent screen: who is asking, and the delegate's own open errands. */
+export type AgentConsentRequest = {
+  requestId: string;
+  client: { name: string; redirectHost: string };
+  errands: readonly {
+    id: string;
+    mandateId: string;
+    kind: ErrandKind;
+    items: readonly { label: string; maxUnits: number }[];
+    maxAmount: Money;
+    expiresAt: string;
+  }[];
+  expiresAt: string;
 };

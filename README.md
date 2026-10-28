@@ -15,7 +15,7 @@ Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicin
 - **Analyst.** An AI analyst reviews merchants ahead of time. It maps catalogs to INVIMA medicine codes (CUM) with Elastic, and flags lookalike shops. A deterministic verifier checks every mapping against INVIMA's data. The AI only finds evidence; it never raises a shop's trust, and it never authorizes a payment.
 - **Binding.** Log in with PayPal and a Cámara de Comercio certificate bind a PayPal account to a registered business.
 - **Errands.** Andrea confirms an errand ("one box of losartán 50 mg"). A cart with anything more is held for review.
-- **MCP endpoint.** Any AI agent can shop for Andrea through `POST /mcp`, which has four tools: `search_eligible_merchants`, `check_purchase`, `propose_purchase` and `get_mandate_status`. The agent is limited to the errands Andrea gave it, names only SKUs and quantities, and has no PayPal tool. See [contracts/agents/](contracts/agents/README.md).
+- **MCP endpoint.** Any AI agent can shop for Andrea through `POST /mcp`, which has four tools: `search_eligible_merchants`, `check_purchase`, `propose_purchase` and `get_mandate_status`. The agent is limited to the errands Andrea gave it, names only SKUs and quantities, and has no PayPal tool. Act 3 of `/demo` shows one working: a scripted agent making real MCP calls, with Andrea's consent and the server's own log. See [contracts/agents/](contracts/agents/README.md).
 
 ## Repository
 

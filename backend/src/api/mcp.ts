@@ -1,6 +1,6 @@
 import type { AgentAuthService } from "../application/agent-auth.ts";
 import type { AgentShoppingService, ToolResult } from "../application/agent-shopping.ts";
-import type { AgentPrincipal } from "../domain/agent.ts";
+import type { AgentEvent, AgentPrincipal } from "../domain/agent.ts";
 import { errorLabel, logger } from "../lib/log.ts";
 
 const log = logger("mcp");
@@ -144,10 +144,39 @@ async function callTool(shopping: AgentShoppingService, principal: AgentPrincipa
   }
 }
 
+const ERRAND_ID = /^errand-[A-Za-z0-9-]{1,80}$/;
+const MERCHANT_ID = /^[a-z0-9-]{1,64}$/;
+const OUTCOMES = ["ALLOW", "REVIEW", "DENY"] as const;
+
+/**
+ * The server's record of a tool call. Only whitelisted fields: the errand and
+ * shop ids when they are well-formed, the decision and its reason codes.
+ * Never the cart, the SKUs or the agent's own text.
+ */
+function eventOf(principal: AgentPrincipal, params: unknown, result: ToolResult): Omit<AgentEvent, "id" | "at"> {
+  const args = isRecord(params) && isRecord(params.arguments) ? params.arguments : {};
+  const name = isRecord(params) && typeof params.name === "string" ? params.name : "unknown";
+  const decision = result.data.outcome ?? result.data.wouldHappen;
+  const outcome = OUTCOMES.find((candidate) => candidate === decision);
+  const reasonCodes = Array.isArray(result.data.reasonCodes)
+    ? result.data.reasonCodes.filter((code): code is string => typeof code === "string" && /^[A-Z_]{1,64}$/.test(code)).slice(0, 10)
+    : [];
+  return {
+    grantId: principal.grant.id,
+    tool: name,
+    ...(typeof args.errandId === "string" && ERRAND_ID.test(args.errandId) ? { errandId: args.errandId } : {}),
+    ...(typeof args.merchantId === "string" && MERCHANT_ID.test(args.merchantId) ? { merchantId: args.merchantId } : {}),
+    ...(outcome ? { outcome } : {}),
+    reasonCodes,
+    ...(!outcome && typeof result.data.error === "string" && /^[A-Z_]{1,64}$/.test(result.data.error) ? { error: result.data.error } : {}),
+  };
+}
+
 async function handleMessage(
   message: unknown,
   principal: AgentPrincipal,
   shopping: AgentShoppingService,
+  events?: Pick<AgentAuthService, "recordEvent">,
 ): Promise<JsonRpcReply | undefined> {
   if (!isRecord(message) || message.jsonrpc !== "2.0" || typeof message.method !== "string") {
     return rpcError(null, -32600, "Invalid request.");
@@ -178,7 +207,9 @@ async function handleMessage(
     case "tools/call": {
       try {
         const result = await callTool(shopping, principal, message.params);
-        return result ? reply(id, toolResult(result)) : rpcError(id, -32602, "Unknown tool.");
+        if (!result) return rpcError(id, -32602, "Unknown tool.");
+        await events?.recordEvent(eventOf(principal, message.params, result));
+        return reply(id, toolResult(result));
       } catch (error) {
         // The message may quote an upstream body: log the label, answer generically.
         log.error("tool call failed", { error: errorLabel(error) });
@@ -198,7 +229,7 @@ async function handleMessage(
 export async function handleMcpRequest(
   request: { method: string; authorization?: string; origin?: string; protocolVersion?: string; body?: unknown },
   deps: {
-    auth: Pick<AgentAuthService, "authenticate">;
+    auth: Pick<AgentAuthService, "authenticate"> & Partial<Pick<AgentAuthService, "recordEvent">>;
     shopping: AgentShoppingService;
     /** Sent in WWW-Authenticate so a client can discover the authorization server (RFC 9728). */
     resourceMetadataUrl: string;
@@ -234,7 +265,7 @@ export async function handleMcpRequest(
   }
   const replies: JsonRpcReply[] = [];
   for (const message of messages) {
-    const answer = await handleMessage(message, principal, deps.shopping);
+    const answer = await handleMessage(message, principal, deps.shopping, deps.auth.recordEvent ? { recordEvent: deps.auth.recordEvent.bind(deps.auth) } : undefined);
     if (answer) replies.push(answer);
   }
   if (replies.length === 0) return { status: 202 };

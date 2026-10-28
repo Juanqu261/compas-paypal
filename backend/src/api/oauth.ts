@@ -15,6 +15,7 @@ export const MAX_CONSENT_BODY_BYTES = 4 * 1024;
 
 const CONSENT_ROUTE = /^\/agents\/requests\/(areq-[0-9a-f-]{36})(?:\/(approve|deny))?$/;
 const GRANT_ROUTE = /^\/agents\/grants\/(agrant-[0-9a-f-]{36})\/revoke$/;
+const EVENTS_ROUTE = /^\/agents\/grants\/(agrant-[0-9a-f-]{36})\/events$/;
 
 export type ApiResponse = {
   status: number;
@@ -39,7 +40,7 @@ export function isOAuthPath(pathname: string): boolean {
 
 /** The delegate-session routes: the consent screen's reads and answers, and the grant list. */
 export function isAgentConsentPath(pathname: string): boolean {
-  return pathname === AGENT_GRANTS_PATH || CONSENT_ROUTE.test(pathname) || GRANT_ROUTE.test(pathname);
+  return pathname === AGENT_GRANTS_PATH || CONSENT_ROUTE.test(pathname) || GRANT_ROUTE.test(pathname) || EVENTS_ROUTE.test(pathname);
 }
 
 const STATUS_BY_ERROR: Record<string, number> = {
@@ -187,6 +188,13 @@ export async function handleAgentConsentRequest(
   if (pathname === AGENT_GRANTS_PATH) {
     if (request.method !== "GET") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
     return { status: 200, body: { grants: await deps.auth.listGrants(actor) } };
+  }
+
+  const events = EVENTS_ROUTE.exec(pathname);
+  if (events) {
+    if (request.method !== "GET") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
+    const result = await deps.auth.listEvents(actor, events[1]);
+    return result.ok ? { status: 200, headers: NO_STORE, body: { events: result.events } } : oauthError(result);
   }
 
   const revoke = GRANT_ROUTE.exec(pathname);

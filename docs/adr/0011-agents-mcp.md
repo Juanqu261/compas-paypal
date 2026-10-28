@@ -45,3 +45,12 @@ PayPal and Google are building agent-driven checkout (AP2, Agent Toolkit). What 
 - No CORS headers: browser-based MCP clients need a proxy. Origin is checked on `/mcp` (DNS rebinding), with `COMPAS_PUBLIC_URL`'s origin and `COMPAS_MCP_ALLOWED_ORIGINS` allowed.
 - No rate limiting. Registration and pending requests are capped (200 and 500), body sizes are bounded, and a tool call is as heavy as a purchase preview.
 - The consent screen, the errand screens and a reference agent are not built.
+
+## Addendum, 2026-10-28: the demo's agent and the server's log
+
+Act 3 of `/demo` shows an agent shopping. Two decisions:
+
+- **The agent is a script, and says so.** `DemoAgentRuns` is an MCP client that knows only URLs. It is refused with a 401, discovers the authorization server, registers, waits for the delegate on the consent screen, gets a token with PKCE and calls the tools over JSON-RPC. Its narration is written; its calls are not simulated. COMPAS cannot tell it from Claude. A live model was set aside for the demo: it costs API calls and may decline to be fooled by the planted injection, which would lose the point. The same server accepts a real client, and Act 3 shows the command.
+- **The server keeps its own log of each call.** The screen's "What Compas recorded" reads it, not the script's account: tool, errand, shop, decision, reason codes, never a cart. It is also what a payer's "your agent was steered…" summary would read.
+
+Consequences: the run's `propose_purchase` still stops at `PAYPAL_NOT_CONFIGURED` or `PURCHASES_DISABLED_FOR_DEMO` before the policy runs, as it does for a delegate. Act 3's clean cart needs `COMPAS_DEMO_PURCHASES=enabled`, and the analyst's verified mappings from Act 1. The "extra box" script orders two boxes: ten would exceed the USD 40 budget, and the budget, not the errand, would stop it.

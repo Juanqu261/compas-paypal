@@ -1,8 +1,10 @@
-import type {
-  AgentAuthorizationRequest,
-  AgentClient,
-  AgentGrant,
-  AgentTokenRecord,
+import {
+  type AgentAuthorizationRequest,
+  type AgentClient,
+  type AgentEvent,
+  type AgentGrant,
+  type AgentTokenRecord,
+  MAX_EVENTS_PER_GRANT,
 } from "../../domain/agent.ts";
 import type { AgentRepository } from "../../ports/agent-repository.ts";
 
@@ -15,6 +17,7 @@ export class InMemoryAgentRepository implements AgentRepository {
   readonly #requests = new Map<string, AgentAuthorizationRequest>();
   readonly #grants = new Map<string, AgentGrant>();
   readonly #tokens = new Map<string, AgentTokenRecord>();
+  readonly #events = new Map<string, AgentEvent[]>();
 
   async putClient(client: AgentClient): Promise<void> {
     this.#clients.set(client.id, structuredClone(client));
@@ -82,5 +85,15 @@ export class InMemoryAgentRepository implements AgentRepository {
     if (!token || token.usedAt) return false;
     this.#tokens.set(hash, { ...token, usedAt: at });
     return true;
+  }
+
+  async addEvent(event: AgentEvent): Promise<void> {
+    const log = this.#events.get(event.grantId) ?? [];
+    log.push(structuredClone(event));
+    this.#events.set(event.grantId, log.slice(-MAX_EVENTS_PER_GRANT));
+  }
+
+  async listEvents(grantId: string): Promise<readonly AgentEvent[]> {
+    return structuredClone(this.#events.get(grantId) ?? []);
   }
 }

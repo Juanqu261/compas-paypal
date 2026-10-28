@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AgentAuthService } from "../application/agent-auth.ts";
 import { AgentShoppingService } from "../application/agent-shopping.ts";
+import { DemoAgentRuns } from "../application/demo-agent-run.ts";
 import { DelegatePurchaseService } from "../application/delegate-purchases.ts";
 import { MandateService } from "../application/mandates.ts";
 import { PayPalOrderSettlement } from "../application/settle-paypal-order.ts";
@@ -44,6 +45,7 @@ import {
   MERCHANT_CATEGORY_CLAIMS_PATH,
   readRequestBody,
 } from "./merchant-categories.ts";
+import { handleDemoAgentRequest, isDemoAgentPath } from "./demo-agent.ts";
 import { handleMcpRequest, MAX_MCP_BODY_BYTES, MCP_PATH } from "./mcp.ts";
 import {
   type ApiResponse,
@@ -229,6 +231,19 @@ const agentShopping = new AgentShoppingService({
   purchases,
 });
 
+// The demo's scripted agent: a client of this same MCP endpoint, over HTTP. It is a script, not a model.
+const demoAgents = new DemoAgentRuns({
+  origin: publicUrl,
+  mcpUrl: `${publicUrl}${MCP_PATH}`,
+  fetch: (url, init) => fetch(url, init),
+  errands: errandRepository,
+  mandates,
+  merchants: merchantDirectory,
+  catalogs: analyst.catalogs,
+  mappings: analyst.mappings,
+  grantIdOf: async (accessToken) => (await agentAuth.authenticate(`Bearer ${accessToken}`))?.grant.id,
+});
+
 const payerPinned = Boolean((await parties.getById(DEMO_PARTY_IDS.pedro))?.paypalPayerId);
 const runtimeFacts: RuntimeFacts = {
   identity: "DEMO",
@@ -391,6 +406,9 @@ async function routeAgentConsent(request: IncomingMessage, url: URL): Promise<Ap
     if (!parsed.ok) return parsed.response;
     body = parsed.body;
   }
+  if (isDemoAgentPath(url.pathname)) {
+    return handleDemoAgentRequest({ method: request.method ?? "GET", url, body }, actor, { runs: demoAgents });
+  }
   return handleAgentConsentRequest({ method: request.method ?? "GET", url, body }, actor, { auth: agentAuth });
 }
 
@@ -551,7 +569,7 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (isOAuthPath(url.pathname) || url.pathname === MCP_PATH || isAgentConsentPath(url.pathname)) {
+  if (isOAuthPath(url.pathname) || url.pathname === MCP_PATH || isAgentConsentPath(url.pathname) || isDemoAgentPath(url.pathname)) {
     try {
       if (isOAuthPath(url.pathname)) {
         let rawBody: Uint8Array | undefined;

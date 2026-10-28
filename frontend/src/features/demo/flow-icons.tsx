@@ -147,3 +147,14 @@ export function DatabaseIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** A person: Andrea, Pedro. */
+export function PersonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19.5c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" />
+    </Icon>
+  );
+}
+

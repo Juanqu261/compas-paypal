@@ -3,6 +3,7 @@ import {
   AGENT_SCOPE,
   type AgentAuthorizationRequest,
   type AgentClient,
+  type AgentEvent,
   type AgentGrant,
   type AgentPrincipal,
   type AgentTokenKind,
@@ -536,6 +537,23 @@ export class AgentAuthService {
       views.push(this.#view(grant, client?.name ?? "An AI agent", role));
     }
     return views;
+  }
+
+  /** Appends to the grant's server-side log. Never throws: a log failure must not change a tool's answer. */
+  async recordEvent(event: Omit<AgentEvent, "id" | "at">): Promise<void> {
+    try {
+      await this.#deps.repo.addEvent({ ...event, id: `aevent-${randomUUID()}`, at: this.#now().toISOString() });
+    } catch {
+      log.warn("agent event not recorded", { grantId: event.grantId });
+    }
+  }
+
+  /** What COMPAS recorded about the agent's calls. For the delegate and the payer, oldest first. */
+  async listEvents(actor: Actor, grantId: unknown): Promise<AgentAuthResult<{ events: readonly AgentEvent[] }>> {
+    const grant = typeof grantId === "string" ? await this.#deps.repo.getGrant(grantId) : undefined;
+    // Same answer for a grant that does not exist and one that is not yours.
+    if (!grant || !(await this.#roleIn(actor, grant))) return failure("unknown_grant", "There is no such agent access.");
+    return { ok: true, events: await this.#deps.repo.listEvents(grant.id) };
   }
 
   /** The delegate, or a payer of one of its mandates, ends the agent's access at once. */

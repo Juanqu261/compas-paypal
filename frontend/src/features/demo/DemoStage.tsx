@@ -5,6 +5,7 @@ import { PhoneFrame } from "@/components/phone/PhoneFrame";
 import type { DemoScenario } from "@/demo/scenarios";
 import { compasApi } from "@/features/compas/api/client";
 import { useResource } from "@/features/compas/api/hooks";
+import { AgentAct } from "@/features/demo/AgentAct";
 import { AnalystAct } from "@/features/demo/AnalystAct";
 import { analystRecord } from "@/features/demo/analyst-view";
 import { DemoSessionProvider, useDemoSession, type DemoCharge } from "@/features/demo/DemoSession";
@@ -172,11 +173,12 @@ function DemoPhones() {
   );
 }
 
-type Act = 1 | 2;
+type Act = 1 | 2 | 3;
 
 const ACTS = [
   { act: 1, title: "Before anyone buys", detail: "The analyst reads the catalog" },
   { act: 2, title: "The purchase", detail: "Three phones, one payment" },
+  { act: 3, title: "When an AI shops", detail: "An agent, on a leash" },
 ] as const;
 
 function ActSwitcher({ act, onChange }: { act: Act; onChange: (act: Act) => void }) {
@@ -317,6 +319,11 @@ export function DemoStage({
             <ChargeEvidence onShowAnalyst={() => show(1)} />
             <DemoGuide />
           </div>
+        </div>
+      </Activity>
+      <Activity mode={act === 3 ? "visible" : "hidden"}>
+        <div role="tabpanel" id="act-panel-3" aria-labelledby="act-tab-3">
+          <AgentAct onApproval={() => show(2)} onAnalyst={() => show(1)} />
         </div>
       </Activity>
     </DemoSessionProvider>

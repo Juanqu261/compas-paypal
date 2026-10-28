@@ -64,5 +64,26 @@ export type AgentPrincipal = {
   clientName: string;
 };
 
+/**
+ * What COMPAS recorded about one tool call, on the server, whoever the agent
+ * is. It names the errand and the shop, the decision and the reason codes. It
+ * never holds items, SKUs, amounts or the agent's own words: those are health
+ * data or the agent's, not COMPAS's record.
+ */
+export type AgentEvent = {
+  id: string;
+  at: string;
+  grantId: string;
+  tool: string;
+  errandId?: string;
+  merchantId?: string;
+  /** The decision, for check_purchase (what would happen) and propose_purchase. */
+  outcome?: "ALLOW" | "REVIEW" | "DENY";
+  reasonCodes: readonly string[];
+  /** A tool failure that is not a decision, e.g. UNKNOWN_MERCHANT. */
+  error?: string;
+};
+
+export const MAX_EVENTS_PER_GRANT = 200;
 export const AGENT_SCOPE = "errands";
 export const MAX_GRANT_ERRANDS = 10;
