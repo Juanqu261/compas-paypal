@@ -12,7 +12,7 @@ A delegate builds a cart at a merchant that accepts PayPal. COMPAS checks the ca
 
 The cap decision is settled: **per-order approval**. The sandbox app has no Vault permission, so there is no payer-absent charge. The budget and the cap below `HIGH` are COMPAS rules, checked before PayPal and reserved atomically, and the payer approves every order. A payer-absent charge for all-green purchases waits until PayPal enables Vault for the app. Ask before building it.
 
-Built in the backend: the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, and errands. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md) and [ADR 0010](docs/adr/0010-errands.md). The analyst has one screen: Act 1 of `/demo` runs it live on a pharmacy's catalog, and Act 2's "Why…?" panel reads its record for the charge's merchant. Not built, and only when asked: the Compas MCP server for agents, and the frontend for onboarding, appeals and errands.
+Built in the backend: the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, errands, and the Compas MCP server for agents. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md), [ADR 0010](docs/adr/0010-errands.md) and [ADR 0011](docs/adr/0011-agents-mcp.md). The analyst has one screen: Act 1 of `/demo` runs it live on a pharmacy's catalog, and Act 2's "Why…?" panel reads its record for the charge's merchant. Not built, and only when asked: the frontend for onboarding, appeals, errands and the agent consent screen, and a reference agent.
 
 ## Product
 
@@ -35,6 +35,7 @@ Terms:
 - **CUM** (INVIMA's medicine code) is the only product registry, because this MVP covers medicine only. Another category may need another registry with its own codes and verifier (ADR 0009). Don't generalize the code until a second category is asked for.
 - A **pointer** from the AI analyst ("SKU x is CUM y") counts only once a deterministic verifier re-reads it from the source. A **judgment** can only flag. See ADR 0009.
 - An **errand** is what the delegate confirmed may be bought, by CUM, with unit and amount caps. A cart that doesn't fit it is `REVIEW` `ERRAND_MISMATCH`, even under `MONITORED`. See ADR 0010.
+- An **agent grant** is what a delegate allowed one MCP client to do: propose carts against the errands the delegate picked at consent, as a sub-delegate. The agent names SKUs and quantities; COMPAS sets prices and categories. See ADR 0011.
 
 ## Invariants
 
@@ -44,7 +45,8 @@ Terms:
 - No money moves until the payer approves the order at PayPal, and COMPAS captures only after checking the mandate and the order again.
 - A payer may choose a `MONITORED` budget. Purpose checks are then recorded, not enforced. Mandate rules (status, validity, delegate, budget) always apply, and the payer still approves every order.
 - AI never authorizes payments. The analyst and the errand drafter reach no PayPal port (a test walks their imports), a model's output is parsed before use and fails closed, and only a human withdraws an analyst flag.
-- Errands are health data. They never reach PayPal, the analyst or the Elastic index.
+- Errands are health data. They never reach PayPal, the analyst or the Elastic index. An agent sees only the errands its delegate gave it.
+- An AI agent has no PayPal tool, no amount, no category and no way to confirm a purchase. It reaches PayPal only through `DelegatePurchaseService` (a test walks the imports), an agent token opens `/mcp` and no REST route, and nothing a merchant wrote reaches a tool result.
 - Purpose categories belong to COMPAS.
 - PayPal must never be faked. An unimplemented or unconfigured gateway throws.
 - COMPAS talks to the PayPal sandbox only.
@@ -142,16 +144,16 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 ## Scope ladder
 
 - **Built (PayPal):** Pedro's medication mandate, authorized in COMPAS → Andrea's pharmacy purchase → `ALLOW` → PayPal order payable to the pharmacy → Pedro approves at PayPal → COMPAS re-checks and captures → completed. Alcohol → `PURPOSE_MISMATCH`, and no `createOrder` call. Cancel, expiry, revocation and a mismatched order close the purchase unpaid and give the capacity back.
-- **Built (backend; the analyst also in Act 1 of `/demo`):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, and errands with `ERRAND_MISMATCH`.
+- **Built (backend; the analyst also in Act 1 of `/demo`):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, errands with `ERRAND_MISMATCH`, and the MCP server for agents: errand-scoped OAuth 2.1 (PKCE, dynamic registration, rotating refresh), the four tools, `search_eligible_merchants` over vetted shops only, revocation by the delegate or the payer. Contract: `contracts/agents/`.
 - **Next, only when asked:**
   - Payer exception approval: `REVIEW` → the payer approves a one-off PayPal order for the held cart.
   - Refunds and disputes, through PayPal webhooks. A refund must restore capacity.
   - A payer-absent charge for all-green purchases, once PayPal enables Vault for the app.
   - `PROVIDER_VERIFIED` claims from a simulated wallet node with signature checks.
   - An AI classifier for ambiguous lines at checkout.
-  - The Compas MCP server for agents (errand-scoped OAuth, `search_eligible_merchants`), and agent sub-delegates.
-  - Frontend for merchant onboarding, flag appeals and errands.
-  - Postgres adapters for the analyst and errand stores (their tables exist).
+  - Frontend for the agent consent screen (`COMPAS_AGENT_CONSENT_URL`, `/agents/authorize`), merchant onboarding, flag appeals and errands, and a reference agent for the demo.
+  - An analyst job for a shop an agent names that COMPAS has never seen.
+  - Postgres adapters for the analyst and errand stores (their tables exist), and for agent clients, grants and tokens (no tables yet).
   - A flag confirmed into `CONTESTED`, and AI contradiction of captured lines.
 - **Roadmap (pitch only unless asked):**
   - State bonus mandates such as Medellín Cero Hambre, with split tender: the bonus paid first.
@@ -171,4 +173,4 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 - `docs/00-product-vision.md` to `docs/07-security-privacy-ethics.md`: vision, demo story, domain model, architecture, PayPal mapping, policy engine, AI classification, security and privacy.
 - `docs/09-research-and-prior-art.md`: purpose-bound money and other prior art.
 - `docs/10-reference.md`: PayPal facts checked against the sandbox, CIIU categories, the Colombian research the design rests on, and sources.
-- `docs/adr/`: architecture decisions. ADR 0008 is the PayPal rail, ADR 0009 the AI analyst's evidence, ADR 0010 errands.
+- `docs/adr/`: architecture decisions. ADR 0008 is the PayPal rail, ADR 0009 the AI analyst's evidence, ADR 0010 errands, ADR 0011 agents over MCP.

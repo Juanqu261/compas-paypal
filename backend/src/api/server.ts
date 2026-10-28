@@ -1,7 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { AgentAuthService } from "../application/agent-auth.ts";
+import { AgentShoppingService } from "../application/agent-shopping.ts";
 import { DelegatePurchaseService } from "../application/delegate-purchases.ts";
 import { MandateService } from "../application/mandates.ts";
 import { PayPalOrderSettlement } from "../application/settle-paypal-order.ts";
+import { InMemoryAgentRepository } from "../integrations/agents/in-memory-agent-repository.ts";
 import { InMemoryAuditRepository } from "../integrations/audit/in-memory-audit-repository.ts";
 import { createDemoPartyDirectory, DEMO_PARTY_IDS } from "../integrations/mandates/demo-party-directory.ts";
 import { InMemoryMandateRepository } from "../integrations/mandates/in-memory-mandate-repository.ts";
@@ -41,6 +44,16 @@ import {
   MERCHANT_CATEGORY_CLAIMS_PATH,
   readRequestBody,
 } from "./merchant-categories.ts";
+import { handleMcpRequest, MAX_MCP_BODY_BYTES, MCP_PATH } from "./mcp.ts";
+import {
+  type ApiResponse,
+  handleAgentConsentRequest,
+  handleOAuthRequest,
+  isAgentConsentPath,
+  isOAuthPath,
+  MAX_CONSENT_BODY_BYTES,
+  MAX_OAUTH_BODY_BYTES,
+} from "./oauth.ts";
 import { handlePayPalReturn, isPayPalReturnPath } from "./paypal-return.ts";
 import { handleErrandRequest, isErrandApiPath, MAX_ERRAND_BODY_BYTES } from "./errands.ts";
 import {
@@ -76,6 +89,15 @@ new URL(returnUrl);
 const merchantReturnUrl =
   process.env.PAYPAL_IDENTITY_FRONTEND_RETURN_URL?.trim() || "http://localhost:3000/paypal-business";
 new URL(merchantReturnUrl);
+// Where MCP clients reach this server, and the screen where a delegate answers an agent's request.
+const publicUrl = (process.env.COMPAS_PUBLIC_URL?.trim() || `http://localhost:${port}`).replace(/\/+$/, "");
+const agentConsentUrl = process.env.COMPAS_AGENT_CONSENT_URL?.trim() || "http://localhost:3000/agents/authorize";
+new URL(publicUrl);
+new URL(agentConsentUrl);
+const mcpAllowedOrigins = new Set([
+  new URL(publicUrl).origin,
+  ...(process.env.COMPAS_MCP_ALLOWED_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? []),
+]);
 
 // With DATABASE_URL, mandates, spending and the trust log live in Supabase Postgres (data/migrations/).
 const database = connectDatabase();
@@ -186,6 +208,27 @@ const purchases = new DelegatePurchaseService({
   logWarning,
 });
 
+// AI agents over MCP (ADR 0011). An agent holds a grant bound to the errands
+// its delegate picked, and reaches PayPal only through `purchases` above.
+// Grants and tokens are in memory: a restart asks every agent to authorize again.
+const agentAuth = new AgentAuthService({
+  repo: new InMemoryAgentRepository(),
+  errands: errandRepository,
+  mandates,
+  resource: `${publicUrl}${MCP_PATH}`,
+});
+const agentShopping = new AgentShoppingService({
+  errands: errandRepository,
+  mandates,
+  merchants: merchantDirectory,
+  registry: merchantCategories.registry,
+  history: merchantHistory,
+  catalogs: analyst.catalogs,
+  mappings: analyst.mappings,
+  cum: analyst.cumRegistry,
+  purchases,
+});
+
 const payerPinned = Boolean((await parties.getById(DEMO_PARTY_IDS.pedro))?.paypalPayerId);
 const runtimeFacts: RuntimeFacts = {
   identity: "DEMO",
@@ -216,6 +259,22 @@ if (demoIdentityMode.enabled) {
 function sendJson(response: ServerResponse, { status, body }: JsonResponse): void {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(body));
+}
+
+/**
+ * OAuth and MCP answers: extra headers, a redirect, or no body at all (a
+ * 202). An MCP batch answers with an array.
+ */
+function sendApi(
+  response: ServerResponse,
+  { status, body, headers, location }: Omit<ApiResponse, "body"> & { body?: ApiResponse["body"] | readonly unknown[] },
+): void {
+  response.writeHead(status, {
+    ...(body !== undefined ? { "content-type": "application/json" } : {}),
+    ...headers,
+    ...(location ? { location } : {}),
+  });
+  response.end(body !== undefined ? JSON.stringify(body) : undefined);
 }
 
 async function routeMerchantCategories(
@@ -319,9 +378,26 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   );
 }
 
+/** The delegate's answers to an agent's request, and the agent grants. Needs a COMPAS session. */
+async function routeAgentConsent(request: IncomingMessage, url: URL): Promise<ApiResponse> {
+  if (!demoIdentity) {
+    return { status: 503, body: { error: "IDENTITY_NOT_CONFIGURED", message: "No identity provider is enabled." } };
+  }
+  const actor = demoIdentity.authenticate(request.headers.authorization);
+  if (!actor) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
+  let body: unknown;
+  if (request.method === "POST") {
+    const parsed = await readJsonBody(request, MAX_CONSENT_BODY_BYTES);
+    if (!parsed.ok) return parsed.response;
+    body = parsed.body;
+  }
+  return handleAgentConsentRequest({ method: request.method ?? "GET", url, body }, actor, { auth: agentAuth });
+}
+
 /**
  * Health check, the PayPal return and cancel redirects, the merchant
- * category service, demo sessions, the mandate routes and the purchase routes.
+ * category service, demo sessions, the mandate routes, the purchase routes,
+ * and the agent routes: OAuth, the consent answers and the MCP endpoint.
  */
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
@@ -470,6 +546,67 @@ const server = createServer(async (request, response) => {
       }
     } catch (error) {
       httpLog.error(`Merchant onboarding request failed: ${error instanceof Error ? error.name : "error"}`);
+      sendJson(response, { status: 500, body: { error: "internal_error" } });
+    }
+    return;
+  }
+
+  if (isOAuthPath(url.pathname) || url.pathname === MCP_PATH || isAgentConsentPath(url.pathname)) {
+    try {
+      if (isOAuthPath(url.pathname)) {
+        let rawBody: Uint8Array | undefined;
+        if (request.method === "POST") {
+          try {
+            rawBody = await readRequestBody(request, MAX_OAUTH_BODY_BYTES);
+          } catch (error) {
+            if (error instanceof BodyTooLargeError) {
+              sendApi(response, { status: 413, body: { error: "BODY_TOO_LARGE" } });
+              return;
+            }
+            throw error;
+          }
+        }
+        sendApi(
+          response,
+          await handleOAuthRequest(
+            { method: request.method ?? "GET", url, ...(rawBody ? { rawBody } : {}) },
+            { auth: agentAuth, issuer: publicUrl, consentUrl: agentConsentUrl },
+          ),
+        );
+      } else if (url.pathname === MCP_PATH) {
+        let body: unknown;
+        if (request.method === "POST") {
+          const parsed = await readJsonBody(request, MAX_MCP_BODY_BYTES);
+          if (!parsed.ok) {
+            sendApi(response, parsed.response);
+            return;
+          }
+          body = parsed.body;
+        }
+        const protocolVersion = request.headers["mcp-protocol-version"];
+        sendApi(
+          response,
+          await handleMcpRequest(
+            {
+              method: request.method ?? "GET",
+              ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
+              ...(request.headers.origin ? { origin: request.headers.origin } : {}),
+              ...(typeof protocolVersion === "string" ? { protocolVersion } : {}),
+              body,
+            },
+            {
+              auth: agentAuth,
+              shopping: agentShopping,
+              resourceMetadataUrl: `${publicUrl}/.well-known/oauth-protected-resource/mcp`,
+              allowedOrigins: mcpAllowedOrigins,
+            },
+          ),
+        );
+      } else {
+        sendApi(response, await routeAgentConsent(request, url));
+      }
+    } catch (error) {
+      httpLog.error(`Agent request failed: ${error instanceof Error ? error.name : "error"}`);
       sendJson(response, { status: 500, body: { error: "internal_error" } });
     }
     return;
