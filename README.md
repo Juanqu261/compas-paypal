@@ -4,11 +4,18 @@ A policy layer for purpose-restricted payments, on PayPal. Money stays where it 
 
 ## The idea
 
-Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicines. Andrea, who lives with Gladys, can buy them but must not receive the money.
+Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicines. Andrea, who lives with Gladys, can buy them but must not receive the money. Pedro, Andrea and the pharmacy are all on PayPal.
 
-- Pedro creates a **mandate**: Andrea may pay for `MEDICATION`, up to USD 40.
-- Andrea buys at a pharmacy. COMPAS checks the cart against the mandate.
-- On `ALLOW`, COMPAS creates a PayPal order payable to the pharmacy. Pedro approves it at PayPal, and COMPAS captures it. Alcohol is denied before any order exists.
+- **Pedro** creates a **mandate**: Andrea may pay for `MEDICATION`, up to USD 40.
+- **Andrea** buys at a pharmacy. COMPAS checks the cart against the mandate. Alcohol is denied before any order exists.
+- On `ALLOW`, COMPAS creates a **PayPal order** payable to the pharmacy's PayPal Business account. **Pedro approves it at PayPal**, and COMPAS captures it.
+
+### Why PayPal
+
+- The money never leaves Pedro's PayPal account and never reaches Andrea.
+- Every payment is a PayPal order that Pedro approves and COMPAS captures, so PayPal stays the rail and the authority.
+- The pharmacy is paid directly, as a verified PayPal Business account.
+- COMPAS adds the purpose: what the money may buy, checked before PayPal is asked to move anything.
 
 ### The AI layer
 
