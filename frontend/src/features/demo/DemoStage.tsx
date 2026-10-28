@@ -1,9 +1,13 @@
 "use client";
 
-import { startTransition, ViewTransition, type ReactNode } from "react";
+import { Activity, startTransition, useState, ViewTransition, type ReactNode } from "react";
 import { PhoneFrame } from "@/components/phone/PhoneFrame";
 import type { DemoScenario } from "@/demo/scenarios";
-import { DemoSessionProvider, useDemoSession } from "@/features/demo/DemoSession";
+import { compasApi } from "@/features/compas/api/client";
+import { useResource } from "@/features/compas/api/hooks";
+import { AnalystAct } from "@/features/demo/AnalystAct";
+import { analystRecord } from "@/features/demo/analyst-view";
+import { DemoSessionProvider, useDemoSession, type DemoCharge } from "@/features/demo/DemoSession";
 import { NequiBusinessExperience } from "@/features/nequi-business/NequiBusinessExperience";
 import { NequiExperience } from "@/features/nequi/NequiExperience";
 import { PayPalExperience } from "@/features/paypal/PayPalExperience";
@@ -168,20 +172,153 @@ function DemoPhones() {
   );
 }
 
+type Act = 1 | 2;
+
+const ACTS = [
+  { act: 1, title: "Before anyone buys", detail: "The analyst reads the catalog" },
+  { act: 2, title: "The purchase", detail: "Three phones, one payment" },
+] as const;
+
+function ActSwitcher({ act, onChange }: { act: Act; onChange: (act: Act) => void }) {
+  return (
+    <div role="tablist" aria-label="Demo acts" className="mx-auto flex max-w-7xl flex-wrap gap-2 px-4 pt-6 sm:px-8">
+      {ACTS.map((item) => {
+        const selected = item.act === act;
+        return (
+          <button
+            key={item.act}
+            type="button"
+            role="tab"
+            id={`act-tab-${item.act}`}
+            aria-selected={selected}
+            aria-controls={`act-panel-${item.act}`}
+            onClick={() => onChange(item.act)}
+            className={`flex items-baseline gap-3 rounded-lg border px-4 py-2.5 text-left transition-colors duration-200 motion-reduce:transition-none ${
+              selected ? "border-ink bg-ink text-paper" : "border-ink/20 bg-paper text-ink-soft hover:text-ink"
+            }`}
+          >
+            <span className={`font-display text-2xl ${selected ? "text-paper" : "text-route"}`}>{item.act}</span>
+            <span className="leading-tight">
+              <span className="block font-semibold">{item.title}</span>
+              <span className={`block text-sm ${selected ? "text-paper/75" : "text-ink-soft"}`}>{item.detail}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** What the backend answered about the open charge, if it answered. */
+function chargeDecision(charge: DemoCharge | null) {
+  const result = charge?.result;
+  if (result?.kind === "PREVIEW") {
+    const outcome = result.preview.next === "ORDER" ? "ALLOW" : result.preview.next === "STOP_DENY" ? "DENY" : "REVIEW";
+    return { outcome, purposeCheck: result.preview.purposeCheck } as const;
+  }
+  if (result?.kind === "PURCHASE") return { outcome: result.purchase.outcome, purposeCheck: result.purchase.purposeCheck } as const;
+  return undefined;
+}
+
+const WHY = { ALLOW: "Why was this allowed?", DENY: "Why was this refused?", REVIEW: "Why is this held?" } as const;
+
+/**
+ * Links the charge back to Act 1: what COMPAS's rules read, and what the
+ * analyst had settled about this merchant before the charge. The analyst never
+ * sees the purchase. The backend decided; this only shows its record.
+ */
+function ChargeEvidence({ onShowAnalyst }: { onShowAnalyst: () => void }) {
+  const { charge } = useDemoSession();
+  const decision = chargeDecision(charge);
+  const findings = useResource(decision && charge ? `charge-evidence:${charge.id}` : null, () =>
+    compasApi.analystFindings(charge?.merchantId ?? ""),
+  );
+  if (!decision || !charge) return null;
+  const record = findings.resource.status === "ready" ? analystRecord(findings.resource.data.findings) : undefined;
+  const reviewed = record && (record.verified > 0 || record.rejected > 0 || record.flags.length > 0);
+
+  return (
+    <details className="mt-4 rounded-lg border border-ink/15 bg-paper/70 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer px-4 py-3 font-semibold text-ink">{WHY[decision.outcome]}</summary>
+      <dl className="grid gap-4 px-4 pb-4 sm:grid-cols-2">
+        <div>
+          <dt className="text-sm text-ink-soft">At checkout, COMPAS’s rules</dt>
+          <dd className="mt-1 text-ink">
+            {decision.outcome} at {charge.merchantDisplayName}
+            {decision.purposeCheck?.merchantConfidence ? (
+              <span className="block text-sm text-ink-soft">
+                Merchant confidence: {decision.purposeCheck.merchantConfidence}
+              </span>
+            ) : null}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-sm text-ink-soft">Ahead of time, the analyst</dt>
+          <dd className="mt-1 text-ink">
+            {findings.resource.status === "loading" ? (
+              "Reading its record…"
+            ) : findings.resource.status === "error" ? (
+              "Its record isn’t available here."
+            ) : reviewed ? (
+              <>
+                {record.verified} {record.verified === 1 ? "product" : "products"} confirmed against INVIMA.{" "}
+                {record.flags.length > 0
+                  ? `${record.flags.length} open ${record.flags.length === 1 ? "flag" : "flags"} on Medication.`
+                  : "No open flags."}
+              </>
+            ) : (
+              "No analyst review on file for this merchant."
+            )}
+            <button
+              type="button"
+              onClick={onShowAnalyst}
+              className="mt-1 block text-sm font-semibold text-route-deep underline-offset-2 hover:underline"
+            >
+              See Act 1
+            </button>
+          </dd>
+        </div>
+      </dl>
+      <p className="border-t border-ink/10 px-4 py-2.5 text-sm text-ink-soft">
+        The analyst never sees this purchase, Pedro or Andrea. A flag can hold a merchant for review. It can never allow a
+        payment.
+      </p>
+    </details>
+  );
+}
+
 export function DemoStage({
   scenarios,
 }: {
   scenarios: readonly DemoScenario[];
 }) {
+  const [act, setAct] = useState<Act>(1);
+  const show = (next: Act) => {
+    startTransition(() => setAct(next));
+    window.scrollTo({ top: 0 });
+  };
+
   return (
     <DemoSessionProvider scenarios={scenarios}>
-      <div className="border-b border-ink/15 bg-shoal/45 pt-8">
-        <DemoPhones />
-      </div>
-      <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
-        <ScenarioPicker />
-        <DemoGuide />
-      </div>
+      <ActSwitcher act={act} onChange={show} />
+      {/* Activity keeps a hidden act's state: the phones keep their screens while Act 1 shows. */}
+      <Activity mode={act === 1 ? "visible" : "hidden"}>
+        <div role="tabpanel" id="act-panel-1" aria-labelledby="act-tab-1">
+          <AnalystAct onNext={() => show(2)} />
+        </div>
+      </Activity>
+      <Activity mode={act === 2 ? "visible" : "hidden"}>
+        <div role="tabpanel" id="act-panel-2" aria-labelledby="act-tab-2">
+          <div className="mt-6 border-y border-ink/15 bg-shoal/45 pt-8">
+            <DemoPhones />
+          </div>
+          <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
+            <ScenarioPicker />
+            <ChargeEvidence onShowAnalyst={() => show(1)} />
+            <DemoGuide />
+          </div>
+        </div>
+      </Activity>
     </DemoSessionProvider>
   );
 }

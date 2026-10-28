@@ -44,6 +44,13 @@ test("the real pharmacy's medicines map to CUMs the verifier confirms, and it is
   assert.equal(result.status, "COMPLETED");
   assert.equal(result.newFlags, 0, "2 non-medicines of 8 is under the off-purpose rule");
   assert.deepEqual([result.verifiedMappings, result.rejectedMappings], [6, 0], JSON.stringify(result));
+  assert.equal(result.skus.length, 8);
+  const sunscreen = result.skus.find((sku) => sku.skuId === "dc-protector-solar")!;
+  assert.equal(sunscreen.itemClass, "NOT_MEDICINE");
+  assert.equal(sunscreen.outcome, undefined, "no CUM, so nothing to verify");
+  const verified = result.skus.find((sku) => sku.skuId === "dc-losartan-50")!;
+  assert.equal(verified.outcome, "VERIFIED");
+  assert.ok(verified.candidates > 0 && verified.cum);
   const losartan = await resolveCatalogLine(DEMO_DROGUERIA_PAYPAL_ID, "dc-losartan-50", bench);
   const record = await bench.cumRegistry.getByCum(losartan.cum!);
   assert.deepEqual(record?.ingredients, [{ name: "LOSARTAN POTASICO", amount: "50", unit: "mg" }]);
@@ -222,7 +229,7 @@ test("the job queue runs one job per merchant at a time and records failures by 
     run: async (merchantId) => {
       await gate;
       if (merchantId === "bad") throw new AnalystOutputError("model said: <secret merchant text>");
-      return { runId: "run-1", status: "COMPLETED", items: 1, verifiedMappings: 1, rejectedMappings: 0, newFlags: 0 };
+      return { runId: "run-1", status: "COMPLETED", items: 1, verifiedMappings: 1, rejectedMappings: 0, newFlags: 0, skus: [] };
     },
   });
   const first = queue.enqueue("good");

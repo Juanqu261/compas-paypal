@@ -232,3 +232,70 @@ export type DemoMerchantsResponse = {
   categorySources: "REGISTERED" | "NONE_REGISTERED";
   merchants: readonly DemoMerchant[];
 };
+
+// ---------------------------------------------------------------------------
+// The AI analyst (`contracts/merchant-onboarding/README.md`). Merchant data
+// only, never a payer, delegate or errand. A finding never decides a payment.
+// ---------------------------------------------------------------------------
+
+export type ItemClass = "MEDICINE" | "NOT_MEDICINE" | "UNSURE";
+
+/** One SKU of a run. The class and the CUM are the model's; `outcome` is the verifier's. */
+export type AnalyzedSku = {
+  skuId: string;
+  name: string;
+  /** CUM candidates the search index proposed. Proposals, not evidence. */
+  candidates: number;
+  itemClass: ItemClass;
+  cum?: string;
+  outcome?: "VERIFIED" | "REJECTED";
+};
+
+export type AnalystJob = {
+  id: string;
+  merchantId: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  result?: {
+    runId: string;
+    status: "COMPLETED" | "NO_CATALOG" | "NOT_APPLICABLE";
+    items: number;
+    verifiedMappings: number;
+    rejectedMappings: number;
+    newFlags: number;
+    skus: readonly AnalyzedSku[];
+  };
+  /** The error's name only. */
+  error?: string;
+  createdAt: string;
+  finishedAt?: string;
+};
+
+export type AnalystFinding =
+  | { kind: "POINTER"; pointer: "CUM_MAPPING"; id: string; runId: string; skuId: string; cum: string; outcome: "VERIFIED" | "REJECTED"; recordedAt: string }
+  | { kind: "POINTER"; pointer: "CAMARA_CERTIFICATE"; id: string; runId: string; outcome: "VERIFIED_BOUND" | "VERIFIED_UNBOUND" | "REJECTED"; detail: string; recordedAt: string }
+  | {
+      kind: "JUDGMENT";
+      id: string;
+      runId: string;
+      judgment: "CATALOG_OFF_PURPOSE" | "LOOKALIKE_SIGNALS";
+      category: CompasCategory;
+      citedSkuIds: readonly string[];
+      /** For LOOKALIKE_SIGNALS, the model's own sentence. Untrusted text. */
+      note: string;
+      status: "OPEN" | "RESPONDED" | "WITHDRAWN";
+      recordedAt: string;
+    };
+
+export type AnalystFindingsResponse = { merchantId: string; findings: readonly AnalystFinding[] };
+
+/** `GET /health`, the fields the demo reads. */
+export type HealthResponse = {
+  status: string;
+  elastic?: "configured" | "not_configured";
+  /** Which model the analyst calls: Claude through the Claude API, or Elastic's Inference API. */
+  analystModel?: "claude" | "elastic";
+  /** Where the verifier re-reads a CUM: INVIMA's dataset on datos.gov.co, or the committed demo subset. */
+  cumRegistry?: string;
+  storage?: "postgres" | "memory";
+  analystJobs?: "enabled" | "disabled";
+};

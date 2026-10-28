@@ -331,6 +331,7 @@ const server = createServer(async (request, response) => {
         purchases: runtimeFacts.purchases,
         elastic: analyst.elastic.missing.length === 0 ? "configured" : "not_configured",
         analystModel: analyst.modelVendor,
+        cumRegistry: analyst.cumRegistry.provenance,
         merchantLogin: analyst.identityConfigured ? "paypal_sandbox" : "not_configured",
         analystJobs: analystJobsMode.enabled ? "enabled" : "disabled",
       }),

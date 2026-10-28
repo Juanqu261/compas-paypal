@@ -37,6 +37,8 @@ Errors: `401` without a session, `422 CERTIFICATE_UNREADABLE`, `503 ANALYST_NOT_
 | `POST /analyst/findings/:id/response { text }` | The merchant answers a flag. The trust log doesn't change |
 | `POST /operator/findings/:id/withdraw { reason }` | Needs `Bearer <COMPAS_OPERATOR_TOKEN>`. A human withdraws the flag |
 
+A `COMPLETED` job has a `result`: `runId`, the counts (`items`, `verifiedMappings`, `rejectedMappings`, `newFlags`), and `skus`, one per catalog SKU: `skuId`, `name`, `candidates` (how many CUMs the index proposed), the model's `itemClass` (`MEDICINE`, `NOT_MEDICINE`, `UNSURE`), and, when the model picked one, `cum` and the verifier's `outcome`. A `FAILED` job has only the error's name.
+
 A finding is one of:
 
 - a `CUM_MAPPING` pointer: `skuId`, `cum`, `VERIFIED` or `REJECTED`

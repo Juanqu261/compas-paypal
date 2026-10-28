@@ -1,8 +1,11 @@
 import type {
+  AnalystFindingsResponse,
+  AnalystJob,
   AuthorizeResponse,
   CreateMandateBody,
   DemoMerchantsResponse,
   FieldError,
+  HealthResponse,
   MandateView,
   MeResponse,
   ParticipantsResponse,
@@ -146,6 +149,33 @@ export const compasApi = {
     const response = await send("/demo/merchants", { method: "GET" });
     if (!response.ok) throw await readError(response);
     return (await response.json()) as DemoMerchantsResponse;
+  },
+  /** What the backend runs with. Facts about configuration, not about any merchant. */
+  health: async () => {
+    const response = await send("/health", { method: "GET" });
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as HealthResponse;
+  },
+  /** Queues an analyst run on a merchant's catalog, ahead of any checkout. Local demo only: the backend refuses it in production. */
+  startAnalystJob: async (merchantId: string) => {
+    const response = await send("/analyst/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ merchantId }),
+    });
+    if (!response.ok) throw await readError(response);
+    return ((await response.json()) as { job: AnalystJob }).job;
+  },
+  analystJob: async (id: string) => {
+    const response = await send(`/analyst/jobs/${encodeURIComponent(id)}`, { method: "GET" });
+    if (!response.ok) throw await readError(response);
+    return ((await response.json()) as { job: AnalystJob }).job;
+  },
+  /** demo/test data: a merchant's analyst findings. The backend shows them without a merchant session in demo mode only. */
+  analystFindings: async (merchantId: string) => {
+    const response = await send(`/analyst/findings?merchantId=${encodeURIComponent(merchantId)}`, { method: "GET" });
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as AnalystFindingsResponse;
   },
 };
 

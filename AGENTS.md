@@ -12,7 +12,7 @@ A delegate builds a cart at a merchant that accepts PayPal. COMPAS checks the ca
 
 The cap decision is settled: **per-order approval**. The sandbox app has no Vault permission, so there is no payer-absent charge. The budget and the cap below `HIGH` are COMPAS rules, checked before PayPal and reserved atomically, and the payer approves every order. A payer-absent charge for all-green purchases waits until PayPal enables Vault for the app. Ask before building it.
 
-Built in the backend only (no screens yet): the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, and errands. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md) and [ADR 0010](docs/adr/0010-errands.md). Not built, and only when asked: the Compas MCP server for agents, and the frontend for the analyst, onboarding and errands.
+Built in the backend: the AI analyst behind the trust matrix, INVIMA CUM mapping on Elastic, the Cámara binding through Log in with PayPal, and errands. See [ADR 0009](docs/adr/0009-ai-analyst-evidence.md) and [ADR 0010](docs/adr/0010-errands.md). The analyst has one screen: Act 1 of `/demo` runs it live on a pharmacy's catalog, and Act 2's "Why…?" panel reads its record for the charge's merchant. Not built, and only when asked: the Compas MCP server for agents, and the frontend for onboarding, appeals and errands.
 
 ## Product
 
@@ -142,7 +142,7 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 ## Scope ladder
 
 - **Built (PayPal):** Pedro's medication mandate, authorized in COMPAS → Andrea's pharmacy purchase → `ALLOW` → PayPal order payable to the pharmacy → Pedro approves at PayPal → COMPAS re-checks and captures → completed. Alcohol → `PURPOSE_MISMATCH`, and no `createOrder` call. Cancel, expiry, revocation and a mismatched order close the purchase unpaid and give the capacity back.
-- **Built (backend, no screens):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, and errands with `ERRAND_MISMATCH`.
+- **Built (backend; the analyst also in Act 1 of `/demo`):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, and errands with `ERRAND_MISMATCH`.
 - **Next, only when asked:**
   - Payer exception approval: `REVIEW` → the payer approves a one-off PayPal order for the held cart.
   - Refunds and disputes, through PayPal webhooks. A refund must restore capacity.
@@ -150,7 +150,7 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
   - `PROVIDER_VERIFIED` claims from a simulated wallet node with signature checks.
   - An AI classifier for ambiguous lines at checkout.
   - The Compas MCP server for agents (errand-scoped OAuth, `search_eligible_merchants`), and agent sub-delegates.
-  - Frontend for merchant onboarding, analyst findings and errands.
+  - Frontend for merchant onboarding, flag appeals and errands.
   - Postgres adapters for the analyst and errand stores (their tables exist).
   - A flag confirmed into `CONTESTED`, and AI contradiction of captured lines.
 - **Roadmap (pitch only unless asked):**

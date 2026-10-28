@@ -1,0 +1,484 @@
+"use client";
+
+import { Fragment, startTransition, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { compasApi, errorCode } from "@/features/compas/api/client";
+import type { AnalystFinding, AnalystJob, AnalyzedSku } from "@/features/compas/api/contracts";
+import { useResource } from "@/features/compas/api/hooks";
+import { DEMO_MERCHANTS } from "@/features/compas/demo-identities";
+import { analystRecord, invimaLabel, ITEM_CLASS_LABEL, JUDGMENT_TITLE, runFailureText, type StandingFlag } from "./analyst-view";
+import {
+  elasticIndexLink,
+  elasticQueryLink,
+  invimaDatasetLink,
+  invimaRecordLink,
+  readEvidenceConfig,
+  supabaseFlagsLink,
+  supabaseSchemaLink,
+} from "./evidence-links";
+import {
+  BoxIcon,
+  CheckBadgeIcon,
+  CrossIcon,
+  ExternalIcon,
+  FlagIcon,
+  IndexSearchIcon,
+  ModelIcon,
+  PillIcon,
+  QuestionIcon,
+  RegistryIcon,
+  StoreIcon,
+} from "./flow-icons";
+
+/** demo/test data: the two pharmacies with a demo catalog. */
+const PHARMACIES = [
+  { ...DEMO_MERCHANTS.drogueria, tagline: "The real pharmacy", lookalike: false },
+  { ...DEMO_MERCHANTS.lookalike, tagline: "A lookalike, one letter off", lookalike: true },
+] as const;
+
+const EVIDENCE = readEvidenceConfig();
+const POLL_MS = 1000;
+
+/** A run in this session. `findings` are read once the job ends, so the verdict is never the previous run's. */
+type Run = { job?: AnalystJob; findings?: readonly AnalystFinding[]; starting?: boolean; error?: string };
+
+function seconds(job: AnalystJob): string | undefined {
+  if (!job.finishedAt) return undefined;
+  const ms = Date.parse(job.finishedAt) - Date.parse(job.createdAt);
+  return Number.isFinite(ms) ? `${(ms / 1000).toFixed(1)} s` : undefined;
+}
+
+function EvidenceLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-sm font-semibold text-route-deep underline-offset-2 hover:underline"
+    >
+      {children}
+      <ExternalIcon className="size-3.5" />
+      <span className="sr-only">(opens in a new tab)</span>
+    </a>
+  );
+}
+
+/** The pharmacy's name, with the lookalike's extra letter marked. */
+function PharmacyName({ name, lookalike }: { name: string; lookalike: boolean }) {
+  if (!lookalike) return <>{name}</>;
+  return (
+    <>
+      {name.slice(0, -1)}
+      <mark className="rounded-sm bg-buff px-0.5 text-ink">{name.slice(-1)}</mark>
+    </>
+  );
+}
+
+type Step = {
+  icon: (props: { className?: string }) => ReactNode;
+  title: ReactNode;
+  caption: string;
+  metric?: string;
+  detail?: string;
+  tone: "neutral" | "model" | "ok" | "flag";
+  links?: readonly { href: string; text: string }[];
+};
+
+const RING_TONE: Record<Step["tone"], string> = {
+  neutral: "bg-shoal text-ink",
+  model: "bg-route/10 text-route",
+  ok: "bg-route text-paper",
+  flag: "bg-buff text-ink",
+};
+
+function Connector() {
+  return (
+    <li aria-hidden className="flex shrink-0 items-center justify-center text-ink/35">
+      <svg viewBox="0 0 40 12" className="hidden h-3 w-10 lg:block">
+        <path className="flow-line" d="M1 6h32" stroke="currentColor" strokeWidth="2" />
+        <path d="m32 1.5 6 4.5-6 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+      <svg viewBox="0 0 12 32" className="h-8 w-3 lg:hidden">
+        <path className="flow-line" d="M6 1v24" stroke="currentColor" strokeWidth="2" />
+        <path d="m1.5 24 4.5 6 4.5-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+    </li>
+  );
+}
+
+/** The process as a diagram. Before a run it explains the steps; after one, each step shows what it found. */
+function FlowDiagram({ steps, state }: { steps: readonly Step[]; state: "idle" | "running" | "done" }) {
+  return (
+    <ol className={`flex flex-col items-stretch lg:flex-row ${state === "running" ? "flow-running" : ""}`}>
+      {steps.map((step, index) => {
+        const Icon = step.icon;
+        const style = { "--step": index } as CSSProperties;
+        return (
+          <Fragment key={index}>
+          {index > 0 ? <Connector /> : null}
+          <li
+            className="flex flex-1 flex-col items-center rounded-2xl border border-ink/10 bg-paper px-3 py-5 text-center lg:min-w-0"
+          >
+            <span
+              style={style}
+              className={`flow-ring grid size-16 place-items-center rounded-full transition-colors duration-300 motion-reduce:transition-none ${
+                state === "idle"
+                  ? "bg-ink/[0.06] text-ink-soft"
+                  : state === "running"
+                    ? "bg-paper text-ink ring-1 ring-ink/15"
+                    : RING_TONE[step.tone]
+              }`}
+            >
+              <Icon className="size-8" />
+            </span>
+            <span className="mt-3 text-xs font-semibold text-ink-soft">{index + 1}</span>
+            <span className="font-semibold text-ink">{step.title}</span>
+            <span className="mt-0.5 text-sm leading-snug text-ink-soft lg:min-h-[2.5rem]">{step.caption}</span>
+            {step.metric ? (
+              <span style={style} className="flow-reveal mt-3 font-display text-2xl leading-tight text-ink">
+                {step.metric}
+              </span>
+            ) : null}
+            {step.detail ? <span className="text-xs text-ink-soft">{step.detail}</span> : null}
+            {step.links && step.links.length > 0 ? (
+              <span className="mt-auto flex flex-col items-center gap-0.5 pt-3">
+                {step.links.map((link) => (
+                  <EvidenceLink key={link.href} href={link.href}>
+                    {link.text}
+                  </EvidenceLink>
+                ))}
+              </span>
+            ) : null}
+          </li>
+          </Fragment>
+        );
+      })}
+    </ol>
+  );
+}
+
+function ProductTile({ sku, model }: { sku: AnalyzedSku; model: string }) {
+  const invima = invimaLabel(sku);
+  const record = sku.outcome === "VERIFIED" && sku.cum ? invimaRecordLink(sku.cum) : undefined;
+  const Icon = sku.itemClass === "MEDICINE" ? PillIcon : sku.itemClass === "NOT_MEDICINE" ? BoxIcon : QuestionIcon;
+  return (
+    <li className="flex gap-3 rounded-xl border border-ink/10 bg-paper p-3">
+      <span
+        className={`grid size-10 shrink-0 place-items-center rounded-full ${
+          sku.itemClass === "MEDICINE" ? "bg-route/10 text-route" : "bg-ink/[0.06] text-ink-soft"
+        }`}
+      >
+        <Icon className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="line-clamp-2 text-sm font-medium text-ink" title={sku.name}>
+          {sku.name}
+        </p>
+        <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-ink-soft">
+            {model}: {ITEM_CLASS_LABEL[sku.itemClass]}
+          </span>
+          {invima.tone === "ok" ? (
+            record ? (
+              <a
+                href={record}
+                target="_blank"
+                rel="noreferrer"
+                title={`CUM ${sku.cum}: open INVIMA's record`}
+                className="inline-flex items-center gap-1 rounded-full bg-route/10 px-2 py-0.5 font-semibold text-route-deep hover:bg-route/20"
+              >
+                <CheckBadgeIcon className="size-3.5" />
+                INVIMA
+                <ExternalIcon className="size-3" />
+                <span className="sr-only">CUM {sku.cum}, opens INVIMA’s record in a new tab</span>
+              </a>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-route/10 px-2 py-0.5 font-semibold text-route-deep">
+                <CheckBadgeIcon className="size-3.5" />
+                INVIMA
+              </span>
+            )
+          ) : invima.tone === "stop" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-ink/10 px-2 py-0.5 font-semibold text-ink">
+              <CrossIcon className="size-3.5" />
+              No match
+            </span>
+          ) : null}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+function FlagCard({ flag, model }: { flag: StandingFlag; model: string }) {
+  const fromModel = flag.judgment === "LOOKALIKE_SIGNALS";
+  return (
+    <li className="flex gap-3 rounded-xl border border-ink/15 bg-buff/40 p-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-buff text-ink">
+        <FlagIcon className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="font-semibold text-ink">{JUDGMENT_TITLE[flag.judgment]}</p>
+        <blockquote className="mt-1 text-sm text-ink">
+          {fromModel ? <>“{flag.note}”</> : flag.note}
+          <footer className="mt-0.5 text-xs text-ink-soft">{fromModel ? model : `COMPAS’s rule, over ${model}’s answers`}</footer>
+        </blockquote>
+        <p className="mt-2 text-xs font-medium text-ink-soft">
+          {flag.status === "RESPONDED" ? "The merchant answered · a person decides" : "Held for review · only a person can lift it"}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Act 1 of /demo: the AI analyst reads a pharmacy's catalog, days before
+ * anyone buys, shown as a diagram for people who don't read code. A live run
+ * on the backend. What the model says is shown as the model's; only the
+ * verifier's outcome counts, and a flag can only hold a merchant for review.
+ */
+export function AnalystAct({ onNext }: { onNext: () => void }) {
+  const [merchantId, setMerchantId] = useState<string>(PHARMACIES[0].id);
+  const [runs, setRuns] = useState<Record<string, Run>>({});
+  const run = runs[merchantId];
+  const job = run?.job;
+  const pharmacy = PHARMACIES.find((item) => item.id === merchantId) ?? PHARMACIES[0];
+  const health = useResource("health", () => compasApi.health());
+  const onFile = useResource(`analyst-findings:${merchantId}`, () => compasApi.analystFindings(merchantId));
+  const facts = health.resource.status === "ready" ? health.resource.data : undefined;
+  // The analyst can run on Elastic's Inference API instead. Claude is named only when it is Claude.
+  const model = facts?.analystModel === "claude" ? "Claude" : "The model";
+
+  // Polls the selected merchant's job until it ends, then reads the findings it left. Each answer is a new object, so the next poll follows it.
+  useEffect(() => {
+    if (!job || (job.status !== "QUEUED" && job.status !== "RUNNING")) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const next = await compasApi.analystJob(job.id);
+        const findings =
+          next.status === "COMPLETED"
+            ? await compasApi.analystFindings(next.merchantId).then((body) => body.findings, () => undefined)
+            : undefined;
+        if (!cancelled) setRuns((current) => ({ ...current, [next.merchantId]: { job: next, ...(findings ? { findings } : {}) } }));
+      } catch (error) {
+        if (!cancelled) setRuns((current) => ({ ...current, [job.merchantId]: { job, error: errorCode(error) } }));
+      }
+    }, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [job]);
+
+  const start = () => {
+    const id = merchantId;
+    setRuns((current) => ({ ...current, [id]: { starting: true } }));
+    compasApi.startAnalystJob(id).then(
+      (queued) => setRuns((current) => ({ ...current, [id]: { job: queued } })),
+      (error: unknown) => setRuns((current) => ({ ...current, [id]: { error: errorCode(error) } })),
+    );
+  };
+
+  const busy = Boolean(run?.starting || job?.status === "QUEUED" || job?.status === "RUNNING");
+  const failure = run?.error ?? (job?.status === "FAILED" ? (job.error ?? "Error") : undefined);
+  const result = job?.status === "COMPLETED" && job.result?.status === "COMPLETED" ? job.result : undefined;
+  const findings = run?.findings ?? (onFile.resource.status === "ready" ? onFile.resource.data.findings : undefined);
+  const record = findings ? analystRecord(findings) : undefined;
+  const flags = record?.flags ?? [];
+
+  const skus = result?.skus ?? [];
+  const medicines = skus.filter((sku) => sku.itemClass === "MEDICINE").length;
+  const others = skus.length - medicines;
+  const proposed = skus.reduce((sum, sku) => sum + sku.candidates, 0);
+  const picked = skus.flatMap((sku) => (sku.cum ? [sku.cum] : []));
+  const demoRegistry = facts?.cumRegistry?.startsWith("demo/test data");
+  const showVerdict = Boolean(result) || (record !== undefined && (record.verified > 0 || flags.length > 0));
+
+  const query = elasticQueryLink(EVIDENCE, picked);
+  const index = elasticIndexLink(EVIDENCE);
+  const trustLog = facts?.storage === "postgres" ? supabaseFlagsLink(EVIDENCE) : undefined;
+  const schema = supabaseSchemaLink(EVIDENCE);
+
+  const steps: Step[] = [
+    {
+      icon: StoreIcon,
+      title: <PharmacyName name={pharmacy.displayName} lookalike={pharmacy.lookalike} />,
+      caption: "Shares its product catalog",
+      ...(result ? { metric: `${skus.length} products` } : {}),
+      tone: "neutral",
+    },
+    {
+      icon: IndexSearchIcon,
+      title: "Elastic",
+      caption: "Finds similar medicines in INVIMA’s list",
+      ...(result ? { metric: `${proposed} candidates`, detail: "Suggestions, not proof" } : {}),
+      tone: "neutral",
+      links: [...(query ? [{ href: query, text: "This run’s matches" }] : []), ...(index ? [{ href: index, text: "The index" }] : [])],
+    },
+    {
+      icon: ModelIcon,
+      title: model === "Claude" ? "Claude" : "AI model",
+      caption: "Picks the exact medicine, or none",
+      ...(result ? { metric: `${medicines} medicines`, ...(others > 0 ? { detail: `${others} not medicine` } : {}) } : {}),
+      tone: "model",
+    },
+    {
+      icon: RegistryIcon,
+      title: "INVIMA",
+      caption: "The official record confirms",
+      ...(result
+        ? {
+            metric: `${result.verifiedMappings} confirmed`,
+            ...(result.rejectedMappings > 0 ? { detail: `${result.rejectedMappings} rejected` } : {}),
+          }
+        : demoRegistry !== undefined
+          ? { detail: demoRegistry ? "Demo copy of INVIMA’s data" : "Live from datos.gov.co" }
+          : {}),
+      tone: "ok",
+      links: [{ href: invimaDatasetLink(), text: "INVIMA open data" }],
+    },
+    {
+      icon: showVerdict && flags.length > 0 ? FlagIcon : CheckBadgeIcon,
+      title: "Result",
+      caption: !showVerdict
+        ? "Clear, or flagged for a person"
+        : flags.length > 0
+          ? "Purchases here are held for review"
+          : "Nothing contradicts “pharmacy”",
+      ...(showVerdict ? { metric: flags.length > 0 ? `${flags.length} ${flags.length === 1 ? "flag" : "flags"}` : "No red flags" } : {}),
+      tone: showVerdict && flags.length > 0 ? "flag" : "ok",
+      links: trustLog && flags.length > 0 ? [{ href: trustLog, text: "Flag in the trust log" }] : schema ? [{ href: schema, text: "COMPAS database" }] : [],
+    },
+  ];
+
+  const took = job?.status === "COMPLETED" ? seconds(job) : undefined;
+
+  return (
+    <section aria-labelledby="act-1-title" className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold tracking-wide text-route uppercase">Days before anyone buys</p>
+          <h2 id="act-1-title" className="mt-1 font-display text-3xl text-ink sm:text-4xl">
+            How COMPAS checks a pharmacy
+          </h2>
+          <p className="mt-2 text-lg text-ink-soft">An AI reads the catalog. An official registry has the last word.</p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+          <fieldset>
+            <legend className="sr-only">Pharmacy</legend>
+            <div className="flex gap-2">
+              {PHARMACIES.map((item) => {
+                const checked = item.id === merchantId;
+                return (
+                  <label
+                    key={item.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors duration-200 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-route motion-reduce:transition-none ${
+                      checked ? "border-ink bg-ink text-paper" : "border-ink/20 bg-paper text-ink hover:border-ink/45"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="analyst-pharmacy"
+                      value={item.id}
+                      checked={checked}
+                      onChange={() => startTransition(() => setMerchantId(item.id))}
+                      className="sr-only"
+                    />
+                    <StoreIcon className="size-6 shrink-0" />
+                    <span className="leading-tight">
+                      <span className="block font-semibold">
+                        <PharmacyName name={item.displayName} lookalike={item.lookalike} />
+                      </span>
+                      <span className={`block text-xs ${checked ? "text-paper/75" : "text-ink-soft"}`}>{item.tagline}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+          <button
+            type="button"
+            onClick={start}
+            disabled={busy}
+            className="rounded-xl bg-route px-5 py-3 font-semibold text-paper transition-colors duration-200 hover:bg-route-deep disabled:cursor-progress disabled:opacity-60 motion-reduce:transition-none"
+          >
+            {busy ? "Running…" : result ? "Run again" : "Run the analyst"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-3xl border border-ink/10 bg-shoal/35 p-4 sm:p-6">
+        <div className="mb-4 flex min-h-7 items-center justify-end" aria-live="polite">
+          {busy ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-paper px-3 py-1 text-sm font-medium text-ink">
+              <span className="size-2 animate-pulse rounded-full bg-route motion-reduce:animate-none" aria-hidden />
+              {job?.status === "RUNNING" ? "Reading the catalog" : "Starting"}
+            </span>
+          ) : took ? (
+            <span className="rounded-full bg-paper px-3 py-1 text-sm font-medium text-ink">Done in {took}</span>
+          ) : null}
+        </div>
+        <FlowDiagram key={job?.id ?? "idle"} steps={steps} state={busy ? "running" : result ? "done" : "idle"} />
+      </div>
+
+      {failure ? (
+        <p role="alert" className="mt-6 rounded-xl border border-ink/20 bg-paper px-4 py-3 text-ink">
+          {runFailureText(failure)}
+        </p>
+      ) : null}
+      {job?.result?.status === "NO_CATALOG" ? <p className="mt-6 text-ink-soft">This merchant has no catalog to read.</p> : null}
+      {job?.result?.status === "NOT_APPLICABLE" ? (
+        <p className="mt-6 text-ink-soft">This merchant doesn’t sell medicine, so there is nothing to check.</p>
+      ) : null}
+
+      {result || flags.length > 0 ? (
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+          {result ? (
+            <div>
+              <h3 className="font-semibold text-ink">
+                {model === "Claude" ? "Claude" : "The model"}, product by product
+              </h3>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {result.skus.map((sku) => (
+                  <ProductTile key={sku.skuId} sku={sku} model={model} />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {flags.length > 0 ? (
+            <div className={result ? "" : "lg:col-span-2"}>
+              <h3 className="font-semibold text-ink">Red flags</h3>
+              <ul className="mt-3 space-y-2">
+                {flags.map((flag) => (
+                  <FlagCard key={flag.id} flag={flag} model={model} />
+                ))}
+              </ul>
+            </div>
+          ) : result ? (
+            <div className="flex items-start gap-3 self-start rounded-xl border border-route/25 bg-paper p-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-route text-paper">
+                <CheckBadgeIcon className="size-5" />
+              </span>
+              <p className="text-ink">
+                <span className="block font-semibold">No red flags</span>
+                <span className="text-sm text-ink-soft">The catalog reads like the pharmacy it says it is.</span>
+              </p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-10 flex flex-wrap items-center gap-4 border-t border-ink/15 pt-6">
+        <button
+          type="button"
+          onClick={onNext}
+          className="rounded-xl border border-ink/25 bg-paper px-5 py-3 font-semibold text-ink transition-colors duration-200 hover:border-ink/50 motion-reduce:transition-none"
+        >
+          Next: the purchase →
+        </button>
+        <p className="text-sm text-ink-soft">No AI is called at checkout. COMPAS reads what was settled here.</p>
+      </div>
+    </section>
+  );
+}

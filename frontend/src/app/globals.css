@@ -189,6 +189,38 @@ body {
   }
 }
 
+/* Act 1's flow: the connectors carry a dash while the analyst runs, each
+   step's ring pulses in turn, and the results rise in step order. */
+.flow-line {
+  stroke-dasharray: 3 5;
+}
+.flow-running .flow-line {
+  animation: flow-dash 0.8s linear infinite;
+}
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+.flow-running .flow-ring {
+  animation: flow-pulse 2.5s ease-in-out infinite;
+  animation-delay: calc(var(--step) * 0.5s);
+}
+@keyframes flow-pulse {
+  0%,
+  45%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(194 24 122 / 0);
+  }
+  20% {
+    box-shadow: 0 0 0 9px rgb(194 24 122 / 0.2);
+  }
+}
+.flow-reveal {
+  animation: 420ms var(--ease-chart) both rise, 420ms ease-out both fade;
+  animation-delay: calc(var(--step) * 160ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(*),
   ::view-transition-new(*),
@@ -196,7 +228,10 @@ body {
     animation-duration: 0s !important;
     animation-delay: 0s !important;
   }
-  .needle-settle {
+  .needle-settle,
+  .flow-running .flow-line,
+  .flow-running .flow-ring,
+  .flow-reveal {
     animation: none;
   }
 }

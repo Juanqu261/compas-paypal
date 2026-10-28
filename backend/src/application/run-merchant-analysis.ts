@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { AnalystFinding, CumMappingPointer, Judgment, JudgmentKind } from "../domain/analyst.ts";
+import type { AnalystFinding, CumMappingPointer, ItemClass, Judgment, JudgmentKind } from "../domain/analyst.ts";
 import { catalogItemText } from "../domain/merchant-catalog.ts";
 import type { CompasCategory } from "../domain/merchant-category.ts";
 import type { AnalystFindingRepository } from "../ports/analyst-finding-repository.ts";
@@ -44,6 +44,20 @@ export type MerchantAnalysisDeps = {
   newId?: () => string;
 };
 
+/**
+ * One SKU as this run saw it, for the demo's view of the run. The class and
+ * the CUM are the model's; the outcome is the verifier's. Merchant data only.
+ */
+export type AnalyzedSku = {
+  skuId: string;
+  name: string;
+  /** How many CUM candidates the search index proposed. Proposals, not evidence. */
+  candidates: number;
+  itemClass: ItemClass;
+  cum?: string;
+  outcome?: "VERIFIED" | "REJECTED";
+};
+
 export type MerchantAnalysisResult = {
   runId: string;
   status: "COMPLETED" | "NO_CATALOG" | "NOT_APPLICABLE";
@@ -52,6 +66,7 @@ export type MerchantAnalysisResult = {
   rejectedMappings: number;
   /** Flags this run added to the trust log. A flag an earlier run raised is not counted again. */
   newFlags: number;
+  skus: readonly AnalyzedSku[];
 };
 
 type PendingJudgment = { judgment: JudgmentKind; citedSkuIds: readonly string[]; note: string };
@@ -94,7 +109,7 @@ export async function runMerchantAnalysis(
   const runId = `run-${(deps.newId ?? randomUUID)()}`;
   const now = () => deps.now?.() ?? new Date();
   const newId = deps.newId ?? randomUUID;
-  const empty = { runId, items: 0, verifiedMappings: 0, rejectedMappings: 0, newFlags: 0 };
+  const empty = { runId, items: 0, verifiedMappings: 0, rejectedMappings: 0, newFlags: 0, skus: [] };
 
   // CUM mapping and these judgments are about medicines. Other categories have no analyst yet.
   if (!input.declaredCategories.includes("MEDICATION")) return { ...empty, status: "NOT_APPLICABLE" };
@@ -126,6 +141,7 @@ export async function runMerchantAnalysis(
   let verifiedMappings = 0;
   let rejectedMappings = 0;
   const items = new Map(catalog.items.map((item) => [item.skuId, item]));
+  const outcomes = new Map<string, { cum: string; outcome: "VERIFIED" | "REJECTED" }>();
   for (const reviewed of whole.items) {
     if (!reviewed.cum) continue;
     const findingId = `finding-${newId()}`;
@@ -135,6 +151,7 @@ export async function runMerchantAnalysis(
     );
     if (mapping.status === "VERIFIED") verifiedMappings += 1;
     else rejectedMappings += 1;
+    outcomes.set(reviewed.skuId, { cum: mapping.cum, outcome: mapping.status });
     findings.push({
       kind: "POINTER",
       pointer: "CUM_MAPPING",
@@ -175,7 +192,15 @@ export async function runMerchantAnalysis(
   }
 
   await deps.findings.append(findings);
-  return { runId, status: "COMPLETED", items: whole.items.length, verifiedMappings, rejectedMappings, newFlags };
+  const candidates = new Map(reviews.flatMap(({ batch }) => batch.map((item) => [item.skuId, item.candidates.length] as const)));
+  const skus = whole.items.map((reviewed): AnalyzedSku => ({
+    skuId: reviewed.skuId,
+    name: items.get(reviewed.skuId)!.name,
+    candidates: candidates.get(reviewed.skuId) ?? 0,
+    itemClass: reviewed.itemClass,
+    ...outcomes.get(reviewed.skuId),
+  }));
+  return { runId, status: "COMPLETED", items: whole.items.length, verifiedMappings, rejectedMappings, newFlags, skus };
 }
 
 /**
