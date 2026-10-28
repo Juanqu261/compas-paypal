@@ -36,10 +36,10 @@ erDiagram
 | Table | Screen | What the user sees | Served by |
 | --- | --- | --- | --- |
 | `parties` | all | Pedro, Andrea, Gladys and their names | inside the mandate |
-| `mandates` | PayPal app (Pedro), Nequi (Andrea) | Budget, remaining amount, purpose, "allow even if not fully approved", expiry | `GET /mandates/:id` ([`contracts/mandates/`](../mandates/README.md)) |
-| `merchants` | PayPal Business, Nequi | The shop's name | not yet |
-| `purchase_intents` | PayPal Business → Nequi | The charge the online shop creates for an order and Andrea reviews in Nequi | not yet (`POST /purchase-intents`) |
-| `spending_records` | PayPal app (Pedro), Nequi (Andrea) | Where the budget went: each attempt, ALLOW/DENY/REVIEW, why, which categories the shop had, and where its PayPal order stands | `GET /mandates/:id/spending` ([`contracts/mandates/`](../mandates/README.md)) |
+| `mandates` | PayPal app (Pedro and Andrea) | Budget, remaining amount, purpose, "allow even if not fully approved", expiry | `GET /mandates/:id` ([`contracts/mandates/`](../mandates/README.md)) |
+| `merchants` | PayPal Business, PayPal app (Andrea) | The shop's name | not yet |
+| `purchase_intents` | PayPal Business → PayPal app (Andrea) | The charge the online shop creates for an order and Andrea reviews in her PayPal | not yet (`POST /purchase-intents`) |
+| `spending_records` | PayPal app (Pedro and Andrea) | Where the budget went: each attempt, ALLOW/DENY/REVIEW, why, which categories the shop had, and where its PayPal order stands | `GET /mandates/:id/spending` ([`contracts/mandates/`](../mandates/README.md)) |
 | `merchant_observations` | PayPal app (Pedro) | The "did this purchase fit?" answer (`MATCH`/`MISMATCH`) | `POST /spending-records/:id/confirmation` ([`contracts/merchant-history/`](../merchant-history/README.md)), not wired yet |
 | `trust_log_entries` | PayPal Business, `/demo` | The shop's categories and how well they are backed | `GET /merchants/categories?paypalMerchantId=…` ([`contracts/merchant-categories/`](../merchant-categories/README.md)) |
 | `audit_events` | `/demo` | Decision timeline | not yet |
@@ -93,5 +93,5 @@ Decision `reasons` carry a `code` and a `message`. Build the copy from the code.
 
 ## Labels the demo must carry
 
-- The PayPal, PayPal Business and Nequi screens are simulations. Simulated category evidence is labeled `demo/test data` (`dataLabel` and `simulated` in the category response).
+- The PayPal and PayPal Business screens are simulations. Simulated category evidence is labeled `demo/test data` (`dataLabel` and `simulated` in the category response).
 - The Cámara de Comercio shops are real public records (Confecámaras RUES, CC BY-SA 4.0). Credit them as "Fuente: Confecámaras, RUES, datos.gov.co", and never show a real shop as suspicious.

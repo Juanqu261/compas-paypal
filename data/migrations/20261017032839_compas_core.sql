@@ -65,7 +65,6 @@ create table compas.parties (
   created_at timestamptz not null default now()
 );
 
--- Display data for a merchant wallet: what the Nequi Negocios surface shows.
 -- Not category evidence. Categories come only from compas.trust_log_entries.
 create table compas.merchants (
   wallet_address_url compas.wallet_url primary key,

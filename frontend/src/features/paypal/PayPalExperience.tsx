@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { readPayPalReturn } from "@/features/compas/demo-identities";
 import { PayPalCompasShell } from "./PayPalCompasShell";
 import { PayPalHome } from "./PayPalHome";
+import { paypalDemoPayer } from "./paypal-demo-content";
 import { paypalTheme } from "./paypal-theme";
 
 const noSubscription = () => () => {};
@@ -65,6 +66,7 @@ export function PayPalExperience() {
         }`}
       >
         <PayPalHome
+          profile={paypalDemoPayer}
           onOpenCompas={() => navigate("compas")}
           compasRowRef={compasRowRef}
         />

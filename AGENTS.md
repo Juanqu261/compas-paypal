@@ -22,7 +22,7 @@ COMPAS is not a wallet, a bank, a payment rail, a custody account, a token, a bl
 
 Demo story: Pedro is the payer. He pays with his PayPal, in USD, and wants up to USD 40 available for medication for his grandmother Gladys. Gladys is the beneficiary and does not manage a wallet. Andrea is the delegate. She lives with Gladys and must not receive the USD 40 as unrestricted money. A pharmacy purchase for `MEDICATION` is the allowed story: it becomes a PayPal order that Pedro approves. An alcohol purchase against the same mandate is rejected before any PayPal order exists.
 
-The PayPal app (Pedro), Nequi (Andrea) and the PayPal Business app (the pharmacy, an online business that takes PayPal) are simulated embedding surfaces, not production integrations. Only their screens are simulated: Pedro approves each order at the real PayPal sandbox, and the pharmacy is paid in its own PayPal sandbox business account. The pharmacy's screen shows that account's real COMPAS payments, each order read live from PayPal (`GET /demo/merchants/:id/payments`), and opens the sandbox site, where the merchant test account sees the money arrive. The PayPal accounts are sandbox test accounts: one personal account for the payer, one business account for the merchant.
+The PayPal app (Pedro), the PayPal app (Andrea) and the PayPal Business app (the pharmacy, an online business that takes PayPal) are simulated embedding surfaces, not production integrations. PayPal is the only wallet: Andrea has her own PayPal account, which is how she is identified as the delegate, and the USD 40 never reaches it. Only their screens are simulated: Pedro approves each order at the real PayPal sandbox, and the pharmacy is paid in its own PayPal sandbox business account. The pharmacy's screen shows that account's real COMPAS payments, each order read live from PayPal (`GET /demo/merchants/:id/payments`), and opens the sandbox site, where the merchant test account sees the money arrive. The PayPal accounts are sandbox test accounts: one personal account for the payer, one business account for the merchant.
 
 The same mandate can later describe a business, NGO, or government allocation. The demo implements the family story only. COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail. It does not solve corruption.
 
@@ -50,7 +50,7 @@ Terms:
 - Purpose categories belong to COMPAS.
 - PayPal must never be faked. An unimplemented or unconfigured gateway throws.
 - COMPAS talks to the PayPal sandbox only.
-- The PayPal app, Nequi, and PayPal Business surfaces are simulations. The order approval is not: it happens at the PayPal sandbox. The merchant's payments list is not either: it is read from the PayPal sandbox, and a failed read shows as unavailable, never as a guessed state.
+- The PayPal app (Pedro's and Andrea's) and PayPal Business surfaces are simulations. The order approval is not: it happens at the PayPal sandbox. The merchant's payments list is not either: it is read from the PayPal sandbox, and a failed read shows as unavailable, never as a guessed state.
 - The frontend and the backend do not import each other's source. Shared contracts belong in `contracts/`.
 
 ## Design decisions (do not re-litigate)
@@ -70,7 +70,7 @@ Terms:
 
 The repository is a product monorepo. The root is documentation and agent context. It is not an application and it has no workspace orchestrator.
 
-- `frontend/` is one Next.js app. `/paypal`, `/nequi`, `/paypal-business`, and `/demo` are simulated wallet surfaces. `/demo` shows the three experiences in phone frames under one session. They are not separate apps.
+- `frontend/` is one Next.js app. `/paypal` (Pedro), `/paypal-delegate` (Andrea), `/paypal-business`, and `/demo` are simulated wallet surfaces. `/demo` shows the three experiences in phone frames under one session. They are not separate apps.
 - `backend/` owns the domain, policy gate, PayPal port, settlement, merchant registry, purpose classifier, audit, and the HTTP API. Ports live in `backend/src/ports/`, adapters in `backend/src/integrations/`.
 - `data/` holds fixtures, seeds, and the Postgres schema and migrations.
 - `contracts/` is where a shared API or event schema goes. There is no shared TypeScript package.
@@ -137,7 +137,7 @@ There is no root `package.json`. Domain and policy tests live in `backend/tests`
 
 `frontend/AGENTS.md` is the Next.js agent note. `next dev` writes it, so leave it in place.
 
-The PayPal app, Nequi and PayPal Business simulations imitate the real apps, without their logos. COMPAS's own screens have their own look.
+The PayPal app and PayPal Business simulations imitate the real apps, without their logos. COMPAS's own screens have their own look.
 
 Demo fixtures are labeled `demo/test data`. An unimplemented integration throws. It does not return a fake success. Do not claim a simulated provider integration is real.
 
@@ -159,12 +159,12 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
   - State bonus mandates such as Medellín Cero Hambre, with split tender: the bonus paid first.
   - An NFC card + PIN for a beneficiary with no smartphone (Web NFC, Android Chrome only).
   - Merchant anomaly detection over time.
-  - Real RUES/Nequi adapters.
+  - A real RUES adapter.
 
 ## Pitch guardrails
 
 - Say plainly that purpose enforcement and the budget are COMPAS's job. PayPal enforces the payer's consent: Pedro approves every payment at PayPal.
-- The PayPal and PayPal Business app screens and Nequi are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
+- The PayPal and PayPal Business app screens are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
 - The demo is in USD. COMPAS does not convert, and PayPal takes no COP. Any COP figure is labeled `demo/test data`.
 - Act 3's agent is a script. Say so: the calls to the MCP server are real, the reasoning is written. Its "planted prompt injections" are demo/test data, not an observed attack.
 - Don't claim fraud that isn't documented, such as bonus resale. Do cite the documented problems in `docs/10-reference.md`.

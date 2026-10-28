@@ -10,7 +10,7 @@ The pitch needs Pedro's wallet, Andrea's wallet, and the pharmacy visible at the
 
 ## Decision
 
-One Next.js app exposes `/demo`, `/paypal`, `/nequi`, and `/paypal-business`. The standalone routes and `/demo` render `PayPalExperience`, `NequiExperience`, and `PayPalBusinessExperience`. `/demo` places those components in `PhoneFrame` under one `DemoSessionProvider`. No iframes.
+One Next.js app exposes `/demo`, `/paypal`, `/paypal-delegate`, and `/paypal-business`. The standalone routes and `/demo` render `PayPalExperience`, `PayPalDelegateExperience`, and `PayPalBusinessExperience`. `/demo` places those components in `PhoneFrame` under one `DemoSessionProvider`. No iframes.
 
 Person, business, NGO, and government cases reuse the mandate. They do not become separate products. Only the family medication story is in the MVP UI.
 

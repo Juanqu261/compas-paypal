@@ -8,7 +8,7 @@ import { surfaces } from "@/features/site/story";
 
 const links = [
   { href: "/demo", label: "Demo" },
-  ...surfaces.map((surface) => ({ href: surface.href, label: surface.app })),
+  ...surfaces.map((surface) => ({ href: surface.href, label: surface.person })),
 ];
 
 export function SiteHeader() {

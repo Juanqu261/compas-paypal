@@ -7,7 +7,7 @@ One Next.js app for the demo.
 | `/` | Story and links |
 | `/demo` | All three phones, one shared session |
 | `/paypal` | Pedro, the payer |
-| `/nequi` | Andrea, the delegate |
+| `/paypal-delegate` | Andrea, the delegate, on her own PayPal |
 | `/paypal-business` | The online pharmacy, on PayPal Business |
 
 The wallet screens are simulations. The COMPAS screens (`src/features/compas/`) call the backend through `/compas-api/*`, which proxies to `COMPAS_BACKEND_URL` (default `http://localhost:4000`). The frontend never decides policy and holds no PayPal credentials. "Aprobar en PayPal" opens the real sandbox in a new tab.

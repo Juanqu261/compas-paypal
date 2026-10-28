@@ -1,11 +1,6 @@
 import { useId, type ReactNode, type RefObject } from "react";
 import { CompasMark } from "@/features/brand/CompasLogo";
-import {
-  paypalDemoAccounts,
-  paypalDemoBalance,
-  paypalDemoTransactions,
-  type PayPalDemoTransaction,
-} from "./paypal-demo-content";
+import type { PayPalDemoProfile, PayPalDemoTransaction } from "./paypal-demo-content";
 import {
   BankIcon,
   CardIcon,
@@ -45,9 +40,9 @@ function PayPalSection({
 }
 
 /** Balance card and the two black pill actions. The balance is demo/test data. */
-function BalanceSection() {
+function BalanceSection({ balance }: { balance: PayPalDemoProfile["balance"] }) {
   return (
-    <section aria-label={paypalDemoBalance.label} className="space-y-3">
+    <section aria-label={balance.label} className="space-y-3">
       <div className="relative overflow-hidden rounded-3xl bg-(--pp-navy) px-5 pt-5 pb-6 text-white">
         <span
           aria-hidden="true"
@@ -57,12 +52,12 @@ function BalanceSection() {
           aria-hidden="true"
           className="absolute -right-2 -bottom-14 size-28 rounded-full bg-(--pp-sky)/25"
         />
-        <p className="relative text-[14px] font-semibold text-white/80">{paypalDemoBalance.label}</p>
+        <p className="relative text-[14px] font-semibold text-white/80">{balance.label}</p>
         <p className="relative mt-2 flex items-baseline gap-2">
           <span className="text-[2.6rem] leading-none font-extrabold tracking-[-0.03em] tabular-nums">
-            {paypalDemoBalance.amount}
+            {balance.amount}
           </span>
-          <span className="text-[15px] font-semibold text-white/80">{paypalDemoBalance.currency}</span>
+          <span className="text-[15px] font-semibold text-white/80">{balance.currency}</span>
         </p>
         <p className="relative mt-3 text-[12px] text-white/70">Valor de demostración. No es tu saldo.</p>
       </div>
@@ -80,9 +75,11 @@ function BalanceSection() {
 
 /** COMPAS's entry, styled like PayPal's grey callouts. The mark is COMPAS's own logo. */
 function CompasCallout({
+  blurb,
   onOpenCompas,
   compasRowRef,
 }: {
+  blurb: string;
   onOpenCompas: () => void;
   compasRowRef: RefObject<HTMLButtonElement | null>;
 }) {
@@ -98,9 +95,7 @@ function CompasCallout({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-bold text-(--pp-ink)">COMPAS</span>
-        <span className="block text-[13px] leading-snug text-(--pp-muted)">
-          Presupuestos con propósito para tu familia. Apruebas cada pago en PayPal.
-        </span>
+        <span className="block text-[13px] leading-snug text-(--pp-muted)">{blurb}</span>
       </span>
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-(--pp-ink)">
         <ChevronRightIcon className="size-4" />
@@ -109,7 +104,7 @@ function CompasCallout({
   );
 }
 
-function WalletSection() {
+function WalletSection({ accounts }: { accounts: PayPalDemoProfile["accounts"] }) {
   return (
     <PayPalSection
       title="Billetera"
@@ -120,7 +115,7 @@ function WalletSection() {
       }
     >
       <ul className="divide-y divide-(--pp-line)">
-        {paypalDemoAccounts.map((account) => {
+        {accounts.map((account) => {
           const Glyph = account.kind === "card" ? CardIcon : BankIcon;
           return (
             <li key={account.id} className="flex items-center gap-3 py-3">
@@ -146,7 +141,7 @@ const avatarTone: Record<PayPalDemoTransaction["tone"], string> = {
   ink: "bg-(--pp-ink) text-white",
 };
 
-function ActivitySection() {
+function ActivitySection({ transactions }: { transactions: PayPalDemoProfile["transactions"] }) {
   return (
     <PayPalSection
       title="Actividad"
@@ -162,7 +157,7 @@ function ActivitySection() {
       }
     >
       <ul className="divide-y divide-(--pp-line)">
-        {paypalDemoTransactions.map((transaction) => (
+        {transactions.map((transaction) => (
           <li key={transaction.id} className="flex items-center gap-3 py-3">
             <span
               aria-hidden="true"
@@ -189,18 +184,20 @@ function ActivitySection() {
 }
 
 export function PayPalHomeSections({
+  profile,
   onOpenCompas,
   compasRowRef,
 }: {
+  profile: PayPalDemoProfile;
   onOpenCompas: () => void;
   compasRowRef: RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <>
-      <BalanceSection />
-      <CompasCallout onOpenCompas={onOpenCompas} compasRowRef={compasRowRef} />
-      <WalletSection />
-      <ActivitySection />
+      <BalanceSection balance={profile.balance} />
+      <CompasCallout blurb={profile.compasBlurb} onOpenCompas={onOpenCompas} compasRowRef={compasRowRef} />
+      <WalletSection accounts={profile.accounts} />
+      <ActivitySection transactions={profile.transactions} />
     </>
   );
 }

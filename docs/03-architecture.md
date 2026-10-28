@@ -9,8 +9,8 @@ The three wallet simulations remain one Next.js app inside `frontend/`. Domain c
 ```mermaid
 flowchart TB
   subgraph frontendApp ["frontend"]
-    paypalApp["PayPal app simulation"]
-    nequi["Nequi simulation"]
+    paypalApp["PayPal app simulation (Pedro)"]
+    delegateApp["PayPal app simulation (Andrea)"]
     business["PayPal Business simulation"]
   end
 
@@ -35,7 +35,7 @@ flowchart TB
   gateway -->|"order only after ALLOW, capture only after the payer approved"| paypal
 ```
 
-The PayPal app, Nequi, and PayPal Business screens are UX simulations inside the frontend. The PayPal Business screen's payments are not: the backend reads each COMPAS order to the merchant from the PayPal sandbox (`getOrder` only). The PayPal REST API, in the sandbox, is the payment layer. COMPAS never sits in the path as a custodian.
+The PayPal app screens (Pedro's and Andrea's) and the PayPal Business screen are UX simulations inside the frontend. The PayPal Business screen's payments are not: the backend reads each COMPAS order to the merchant from the PayPal sandbox (`getOrder` only). The PayPal REST API, in the sandbox, is the payment layer. COMPAS never sits in the path as a custodian.
 
 ## Backend components
 
@@ -83,17 +83,17 @@ flowchart TB
   demo["/demo"]
   session["DemoSessionProvider"]
   paypalApp["PayPalExperience"]
-  nequi["NequiExperience"]
+  delegateApp["PayPalDelegateExperience"]
   business["PayPalBusinessExperience"]
   frame["PhoneFrame"]
 
   demo --> session
   session --> frame
   frame --> paypalApp
-  frame --> nequi
+  frame --> delegateApp
   frame --> business
   paypalRoute["/paypal"] --> paypalApp
-  nequiRoute["/nequi"] --> nequi
+  delegateRoute["/paypal-delegate"] --> delegateApp
   businessRoute["/paypal-business"] --> business
 ```
 

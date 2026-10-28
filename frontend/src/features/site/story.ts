@@ -2,9 +2,9 @@
  * The site's routes in story order. Navigation slides forward or back along
  * this order: home, demo, then the payer, delegate and merchant surfaces.
  */
-export const storyOrder = ["/", "/demo", "/paypal", "/nequi", "/paypal-business"];
+export const storyOrder = ["/", "/demo", "/paypal", "/paypal-delegate", "/paypal-business"];
 
-export type SurfaceId = "paypal" | "nequi" | "paypal-business";
+export type SurfaceId = "paypal" | "paypal-delegate" | "paypal-business";
 
 export type Surface = {
   id: SurfaceId;
@@ -32,15 +32,15 @@ export const surfaces: readonly Surface[] = [
       "The PayPal app here is a simulation for the COMPAS demo. Approving an order opens the real PayPal sandbox.",
   },
   {
-    id: "nequi",
-    href: "/nequi",
+    id: "paypal-delegate",
+    href: "/paypal-delegate",
     step: 2,
     person: "Andrea",
     role: "Delegate",
-    app: "Nequi",
+    app: "PayPal",
     summary:
-      "Andrea orders Gladys’s medication from an online pharmacy and reviews the charge in Nequi. She can cause a payment that fits the mandate, but she never receives the funds.",
-    simulation: "Nequi here is a simulation for the COMPAS demo, not an integration.",
+      "Andrea orders Gladys’s medication from an online pharmacy and reviews the charge in her own PayPal. She can cause a payment that fits the mandate, but the money is Pedro’s and she never receives it.",
+    simulation: "The PayPal app here is a simulation for the COMPAS demo, not the official app.",
   },
   {
     id: "paypal-business",

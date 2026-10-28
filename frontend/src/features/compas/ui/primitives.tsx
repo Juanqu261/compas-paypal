@@ -9,8 +9,7 @@ import { AlertIcon, InfoIcon } from "./icons";
 
 /**
  * Building blocks for COMPAS screens inside a host app. Colors come from the
- * host through `--cx-*` custom properties, so PayPal and Nequi keep their own
- * look. `--cx-route` is COMPAS's own: the color of granted permission.
+ * host through `--cx-*` custom properties, so each host keeps its own look. `--cx-route` is COMPAS's own: the color of granted permission.
  */
 
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--cx-focus)";

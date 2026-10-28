@@ -21,7 +21,7 @@ const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-
 
 const steps = [
   { title: "Creas el cobro del pedido", body: "Monto y qué incluye el pedido." },
-  { title: "El cliente lo revisa en Nequi", body: "Con el presupuesto que le autorizaron." },
+  { title: "El cliente lo revisa en su PayPal", body: "Con el presupuesto que le autorizaron." },
   { title: "COMPAS decide y PayPal paga", body: "Solo si cumple las reglas y quien paga lo aprueba. El pago llega a tu cuenta PayPal." },
 ];
 

@@ -16,7 +16,7 @@ The repository is a general product monorepo:
 
 - `frontend/`, `backend/`, and `data/` are separated.
 - The root is not an application and not a Node workspace. There is no `package.json`, Turborepo, Nx, or pnpm workspace at the root.
-- One frontend still owns the PayPal app, Nequi, and PayPal Business simulations.
+- One frontend still owns the PayPal app (Pedro's and Andrea's) and PayPal Business simulations.
 - The backend owns COMPAS domain, policy, payment orchestration, and the Open Payments gateway.
 - Tool-specific AI configuration stays local and untracked.
 - The root `AGENTS.md` is the shared AI-agent context.

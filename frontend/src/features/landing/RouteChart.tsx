@@ -170,7 +170,7 @@ function Chart({ layout, className }: { layout: ChartLayout; className: string }
         </text>
         <text x={labels.delegate.x} y={labels.delegate.y}>
           <tspan fontSize="16" fontWeight="600">Andrea, with Gladys</tspan>
-          <tspan x={labels.delegate.x} dy="20" fontSize="14" fill="var(--color-ink-soft)">Nequi, simulated</tspan>
+          <tspan x={labels.delegate.x} dy="20" fontSize="14" fill="var(--color-ink-soft)">PayPal app, simulated</tspan>
         </text>
         <text
           x={labels.route.x}

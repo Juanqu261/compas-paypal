@@ -27,18 +27,6 @@ export const COMPAS_THEME = {
     "--cx-focus": "#0070E0",
     "--cx-radius": "16px",
   },
-  nequi: {
-    ...shared,
-    "--cx-accent": "#200020",
-    "--cx-on-accent": "#FFFFFF",
-    "--cx-ink": "#200020",
-    "--cx-muted": "#5C5262",
-    "--cx-line": "#E4E0E8",
-    "--cx-line-strong": "#CFC6D6",
-    "--cx-card": "#F3F0F6",
-    "--cx-focus": "#DA0081",
-    "--cx-radius": "12px",
-  },
 } satisfies Record<string, Record<`--cx-${string}`, string>>;
 
 export function compasTheme(host: keyof typeof COMPAS_THEME): CSSProperties {

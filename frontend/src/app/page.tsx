@@ -13,7 +13,7 @@ const steps = [
   },
   {
     who: "Andrea asks to pay.",
-    what: "The online pharmacy sends the order’s charge to her Nequi. COMPAS checks the merchant and every item against the mandate’s purpose.",
+    what: "The online pharmacy sends the order’s charge to her PayPal. COMPAS checks the merchant and every item against the mandate’s purpose.",
   },
   {
     who: "Only an Allow reaches PayPal.",
@@ -112,7 +112,7 @@ export default function Home() {
                       {surface.role} on {surface.app}
                     </span>
                     <span className="mt-auto pt-4 text-sm text-route-deep underline decoration-route/40 underline-offset-4 group-hover:decoration-route">
-                      Open {surface.app}
+                      Open {surface.person}’s phone
                     </span>
                   </StoryLink>
                 </li>
@@ -123,8 +123,8 @@ export default function Home() {
 
         <footer className="border-t border-ink/15 py-8 text-sm text-ink-soft">
           <p className="max-w-[48rem]">
-            The PayPal, PayPal Business and Nequi screens are simulations
-            built for this demo, not integrations. Orders are approved in the
+            The PayPal and PayPal Business screens are simulations built for
+            this demo, not integrations. Orders are approved in the
             PayPal sandbox. Amounts are demo/test data. Built for the PayPal
             Hackathon, Medellín 2026.
           </p>

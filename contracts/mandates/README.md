@@ -1,6 +1,6 @@
 # Mandate contracts
 
-The HTTP API the PayPal app (payer) and Nequi (delegate) simulations use to create, read, authorize and revoke mandates. The source of truth is `MandateService` in `backend/src/application/mandates.ts` and the handlers in `backend/src/api/mandates.ts`. The frontend mirrors these shapes in `frontend/src/features/compas/api/contracts.ts` and never imports `backend/src`.
+The HTTP API the PayPal app simulations (Pedro as payer, Andrea as delegate) use to create, read, authorize and revoke mandates. The source of truth is `MandateService` in `backend/src/application/mandates.ts` and the handlers in `backend/src/api/mandates.ts`. The frontend mirrors these shapes in `frontend/src/features/compas/api/contracts.ts` and never imports `backend/src`.
 
 A response never carries a PayPal account id, an order or capture id, a token or a raw PayPal payload. The one PayPal value a response may carry is the link that approves an order, in the payer's activity only.
 

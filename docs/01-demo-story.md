@@ -2,12 +2,12 @@
 
 This is the only scenario the MVP needs to prove. Names and amounts below are the product story. Runnable demo data lives in `data/fixtures/demo/` and is labeled `demo/test data`.
 
-The PayPal app, Nequi, and PayPal Business screens are simulated wallet surfaces. They show how COMPAS could be embedded in existing apps. They are not production integrations with those companies. The PayPal orders are real sandbox orders: Pedro approves each one at the PayPal sandbox, outside the simulation.
+PayPal is the only wallet in the story. The PayPal app screens (Pedro's and Andrea's) and the PayPal Business screen are simulated wallet surfaces. They show how COMPAS could be embedded in PayPal's apps. They are not a production integration with PayPal. The PayPal orders are real sandbox orders: Pedro approves each one at the PayPal sandbox, outside the simulation.
 
 ## People
 
 - Pedro is the payer. He lives abroad and pays with his PayPal account, in USD. In the demo, his wallet surface is a simulation of the PayPal app, and his PayPal is a sandbox personal account.
-- Andrea is the delegate. She lives with Gladys and has a Nequi account. She does not receive Pedro's USD 40.
+- Andrea is the delegate. She lives with Gladys and has her own PayPal account. In the demo, her wallet surface is a simulation of the PayPal app. She does not receive Pedro's USD 40.
 - Gladys is the beneficiary. She does not manage a wallet.
 - The pharmacy is the merchant: an online business that already takes PayPal, the kind of merchant PayPal serves. Its surface looks like the PayPal Business app. Its PayPal sandbox business account is the payee, and the surface lists that account's real COMPAS payments, read live from PayPal, with a link to log in to the sandbox as the merchant.
 
@@ -29,7 +29,7 @@ Pedro authorizes that capacity before Andrea knows which eligible pharmacy she w
 
 ## Approved medication purchase
 
-Andrea orders from an online pharmacy that takes PayPal and participates in COMPAS. The pharmacy charges the order with COMPAS from its PayPal Business app, and Andrea reviews the charge in Nequi and asks to pay. COMPAS evaluates the purchase against Pedro's mandate.
+Andrea orders from an online pharmacy that takes PayPal and participates in COMPAS. The pharmacy charges the order with COMPAS from its PayPal Business app, and Andrea reviews the charge in her own PayPal app and asks to pay. COMPAS evaluates the purchase against Pedro's mandate.
 
 If the decision is `ALLOW`, COMPAS creates a PayPal order payable to the pharmacy, and Pedro approves it in his PayPal:
 
@@ -47,7 +47,7 @@ If Andrea tries to use the same mandate at an online liquor store, or for alcoho
 
 ## What the audience sees
 
-`/demo` is the pitch surface: three phone frames, one shared scenario. `/paypal`, `/nequi`, and `/paypal-business` render the same experience components alone. The audience should not have to visit those routes during the pitch.
+`/demo` is the pitch surface: three phone frames, one shared scenario. `/paypal`, `/paypal-delegate`, and `/paypal-business` render the same experience components alone. The audience should not have to visit those routes during the pitch.
 
 ## Out of the MVP UI
 

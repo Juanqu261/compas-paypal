@@ -6,7 +6,7 @@ import type { JsonResponse } from "./merchant-categories.ts";
 
 /**
  * DEMO IDENTITY. COMPAS has no user authentication yet. For the hackathon
- * demo, the PayPal app and Nequi simulations start a session as one of the
+ * demo, the PayPal app simulations (Pedro's and Andrea's) start a session as one of the
  * demo parties and send its opaque token as `Authorization: Bearer <token>`. The
  * backend resolves the actor from the token, so the browser never sends a
  * payer or delegate id that COMPAS trusts.

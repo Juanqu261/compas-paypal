@@ -46,7 +46,7 @@ function NotYourMoney({ payer }: { payer?: string }) {
   return (
     <p className="flex items-center gap-2 text-[13px] text-(--cx-muted)">
       <WalletIcon className="size-[18px] shrink-0 text-(--cx-route)" />
-      {payer ? `Pagas desde el PayPal de ${payer}, que aprueba cada pago. No llega a tu Nequi.` : "Pagas desde el PayPal de quien te autorizó."}
+      {payer ? `Pagas desde el PayPal de ${payer}, que aprueba cada pago. El dinero no pasa por tu cuenta.` : "Pagas desde el PayPal de quien te autorizó."}
     </p>
   );
 }

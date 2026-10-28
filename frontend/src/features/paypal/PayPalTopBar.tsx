@@ -1,4 +1,4 @@
-import { paypalDemoPayer } from "./paypal-demo-content";
+import type { PayPalDemoProfile } from "./paypal-demo-content";
 import { BellIcon } from "./PayPalIcons";
 
 /** Decorative device status row. Not a real clock or signal reading. */
@@ -38,13 +38,13 @@ export function PayPalStatusBar() {
 }
 
 /** Sticky header: the greeting in PayPal's heavy type, notifications and profile. */
-export function PayPalTopBar() {
+export function PayPalTopBar({ profile }: { profile: PayPalDemoProfile }) {
   return (
     <header className="sticky top-0 z-10 bg-white/95 pb-3 backdrop-blur">
       <PayPalStatusBar />
       <div className="flex items-center justify-between gap-3 px-5 pt-2">
         <h1 className="truncate text-[28px] leading-tight font-extrabold tracking-[-0.02em] text-(--pp-ink)">
-          {paypalDemoPayer.greeting}
+          {profile.greeting}
         </h1>
         <div className="flex shrink-0 items-center gap-2">
           <button
@@ -56,10 +56,10 @@ export function PayPalTopBar() {
           </button>
           <button
             type="button"
-            aria-label="Perfil de Pedro"
+            aria-label={profile.profileLabel}
             className="grid size-10 place-items-center rounded-full bg-(--pp-navy) text-[13px] font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)"
           >
-            {paypalDemoPayer.initials}
+            {profile.initials}
           </button>
         </div>
       </div>

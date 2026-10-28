@@ -28,13 +28,13 @@ Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicin
 
 | Path | What |
 | --- | --- |
-| `frontend/` | Next.js demo: `/demo`, `/paypal` (Pedro), `/nequi` (Andrea), `/paypal-business` (online pharmacy) |
+| `frontend/` | Next.js demo: `/demo`, `/paypal` (Pedro), `/paypal-delegate` (Andrea), `/paypal-business` (online pharmacy) |
 | `backend/` | Domain, policy, PayPal, analyst, HTTP API. See [backend/README.md](backend/README.md) |
 | `contracts/` | API contracts shared by frontend and backend |
 | `data/` | Seeds, demo fixtures, Postgres migrations |
 | `docs/` | Product, architecture, ADRs |
 
-The PayPal, PayPal Business and Nequi screens are simulations. The PayPal orders are real sandbox orders.
+The PayPal screens (Pedro's, Andrea's and the pharmacy's PayPal Business) are simulations. The PayPal orders are real sandbox orders.
 
 ## Run
 
@@ -60,4 +60,4 @@ The backend suite covers the policy gate, PayPal, the trust matrix, the analyst,
 - [docs/](docs/): vision, domain model, PayPal mapping, policy engine, AI, security.
 - [docs/adr/](docs/adr/): decisions. 0008 is the PayPal rail, 0009 the AI analyst, 0010 errands, 0011 agents over MCP.
 
-Hackathon proof of concept. Not affiliated with or endorsed by PayPal, Nequi or Elastic. No production integration is implied.
+Hackathon proof of concept. Not affiliated with or endorsed by PayPal or Elastic. No production integration is implied.

@@ -158,11 +158,11 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
         {status.title}
       </p>
       {!charge.result ? (
-        <p className="mt-2 text-[13px] text-(--pp-muted)">El cliente debe abrir COMPAS en Nequi y revisar el cobro.</p>
+        <p className="mt-2 text-[13px] text-(--pp-muted)">El cliente debe abrir COMPAS en su PayPal y revisar el cobro.</p>
       ) : reasons.length > 0 && status.tone !== "ok" ? (
         <p className="mt-2 text-[13px] text-(--pp-muted)">{reasonText(reasons[0])}.</p>
       ) : null}
-      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulación: el cobro viaja a Nequi dentro de este navegador.</p>
+      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulación: el cobro viaja al PayPal del cliente dentro de este navegador.</p>
       <div className="mt-3 flex gap-2">
         {done ? (
           <button

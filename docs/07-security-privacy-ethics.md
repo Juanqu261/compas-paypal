@@ -39,4 +39,4 @@ A mixed basket should not force an ineligible item to block an eligible one fore
 
 ## Demo surfaces
 
-The hackathon UI imitates wallet experiences. It must not collect real credentials, copy official logos, or imply that PayPal or Nequi have embedded COMPAS in their apps.
+The hackathon UI imitates wallet experiences. It must not collect real credentials, copy official logos, or imply that PayPal has embedded COMPAS in its apps.
