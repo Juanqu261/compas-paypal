@@ -8,7 +8,7 @@ import {
 
 /**
  * demo/test data: the merchants of the demo story. The ids are what the
- * Nequi Negocios simulation and the demo fixtures name.
+ * PayPal Business simulation and the demo fixtures name.
  *
  * Each merchant is a PayPal sandbox business account when one is configured
  * (`DEMO_MERCHANT_PAYPAL_ID`, `DEMO_LIQUOR_PAYPAL_ID`), the same

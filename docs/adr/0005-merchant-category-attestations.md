@@ -4,7 +4,7 @@
 
 Accepted, 2026-10-16. Amended by [ADR 0007](0007-merchant-confidence-matrix.md): a merchant's declared categories get a confidence from the trust matrix, history counts only through distinct confirming payers, and history alone never reaches `HIGH`. Trust levels below are unchanged.
 
-The rail changed on 2026-10-26: [ADR 0008](0008-paypal-rail-per-order-approval.md) replaces Open Payments with PayPal. The subject is the payee's PayPal merchant id where it was an Open Payments wallet address, and the purchase intent carries `paypalMerchantId`. PayPal signs no category attestations, so on a real PayPal deployment `PROVIDER_VERIFIED` is empty; the demo's simulated Nequi Negocios source still fills it.
+The rail changed on 2026-10-26: [ADR 0008](0008-paypal-rail-per-order-approval.md) replaces Open Payments with PayPal. The subject is the payee's PayPal merchant id where it was an Open Payments wallet address, and the purchase intent carries `paypalMerchantId`. PayPal signs no category attestations, so on a real PayPal deployment `PROVIDER_VERIFIED` is empty; the demo's simulated wallet KYB source (`wallet-kyb-sim/*`) still fills it.
 
 ## Context
 

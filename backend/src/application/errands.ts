@@ -9,6 +9,10 @@ import type { ErrandRepository } from "../ports/errand-repository.ts";
 import { AnalystOutputError, cleanNote } from "./analyst-output.ts";
 import type { Actor, FieldError, MandateErrorCode, MandateService, ViewerRole } from "./mandates.ts";
 import { parseMoney } from "./mandates.ts";
+import { elapsed, formatAmount, logger } from "../lib/log.ts";
+
+// Errands are health data: log ids and counts only, never items, CUMs or what the delegate wrote.
+const log = logger("errands");
 
 const MANDATE_ID = /^mandate-[A-Za-z0-9-]{1,80}$/;
 export const MAX_ERRAND_ITEMS = 5;
@@ -283,6 +287,8 @@ export class ErrandService {
     const access = await this.#asDelegate(actor, body.mandateId);
     if (!access.ok) return access;
 
+    const start = performance.now();
+    log.info("drafting an errand with the model", { mandateId: access.mandate.id });
     const proposed = parseDraft(
       await this.#deps.model.callTool({
         system: ERRAND_DRAFT_SYSTEM,
@@ -305,6 +311,7 @@ export class ErrandService {
       });
     }
     const mandate = access.mandate;
+    log.info("errand drafted", { mandateId: mandate.id, items: items.length, ms: elapsed(start) });
     const expiresAt = Math.min(this.#now().getTime() + DEFAULT_DRAFT_DAYS * DAY_MS, Date.parse(mandate.expiresAt));
     return {
       ok: true,
@@ -347,7 +354,10 @@ export class ErrandService {
         }
       }
     }
-    if (errors.length > 0) return failure("INVALID_ERRAND", "The errand is not valid.", errors);
+    if (errors.length > 0) {
+      log.warn("errand refused", { mandateId: mandate.id, errors: errors.map((error) => error.code).join(",") });
+      return failure("INVALID_ERRAND", "The errand is not valid.", errors);
+    }
 
     const errand: Errand = {
       id: `errand-${this.#deps.newId?.() ?? randomUUID()}`,
@@ -364,6 +374,14 @@ export class ErrandService {
       createdAt: now.toISOString(),
     };
     await this.#deps.errands.create(errand);
+    log.info("errand confirmed", {
+      errandId: errand.id,
+      mandateId: mandate.id,
+      kind: errand.kind,
+      items: errand.items.length,
+      maxAmount: formatAmount(errand.maxAmount),
+      draftedBy: errand.draftedBy,
+    });
     return { ok: true, errand: await this.#view(errand) };
   }
 
@@ -377,6 +395,7 @@ export class ErrandService {
     }
     const cancelled = await this.#deps.errands.cancel(errand.id);
     if (!cancelled) return failure("INVALID_STATE", "The errand is already cancelled.");
+    log.info("errand cancelled", { errandId: errand.id, mandateId: errand.mandateId });
     return { ok: true, errand: await this.#view(cancelled) };
   }
 

@@ -8,15 +8,15 @@ import { useResource } from "@/features/compas/api/hooks";
 import { AnalystAct } from "@/features/demo/AnalystAct";
 import { analystRecord } from "@/features/demo/analyst-view";
 import { DemoSessionProvider, useDemoSession, type DemoCharge } from "@/features/demo/DemoSession";
-import { NequiBusinessExperience } from "@/features/nequi-business/NequiBusinessExperience";
 import { NequiExperience } from "@/features/nequi/NequiExperience";
+import { PayPalBusinessExperience } from "@/features/paypal-business/PayPalBusinessExperience";
 import { PayPalExperience } from "@/features/paypal/PayPalExperience";
 import { surfaces, type SurfaceId } from "@/features/site/story";
 
 const experiences: Record<SurfaceId, ReactNode> = {
   paypal: <PayPalExperience />,
   nequi: <NequiExperience />,
-  "nequi-negocios": <NequiBusinessExperience />,
+  "paypal-business": <PayPalBusinessExperience />,
 };
 
 function expectedText(scenario: DemoScenario): string {
@@ -91,7 +91,7 @@ const GUIDE = [
   { app: "PayPal", text: "Pedro creates a budget for a contact" },
   { app: "PayPal", text: "He authorizes it. Nothing is charged yet" },
   { app: "Nequi", text: "The contact sees what they can spend" },
-  { app: "Nequi Negocios", text: "The pharmacy charges with COMPAS" },
+  { app: "PayPal Business", text: "The online pharmacy charges the order with COMPAS" },
   { app: "Nequi", text: "The contact reviews the purchase" },
   { app: "COMPAS", text: "The backend checks the rules. ALLOW creates a PayPal order" },
   { app: "PayPal", text: "Pedro approves that exact order at PayPal" },

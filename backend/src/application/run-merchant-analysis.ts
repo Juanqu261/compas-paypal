@@ -18,6 +18,9 @@ import {
 } from "./analyst-output.ts";
 import { verifyCatalogMapping } from "./catalog-mappings.ts";
 import type { IngestCategoryClaimInput, IngestionResult } from "./ingest-category-claim.ts";
+import { elapsed, logger } from "../lib/log.ts";
+
+const log = logger("analyst");
 
 /** The analyst's own trust-log source. It may submit FLAG entries only. */
 export const ANALYST_SOURCE_ID = "compas-analyst";
@@ -112,9 +115,17 @@ export async function runMerchantAnalysis(
   const empty = { runId, items: 0, verifiedMappings: 0, rejectedMappings: 0, newFlags: 0, skus: [] };
 
   // CUM mapping and these judgments are about medicines. Other categories have no analyst yet.
-  if (!input.declaredCategories.includes("MEDICATION")) return { ...empty, status: "NOT_APPLICABLE" };
+  if (!input.declaredCategories.includes("MEDICATION")) {
+    log.info("run skipped: no MEDICATION declared", { runId, merchant: input.paypalMerchantId });
+    return { ...empty, status: "NOT_APPLICABLE" };
+  }
   const catalog = await deps.catalogs.get(input.paypalMerchantId);
-  if (!catalog || catalog.items.length === 0) return { ...empty, status: "NO_CATALOG" };
+  if (!catalog || catalog.items.length === 0) {
+    log.info("run skipped: no catalog", { runId, merchant: input.paypalMerchantId });
+    return { ...empty, status: "NO_CATALOG" };
+  }
+  const started = performance.now();
+  log.info("run started", { runId, merchant: input.paypalMerchantId, skus: catalog.items.length });
 
   // 1. Model calls. Nothing is written until every batch parsed.
   const reviews: { batch: CatalogBatchItem[]; review: CatalogReview }[] = [];
@@ -124,12 +135,19 @@ export async function runMerchantAnalysis(
       const text = catalogItemText(item);
       batch.push({ skuId: item.skuId, text, candidates: await deps.search.search(text, { limit: CANDIDATES_PER_SKU }) });
     }
+    const batchStart = performance.now();
     const raw = await deps.model.callTool({
       system: CATALOG_REVIEW_SYSTEM,
       user: catalogReviewPrompt(batch),
       tool: CATALOG_REVIEW_TOOL,
     });
     reviews.push({ batch, review: parseCatalogReview(raw, batch) });
+    log.info("batch reviewed by the model", {
+      runId,
+      skus: `${start + 1}-${start + batch.length}`,
+      candidates: batch.reduce((sum, item) => sum + item.candidates.length, 0),
+      ms: elapsed(batchStart),
+    });
   }
   const whole: CatalogReview = {
     items: reviews.flatMap(({ review }) => review.items),
@@ -151,6 +169,7 @@ export async function runMerchantAnalysis(
     );
     if (mapping.status === "VERIFIED") verifiedMappings += 1;
     else rejectedMappings += 1;
+    log.debug(`CUM pointer ${mapping.status}`, { runId, sku: reviewed.skuId, cum: mapping.cum });
     outcomes.set(reviewed.skuId, { cum: mapping.cum, outcome: mapping.status });
     findings.push({
       kind: "POINTER",
@@ -175,6 +194,12 @@ export async function runMerchantAnalysis(
     const flag = await raiseFlag(input.paypalMerchantId, "MEDICATION", judgment, deps);
     if (flag.duplicate && (await deps.findings.findJudgmentByFlag(flag.entryId))) continue;
     if (!flag.duplicate) newFlags += 1;
+    log.warn(flag.duplicate ? "flag already on the trust log" : "flag raised", {
+      runId,
+      merchant: input.paypalMerchantId,
+      judgment: judgment.judgment,
+      skus: judgment.citedSkuIds.length,
+    });
     findings.push({
       kind: "JUDGMENT",
       id: `finding-${newId()}`,
@@ -200,6 +225,15 @@ export async function runMerchantAnalysis(
     itemClass: reviewed.itemClass,
     ...outcomes.get(reviewed.skuId),
   }));
+  log.info("run completed", {
+    runId,
+    merchant: input.paypalMerchantId,
+    items: whole.items.length,
+    verified: verifiedMappings,
+    rejected: rejectedMappings,
+    newFlags,
+    ms: elapsed(started),
+  });
   return { runId, status: "COMPLETED", items: whole.items.length, verifiedMappings, rejectedMappings, newFlags, skus };
 }
 

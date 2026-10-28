@@ -21,6 +21,9 @@ import { type Errand, errandWindowStart } from "../domain/errand.ts";
 import type { ErrandRepository } from "../ports/errand-repository.ts";
 import { createPayPalOrderIfAllowed } from "./create-paypal-order-if-allowed.ts";
 import { loadMerchantHistory, type MerchantHistoryDeps } from "./merchant-history.ts";
+import { formatAmount, logger } from "../lib/log.ts";
+
+const log = logger("policy");
 
 export type PurchaseUnderMandateInput = {
   mandate: Mandate;
@@ -153,6 +156,16 @@ export async function purchaseUnderMandate(
       recordedAt: now.toISOString(),
     };
     await deps.spending.append(record);
+    const level = decision.outcome === "ALLOW" ? "info" : "warn";
+    log[level](`decision ${decision.outcome}`, {
+      decisionId,
+      mandateId: mandate.id,
+      merchant: record.paypalMerchantId,
+      amount: formatAmount(intent.amount),
+      enforcement: mandate.purposePolicy.enforcement,
+      reasons: decision.reasons.map((reason) => reason.code).join(","),
+      errand: input.errand?.errand.id,
+    });
     return { decision, record };
   };
 
@@ -180,6 +193,11 @@ export async function purchaseUnderMandate(
   if (mandateReasons.length > 0) return finish(mandateReasons, {});
 
   const resolution = await deps.merchants.resolve(intent.paypalMerchantId);
+  log.debug("merchant categories resolved", {
+    decisionId,
+    merchant: resolution.paypalMerchantId,
+    categories: resolution.categories.map(({ category, trustLevel }) => `${category}:${trustLevel}`).join(","),
+  });
   const merchantHistory = await loadMerchantHistory(
     resolution.paypalMerchantId,
     categoriesNeedingHistory(resolution, mandate.purposePolicy),
@@ -215,6 +233,7 @@ export async function purchaseUnderMandate(
     throw error;
   }
   if (!order) return { decision, record };
+  log.info("PayPal order created, waiting for the payer", { decisionId, orderId: order.id, status: order.status });
 
   const ordered = await deps.spending.recordOrder(record.id, {
     orderId: order.id,

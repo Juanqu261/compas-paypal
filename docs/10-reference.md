@@ -31,7 +31,7 @@ These codes come from memory and are not verified. Check them against the annex 
 
 ## Research the design rests on
 - **Merchant registry.** RUES, run by the Cámaras de Comercio, records one main CIIU code plus up to three secondary ones, which must match the RUT. SIC supervises but doesn't hold the registry. A CIIU code is not proof of what a shop sells: Supersociedades Oficio 220-178431 (2024) lets merchants carry out unregistered lawful activities. A 2008 Bogotá study found Cámara pharmacy lists that included shops not selling medicine. Confecámaras does publish monthly bulk RUES extracts on datos.gov.co (CC BY-SA 4.0): establishments with main and secondary CIIU (`nb3d-v3n7`) and their owners (`c82u-588k`). `data/seeds/merchant-registry/` holds a Medellín sample. In it, only 49% of active 4773 shops have a pharmacy name. Open pharmacy-establishment lists exist for Risaralda, Casanare, Norte de Santander and Valle, but none was found for Antioquia.
-- **Wallet data.** Nequi Negocios (2025, built with Wompi) offers QR, links and card acceptance with free signup. No public API exposing a merchant's activity was found, so in the demo it's a simulated wallet node.
+- **Wallet data.** PayPal signs no attestations about its merchants' categories, and no public wallet API exposing a merchant's KYB or activity was found. In the demo, a simulated wallet KYB node (`wallet-kyb-sim`) fills `PROVIDER_VERIFIED`.
 - **Food bonuses.**
   - Medellín Cero Hambre 2026: 81,725 bonuses for 16,345 households at "establecimientos autorizados".
   - Medellín 2025: 15,484 families at COP 336,600.
@@ -48,7 +48,6 @@ These codes come from memory and are not verified. Check them against the annex 
 - Supersociedades oficio (INCP): https://incp.org.co/publicaciones/2024/08/supersociedades-se-pronuncia-sobre-actividades-adicionales-de-comerciantes-fuera-del-rues-y-rut/
 - UNAD Bogotá pharmacy study: https://repository.unad.edu.co/handle/10596/1693
 - DIAN Res. 114/2020: https://normograma.dian.gov.co/dian/compilacion/docs/resolucion_dian_0114_2020.htm
-- Nequi Negocios: https://www.elcolombiano.com/negocios/nequi-en-mi-negocio-pagos-transferencias-como-lo-tengo-KL24852769
 - Cero Hambre 2026: https://www.medellin.gov.co/es/sala-de-prensa/noticias/con-la-alianza-medellin-cero-hambre-avanza-la-entrega-del-bono-alimentario-2026-para-16-345-hogares/
 - Cero Hambre 2025: https://www.medellin.gov.co/es/sala-de-prensa/noticias/la-alcaldia-de-medellin-entrega-bonos-alimentarios-a-15-484-familias/
 - Bogotá Te Nutre: https://concejodebogota.gov.co/respuesta-efectiva-a-denuncia-de-poblacion-beneficiaria-de-bonos/cbogota/2017-04-06/121639.php

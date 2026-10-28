@@ -3,7 +3,7 @@ import test from "node:test";
 import type { DemoScenario } from "../../src/demo/scenarios.ts";
 import { DEMO_MERCHANTS } from "../../src/features/compas/demo-identities.ts";
 import { errorText, purchaseStatusLabel } from "../../src/features/compas/lib/labels.ts";
-import { merchantCompasCategories } from "../../src/features/nequi-business/nequi-business-compas-demo.ts";
+import { merchantCompasCategories } from "../../src/features/paypal-business/paypal-business-compas-demo.ts";
 import { COMPAS_CATEGORIES, type PaymentState } from "../../src/features/compas/api/contracts.ts";
 import { buildCharge, chargePaymentCompleted, merchantChargeStatus, scenarioLines } from "../../src/features/demo/demo-charge.ts";
 
@@ -14,7 +14,7 @@ function scenario(id: DemoScenario["id"], category: string): DemoScenario {
     dataLabel: "demo/test data",
     id,
     title: id,
-    merchantSurface: "Nequi Negocios simulation",
+    merchantSurface: "PayPal Business simulation",
     mandate: { purposePolicy: { allowedPurposes: ["MEDICATION"] }, budget: USD("4000") },
     purchaseIntent: {
       merchantDisplayName: "Display only",

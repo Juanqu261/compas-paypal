@@ -123,6 +123,14 @@ export class PostgresSpendingLog implements SpendingLog {
       where mandate_id = ${mandateId} order by recorded_at, id`;
     return rows.map(fromRow);
   }
+
+  async listOrdersByMerchant(paypalMerchantId: string, limit: number): Promise<readonly SpendingRecord[]> {
+    const rows = await this.#sql<SpendingRow[]>`
+      select ${COLUMNS(this.#sql)} from compas.spending_records
+      where paypal_merchant_id = ${paypalMerchantId} and paypal_order_id is not null
+      order by recorded_at desc, id desc limit ${limit}`;
+    return rows.map(fromRow);
+  }
 }
 
 function money(value: string, assetCode: string, assetScale: number): MoneyAmount {

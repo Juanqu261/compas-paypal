@@ -1,5 +1,8 @@
 import type { FetchLike } from "../../lib/fetch-like.ts";
+import { elapsed, logger } from "../../lib/log.ts";
 import type { ElasticConfig } from "./config.ts";
+
+const log = logger("elastic");
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -43,8 +46,9 @@ export class ElasticRestClient {
   }
 
   async #send(operation: string, method: string, path: string, body?: string, contentType?: string): Promise<Response> {
+    const start = performance.now();
     try {
-      return await this.#fetch(`${this.#config.url}${path}`, {
+      const response = await this.#fetch(`${this.#config.url}${path}`, {
         method,
         headers: {
           authorization: `ApiKey ${this.#config.apiKey}`,
@@ -54,7 +58,13 @@ export class ElasticRestClient {
         ...(body !== undefined ? { body } : {}),
         signal: AbortSignal.timeout(this.#timeoutMs),
       });
+      // One search per SKU during an analyst run, so successes show with LOG_LEVEL=debug.
+      const fields = { method, path, status: response.status, ms: elapsed(start) };
+      if (response.ok || (method === "HEAD" && response.status === 404)) log.debug(operation, fields);
+      else log.warn(`${operation} rejected`, fields);
+      return response;
     } catch (error) {
+      log.error(`${operation} failed`, { method, path, error: error instanceof Error ? error.name : "error", ms: elapsed(start) });
       throw new ElasticError(`${operation} failed: ${error instanceof Error ? error.name : "network error"}`, {
         cause: error,
       });

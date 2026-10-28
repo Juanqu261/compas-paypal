@@ -2,7 +2,14 @@
 
 import { useEffect, useEffectEvent, useState } from "react";
 import { compasApi } from "./client";
-import type { DemoMerchantsResponse, MandateView, MeResponse, ParticipantsResponse, SpendingResponse } from "./contracts";
+import type {
+  DemoMerchantsResponse,
+  MandateView,
+  MerchantPayPalPaymentsResponse,
+  MeResponse,
+  ParticipantsResponse,
+  SpendingResponse,
+} from "./contracts";
 
 export type Resource<T> =
   | { status: "loading" }
@@ -100,4 +107,13 @@ export function useDemoMerchants(active: boolean) {
   return useResource<DemoMerchantsResponse>(active ? "demo-merchants" : null, () => compasApi.demoMerchants(), {
     pollMs: 15000,
   });
+}
+
+/** The merchant's COMPAS orders, read live from the PayPal sandbox on each poll. */
+export function useMerchantPayPalPayments(merchantId: string, active: boolean, refresh = 0) {
+  return useResource<MerchantPayPalPaymentsResponse>(
+    active ? `merchant-paypal-payments:${merchantId}` : null,
+    () => compasApi.merchantPayPalPayments(merchantId),
+    { pollMs: 10000, refresh },
+  );
 }

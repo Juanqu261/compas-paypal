@@ -175,3 +175,39 @@ Amounts and ids are illustrative.
 | `paypal` | The order, its approval link, its capture and COMPAS's state for it. Empty when COMPAS stopped before PayPal. `failureCode` when `state` is `FAILED` |
 
 `purposeCheck` is absent when a mandate rule (status, validity, delegate) stopped the purchase first. Entries never contain line-item descriptions, because they could name a medicine.
+
+## The merchant's sandbox payments
+
+`GET /demo/merchants/:id/payments`, in `backend/src/api/merchant-payments.ts`, is the merchant's view on the PayPal Business screen. No token: it answers only while demo sessions are on (else `503 IDENTITY_NOT_CONFIGURED`) and PayPal is configured (else `503 PAYPAL_NOT_CONFIGURED`). An unknown id is `404 UNKNOWN_MERCHANT`.
+
+It lists the merchant's 8 newest COMPAS purchases that reached PayPal, and reads each order from the PayPal sandbox on every request. It only reads (`getOrder`): it never creates or captures.
+
+```json
+{
+  "environment": "sandbox",
+  "sandboxActivityUrl": "https://www.sandbox.paypal.com/myaccount/activities/",
+  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Droguería Central", "paypalMerchantId": "2H3UUEB7PL7A6" },
+  "payments": [
+    {
+      "orderId": "0X890113GP3897051",
+      "compasState": "COMPLETED",
+      "recordedAt": "2026-10-27T12:52:24.966Z",
+      "paypal": {
+        "read": "OK",
+        "orderStatus": "COMPLETED",
+        "payeeMerchantId": "2H3UUEB7PL7A6",
+        "amount": { "value": "1120", "assetCode": "USD", "assetScale": 2 },
+        "capture": { "id": "8LL68975M6007841X", "status": "COMPLETED", "amount": { "value": "1120", "assetCode": "USD", "assetScale": 2 } }
+      }
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `paypal` | What PayPal reports now. `read: "UNAVAILABLE"` with PayPal's error code when that read failed: the state is never guessed |
+| `compasState` | COMPAS's own record of the payment, which the settlement moves |
+| `sandboxActivityUrl` | The real sandbox page, where the merchant's test business account logs in to see the payment |
+
+The response carries nothing about the payer, the mandate or the purpose: no payer id, no mandate id, no categories, no reasons.

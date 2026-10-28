@@ -1,7 +1,7 @@
 import type { CompasCategory } from "@/features/compas/api/contracts";
 
 /**
- * Merchant-side COMPAS settings for the simulated Nequi Negocios app.
+ * Merchant-side COMPAS settings for the simulated PayPal Business app.
  * demo/test data.
  *
  * This is local UI state only. It is not a merchant-registry record, not a

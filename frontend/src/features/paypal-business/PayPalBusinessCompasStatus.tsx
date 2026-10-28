@@ -11,14 +11,14 @@ import { CategoryGlyph } from "@/features/compas/ui/visuals";
 import { buildCharge, type ChargeLine, merchantChargeStatus, scenarioLines } from "@/features/demo/demo-charge";
 import { useDemoSession } from "@/features/demo/DemoSession";
 import { formatMoneyAmount } from "@/lib/format-money";
-import { CloseIcon, InfoIcon } from "./NequiBusinessIcons";
-import type { MerchantCompasCategory } from "./nequi-business-compas-demo";
+import { CloseIcon, InfoIcon } from "@/features/paypal/PayPalIcons";
+import type { MerchantCompasCategory } from "./paypal-business-compas-demo";
 
 const focusRing =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-blue)";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)";
 
 /**
- * The shop charges in USD, the demo budget's asset: the PayPal order is in the
+ * The online shop charges in USD, the demo budget's asset: the PayPal order is in the
  * charge's currency, PayPal takes no COP, and COMPAS does not convert.
  * demo/test data: there is no PayPal lookup here.
  */
@@ -26,9 +26,9 @@ const CHARGE_ASSET = { assetCode: "USD", assetScale: 2 } as const;
 
 function Chip({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "ok" | "sim" }) {
   const look = {
-    neutral: "bg-neutral-100 text-(--nb-muted)",
-    ok: "bg-(--nb-mint) text-(--nb-green)",
-    sim: "bg-(--nb-sand) text-(--nb-plum)",
+    neutral: "bg-neutral-100 text-(--pp-muted)",
+    ok: "bg-(--pp-mint) text-(--pp-green)",
+    sim: "bg-(--pp-sand) text-(--pp-ink)",
   }[tone];
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${look}`}>{children}</span>;
 }
@@ -36,7 +36,7 @@ function Chip({ children, tone = "neutral" }: { children: string; tone?: "neutra
 /** A category's glyph on the merchant's own palette. */
 export function MerchantCategoryChip({ category }: { category: CompasCategory }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-(--nb-card) py-1 pr-3 pl-1 text-[13px]">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-(--pp-chip) py-1 pr-3 pl-1 text-[13px]">
       <span className="grid size-6 place-items-center rounded-full bg-white">
         <CategoryGlyph category={category} className="size-4" />
       </span>
@@ -59,10 +59,10 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
 
   return (
     <div className="space-y-4">
-      {resource.status === "loading" ? <p className="text-[13px] text-(--nb-muted)">Consultando COMPAS…</p> : null}
+      {resource.status === "loading" ? <p className="text-[13px] text-(--pp-muted)">Consultando COMPAS…</p> : null}
       {resource.status === "error" ? (
         <div className="space-y-2">
-          <p role="alert" className="rounded-md bg-(--nb-sand) p-3 text-[13px]">
+          <p role="alert" className="rounded-xl bg-(--pp-sand) p-3 text-[13px]">
             {errorText(errorCode(resource.error))}
           </p>
           <button type="button" onClick={reload} className={`text-[13px] font-semibold underline ${focusRing}`}>
@@ -70,12 +70,12 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
           </button>
         </div>
       ) : null}
-      {refreshError ? <p className="text-[12px] text-(--nb-muted)">Sin conexión. Mostrando la última consulta.</p> : null}
+      {refreshError ? <p className="text-[12px] text-(--pp-muted)">Sin conexión. Mostrando la última consulta.</p> : null}
 
       {data ? (
         <>
           {data.categorySources === "NONE_REGISTERED" ? (
-            <p className="rounded-md bg-(--nb-sand) p-3 text-[13px] leading-snug">
+            <p className="rounded-xl bg-(--pp-sand) p-3 text-[13px] leading-snug">
               COMPAS no tiene fuentes de verificación activas en este entorno. Aún no reconoce categorías de tu negocio.
             </p>
           ) : null}
@@ -93,7 +93,7 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-[13px] text-(--nb-muted)">Ninguna.</p>
+              <p className="mt-1 text-[13px] text-(--pp-muted)">Ninguna.</p>
             )}
           </div>
           <div>
@@ -111,11 +111,11 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-[13px] text-(--nb-muted)">Ninguna.</p>
+              <p className="mt-1 text-[13px] text-(--pp-muted)">Ninguna.</p>
             )}
           </div>
           {notSent.length > 0 ? (
-            <p className="flex gap-2 rounded-md bg-(--nb-cyan) p-3 text-[13px] leading-snug">
+            <p className="flex gap-2 rounded-xl bg-(--pp-info) p-3 text-[13px] leading-snug">
               <InfoIcon className="size-5 shrink-0" />
               Marcaste {notSent.map((category) => CATEGORY_LABEL[category].toLowerCase()).join(", ")} en este teléfono.
               COMPAS no la tiene registrada.
@@ -128,9 +128,9 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
 }
 
 const TONE_LOOK = {
-  wait: "bg-(--nb-sand) text-(--nb-plum)",
-  ok: "bg-(--nb-mint) text-(--nb-green)",
-  stop: "bg-[#FBE3DA] text-(--nb-alert)",
+  wait: "bg-(--pp-sand) text-(--pp-ink)",
+  ok: "bg-(--pp-mint) text-(--pp-green)",
+  stop: "bg-(--pp-alert-soft) text-(--pp-alert)",
 } as const;
 
 /**
@@ -146,29 +146,29 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
   const done = Boolean(charge.result && (charge.result.kind === "PURCHASE" || status.tone === "stop"));
 
   return (
-    <section aria-label="Cobro actual" className="rounded-xl border border-(--nb-line) bg-white p-4 shadow-[0_1px_3px_rgba(43,0,43,0.08)]">
-      <p className="text-[13px] text-(--nb-muted)">Cobro generado</p>
+    <section aria-label="Cobro actual" className="rounded-2xl border border-(--pp-line) bg-white p-4 shadow-[0_1px_3px_rgba(0,20,53,0.08)]">
+      <p className="text-[13px] text-(--pp-muted)">Cobro del pedido</p>
       <p className="mt-0.5 text-[30px] leading-tight font-bold tracking-tight tabular-nums">{formatMoneyAmount(charge.amount)}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {categories.map((category) => (
           <MerchantCategoryChip key={category} category={category} />
         ))}
       </div>
-      <p role="status" className={`mt-3 rounded-md px-3 py-2 text-[14px] font-semibold ${TONE_LOOK[status.tone]}`}>
+      <p role="status" className={`mt-3 rounded-xl px-3 py-2 text-[14px] font-semibold ${TONE_LOOK[status.tone]}`}>
         {status.title}
       </p>
       {!charge.result ? (
-        <p className="mt-2 text-[13px] text-(--nb-muted)">El cliente debe abrir COMPAS en Nequi y revisar el cobro.</p>
+        <p className="mt-2 text-[13px] text-(--pp-muted)">El cliente debe abrir COMPAS en Nequi y revisar el cobro.</p>
       ) : reasons.length > 0 && status.tone !== "ok" ? (
-        <p className="mt-2 text-[13px] text-(--nb-muted)">{reasonText(reasons[0])}.</p>
+        <p className="mt-2 text-[13px] text-(--pp-muted)">{reasonText(reasons[0])}.</p>
       ) : null}
-      <p className="mt-2 text-[11px] text-(--nb-muted)">Simulación: el cobro viaja a Nequi dentro de este navegador.</p>
+      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulación: el cobro viaja a Nequi dentro de este navegador.</p>
       <div className="mt-3 flex gap-2">
         {done ? (
           <button
             type="button"
             onClick={onNew}
-            className={`h-11 flex-1 rounded-md bg-(--nb-plum) text-[15px] font-semibold text-white ${focusRing}`}
+            className={`h-11 flex-1 rounded-full bg-(--pp-ink) text-[15px] font-bold text-white ${focusRing}`}
           >
             Nuevo cobro
           </button>
@@ -176,7 +176,7 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
         <button
           type="button"
           onClick={clearCharge}
-          className={`h-11 flex-1 rounded-md border border-(--nb-line) text-[15px] font-semibold ${focusRing}`}
+          className={`h-11 flex-1 rounded-full border border-(--pp-line) text-[15px] font-bold ${focusRing}`}
         >
           {done ? "Cerrar" : "Cancelar cobro"}
         </button>
@@ -236,7 +236,7 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[19px] font-bold">Cobrar con COMPAS</h3>
+        <h3 className="text-[19px] font-extrabold tracking-[-0.01em]">Cobrar pedido con COMPAS</h3>
         <button type="button" onClick={onCancel} aria-label="Cancelar" className={`grid size-10 place-items-center rounded-full hover:bg-black/5 ${focusRing}`}>
           <CloseIcon className="size-6" />
         </button>
@@ -247,16 +247,16 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
           const amountIssue = showIssues && !parsed[index].amount.ok;
           const categoryIssue = showIssues && line.category === null;
           return (
-            <li key={index} className="space-y-3 rounded-lg border border-(--nb-line) p-3.5">
+            <li key={index} className="space-y-3 rounded-lg border border-(--pp-line) p-3.5">
               <div className="flex items-center justify-between">
                 <p className="text-[14px] font-semibold">
-                  {lines.length > 1 ? `Producto ${index + 1}` : "¿Qué está comprando el cliente?"}
+                  {lines.length > 1 ? `Producto ${index + 1}` : "¿Qué incluye el pedido?"}
                 </p>
                 {lines.length > 1 ? (
                   <button
                     type="button"
                     onClick={() => setLines((current) => current.filter((_, at) => at !== index))}
-                    className={`text-[13px] text-(--nb-muted) underline ${focusRing}`}
+                    className={`text-[13px] text-(--pp-muted) underline ${focusRing}`}
                   >
                     Quitar
                   </button>
@@ -268,7 +268,7 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
                   {COMPAS_CATEGORIES.map((category) => (
                     <label
                       key={category}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-(--nb-line) px-1 py-2.5 text-center has-checked:border-(--nb-plum) has-checked:bg-(--nb-card) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--nb-blue)"
+                      className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-(--pp-line) px-1 py-2.5 text-center has-checked:border-(--pp-ink) has-checked:bg-(--pp-chip) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--pp-blue)"
                     >
                       <input
                         type="radio"
@@ -282,13 +282,13 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
                     </label>
                   ))}
                 </div>
-                {categoryIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--nb-alert)">Elige una categoría.</p> : null}
+                {categoryIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--pp-alert)">Elige una categoría.</p> : null}
               </fieldset>
               <div>
                 <label htmlFor={`${baseId}-amount-${index}`} className="text-[13px] font-medium">
                   Monto
                 </label>
-                <div className="mt-1 flex items-center rounded-md border border-(--nb-line) focus-within:outline-2 focus-within:outline-(--nb-blue)">
+                <div className="mt-1 flex items-center rounded-xl border border-(--pp-line) focus-within:outline-2 focus-within:outline-(--pp-blue)">
                   <input
                     id={`${baseId}-amount-${index}`}
                     inputMode="decimal"
@@ -298,9 +298,9 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
                     aria-invalid={amountIssue ? true : undefined}
                     className="h-11 min-w-0 flex-1 bg-transparent px-3 text-[18px] font-semibold outline-none tabular-nums"
                   />
-                  <span className="pr-3 text-[13px] font-semibold text-(--nb-muted)">{CHARGE_ASSET.assetCode}</span>
+                  <span className="pr-3 text-[13px] font-semibold text-(--pp-muted)">{CHARGE_ASSET.assetCode}</span>
                 </div>
-                {amountIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--nb-alert)">Escribe un monto mayor que cero.</p> : null}
+                {amountIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--pp-alert)">Escribe un monto mayor que cero.</p> : null}
               </div>
             </li>
           );
@@ -312,18 +312,18 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
           <button
             type="button"
             onClick={() => setLines((current) => [...current, { category: null, amount: "" }])}
-            className={`text-[14px] font-semibold text-(--nb-blue) ${focusRing}`}
+            className={`text-[14px] font-semibold text-(--pp-blue) ${focusRing}`}
           >
             Agregar producto
           </button>
         ) : null}
-        <button type="button" onClick={fillFromScenario} className={`text-[14px] font-semibold text-(--nb-blue) ${focusRing}`}>
+        <button type="button" onClick={fillFromScenario} className={`text-[14px] font-semibold text-(--pp-blue) ${focusRing}`}>
           Usar ejemplo de la demo
         </button>
       </div>
 
-      <div className="flex items-baseline justify-between border-t border-(--nb-line) pt-3">
-        <span className="text-[14px] text-(--nb-muted)">Total del cobro</span>
+      <div className="flex items-baseline justify-between border-t border-(--pp-line) pt-3">
+        <span className="text-[14px] text-(--pp-muted)">Total del cobro</span>
         <span className="text-[24px] font-bold tabular-nums">
           {formatMoneyAmount({ ...CHARGE_ASSET, value: total.toString() })}
         </span>
@@ -332,9 +332,9 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
       <button
         type="button"
         onClick={generate}
-        className={`flex h-13 w-full items-center justify-center rounded-md bg-(--nb-plum) text-[16px] font-semibold text-white transition-opacity hover:opacity-90 active:opacity-80 ${focusRing}`}
+        className={`flex h-13 w-full items-center justify-center rounded-full bg-(--pp-ink) text-[16px] font-bold text-white transition-colors hover:bg-black ${focusRing}`}
       >
-        Generar cobro
+        Enviar cobro al cliente
       </button>
     </div>
   );

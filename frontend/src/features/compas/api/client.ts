@@ -7,6 +7,7 @@ import type {
   FieldError,
   HealthResponse,
   MandateView,
+  MerchantPayPalPaymentsResponse,
   MeResponse,
   ParticipantsResponse,
   PurchaseBody,
@@ -172,6 +173,12 @@ export const compasApi = {
     return ((await response.json()) as { job: AnalystJob }).job;
   },
   /** demo/test data: a merchant's analyst findings. The backend shows them without a merchant session in demo mode only. */
+  /** The merchant's COMPAS orders, each read live from the PayPal sandbox. */
+  merchantPayPalPayments: async (merchantId: string) => {
+    const response = await send(`/demo/merchants/${encodeURIComponent(merchantId)}/payments`, { method: "GET" });
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as MerchantPayPalPaymentsResponse;
+  },
   analystFindings: async (merchantId: string) => {
     const response = await send(`/analyst/findings?merchantId=${encodeURIComponent(merchantId)}`, { method: "GET" });
     if (!response.ok) throw await readError(response);

@@ -21,7 +21,7 @@
  * seeds it as CIIU 4724. One trust log holding both would be contradictory
  * verified evidence, which is REVIEW for every purchase.
  *
- * Merchant evidence comes from the simulated Nequi Negocios seed (demo/test data).
+ * Merchant evidence comes from the simulated wallet KYB seed (demo/test data).
  *
  * With DATABASE_URL, the mandate, the spending log and the observation log
  * are written to Postgres, and the mandate's remaining capacity is reserved
@@ -159,7 +159,7 @@ async function main(): Promise<void> {
   console.log(`pharmacy role: PayPal merchant ${merchantId} is seeded as CIIU 4773 (pharmacy)`);
   console.log("liquor role:   the same account, in a separate trust log, is seeded as CIIU 4724 (liquor store)");
   console.log(
-    `${pharmacyCategories.demoSubmissions + liquorCategories.demoSubmissions} simulated Nequi Negocios submissions (demo/test data), each through ingestCategoryClaim with an Ed25519 signature check`,
+    `${pharmacyCategories.demoSubmissions + liquorCategories.demoSubmissions} simulated wallet KYB submissions (demo/test data), each through ingestCategoryClaim with an Ed25519 signature check`,
   );
 
   const scenarios: Scenario[] = [];

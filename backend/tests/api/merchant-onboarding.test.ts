@@ -13,7 +13,7 @@ import { createDemoMerchantDirectory } from "../../src/integrations/merchants/de
 import { NotImplementedError } from "../../src/lib/not-implemented.ts";
 
 const MERCHANT = "demo-merchant-drogueria-central";
-const RETURN = "http://localhost:3000/nequi-negocios";
+const RETURN = "http://localhost:3000/paypal-business";
 
 function deps(overrides: Partial<MerchantOnboardingDeps> = {}) {
   const merchants = createDemoMerchantDirectory({});

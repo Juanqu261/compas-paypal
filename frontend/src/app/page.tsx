@@ -13,7 +13,7 @@ const steps = [
   },
   {
     who: "Andrea asks to pay.",
-    what: "At the counter, from Nequi. COMPAS checks the merchant and every item against the mandate’s purpose.",
+    what: "The online pharmacy sends the order’s charge to her Nequi. COMPAS checks the merchant and every item against the mandate’s purpose.",
   },
   {
     who: "Only an Allow reaches PayPal.",
@@ -123,7 +123,7 @@ export default function Home() {
 
         <footer className="border-t border-ink/15 py-8 text-sm text-ink-soft">
           <p className="max-w-[48rem]">
-            The PayPal app, Nequi and Nequi Negocios screens are simulations
+            The PayPal, PayPal Business and Nequi screens are simulations
             built for this demo, not integrations. Orders are approved in the
             PayPal sandbox. Amounts are demo/test data. Built for the PayPal
             Hackathon, Medellín 2026.

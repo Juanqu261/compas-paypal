@@ -13,6 +13,9 @@ import type { MandateRepository } from "../ports/mandate-repository.ts";
 import type { DirectoryParty, PartyDirectory } from "../ports/party-directory.ts";
 import type { SpendingLog } from "../ports/spending-log.ts";
 import { buildMandateActivity, type MandateActivity } from "./mandate-activity.ts";
+import { formatAmount, logger } from "../lib/log.ts";
+
+const log = logger("mandates");
 
 // ---------------------------------------------------------------------------
 // Limits and request shape
@@ -364,6 +367,7 @@ export class MandateService {
   }
 
   async #record(mandateId: string, type: string, actorId?: string, payload: Record<string, string> = {}): Promise<void> {
+    log.info(type, { mandateId, actor: actorId });
     await this.#deps.audit.append({
       id: `mandate-event-${this.#deps.newId?.() ?? randomUUID()}`,
       type,
@@ -440,6 +444,14 @@ export class MandateService {
     };
     // The only full write of a mandate: it is new, so no reservation exists yet.
     await this.#deps.mandates.save(mandate);
+    log.info("budget drafted", {
+      mandateId: id,
+      delegate: delegate.id,
+      budget: formatAmount(input.budget),
+      categories: input.categories.join(","),
+      enforcement: input.enforcement,
+      minimumConfidence: input.merchantConfidence.minimum,
+    });
     await this.#record(id, MANDATE_EVENTS.created, actor.partyId);
     return { ok: true, mandate: this.#view(mandate, "PAYER", "NOT_STARTED") };
   }

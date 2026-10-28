@@ -2,7 +2,7 @@
   "dataLabel": "demo/test data",
   "id": "alcohol-rejection",
   "title": "Liquor-store rejection",
-  "merchantSurface": "Nequi Negocios simulation",
+  "merchantSurface": "PayPal Business simulation",
   "notes": [
     "The same medication mandate must not pay for alcohol.",
     "Expected result: DENY / PURPOSE_MISMATCH, with no PayPal order. The merchant step adds MERCHANT_NOT_ELIGIBLE: the simulated KYB attestation is CIIU 4724.",

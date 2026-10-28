@@ -1,5 +1,8 @@
+import { elapsed, errorLabel, logger } from "../../lib/log.ts";
 import { PayPalGatewayError, toPayPalError } from "./errors.ts";
 import type { PayPalConfig } from "./config.ts";
+
+const log = logger("paypal");
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -61,11 +64,15 @@ export class PayPalRestClient {
       body: "grant_type=client_credentials",
     });
     const body = await this.#readJson("PayPal token", response);
-    if (!response.ok) throw toPayPalError("PayPal token", response.status, body);
+    if (!response.ok) {
+      log.error("access token refused", { status: response.status });
+      throw toPayPalError("PayPal token", response.status, body);
+    }
     const { access_token: value, expires_in: expiresIn } = body as { access_token?: unknown; expires_in?: unknown };
     if (typeof value !== "string" || typeof expiresIn !== "number") {
       throw new PayPalGatewayError("UPSTREAM", "PayPal token response has no access_token or expires_in");
     }
+    log.debug("access token renewed", { expiresInSeconds: expiresIn });
     return { value, expiresAt: this.#now() + expiresIn * 1000 - TOKEN_MARGIN_MS };
   }
 
@@ -106,13 +113,35 @@ export class PayPalRestClient {
       });
     };
 
-    let response = await call();
-    if (response.status === 401) {
-      this.#token = undefined;
+    const start = performance.now();
+    let response: Response;
+    let body: unknown;
+    try {
       response = await call();
+      if (response.status === 401) {
+        log.debug("access token rejected, renewing", { operation });
+        this.#token = undefined;
+        response = await call();
+      }
+      body = await this.#readJson(operation, response);
+    } catch (error) {
+      log.error(`${operation} failed`, { method, path, error: errorLabel(error), ms: elapsed(start) });
+      throw error;
     }
-    const body = await this.#readJson(operation, response);
-    if (!response.ok) throw toPayPalError(operation, response.status, body);
+    if (!response.ok) {
+      const error = toPayPalError(operation, response.status, body);
+      log.warn(`${operation} rejected`, {
+        method,
+        path,
+        status: response.status,
+        code: error.code,
+        issue: error.issue,
+        debugId: error.debugId,
+        ms: elapsed(start),
+      });
+      throw error;
+    }
+    log.info(operation, { method, path, status: response.status, ms: elapsed(start) });
     return body;
   }
 }

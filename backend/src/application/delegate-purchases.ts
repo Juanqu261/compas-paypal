@@ -29,6 +29,9 @@ import type { ErrandRepository } from "../ports/errand-repository.ts";
 import type { MerchantCatalogRepository } from "../ports/merchant-catalog.ts";
 import { checkErrand, type ErrandLine } from "../policy/errand-check.ts";
 import { resolveCatalogLine } from "./catalog-mappings.ts";
+import { logger } from "../lib/log.ts";
+
+const log = logger("purchases");
 
 // ---------------------------------------------------------------------------
 // Request
@@ -511,8 +514,16 @@ export class DelegatePurchaseService {
     const intentId = `intent-${createHash("sha256").update(`${actor.partyId}\n${request.idempotencyKey}`).digest("hex").slice(0, 32)}`;
     const fingerprint = JSON.stringify([request.mandateId, request.merchantId, request.amount, request.lines, request.errandId]);
 
+    log.info("purchase requested", {
+      intentId,
+      mandateId: request.mandateId,
+      merchant: request.merchantId,
+      lines: request.lines.length,
+      errand: request.errandId,
+    });
     const running = this.#attempts.get(intentId);
     if (running) {
+      log.debug("same idempotency key in flight, joining it", { intentId });
       if (running.fingerprint !== fingerprint) {
         return failure("IDEMPOTENCY_KEY_REUSED", "This key was already used for a different purchase.");
       }
@@ -541,7 +552,10 @@ export class DelegatePurchaseService {
     markReplayed: () => void,
   ): Promise<PurchaseResult<{ purchase: PurchaseView }>> {
     const prepared = await this.#prepare(actor, request);
-    if (!prepared.ok) return prepared;
+    if (!prepared.ok) {
+      log.warn("purchase refused before the policy ran", { intentId, code: prepared.code });
+      return prepared;
+    }
     const { mandate, merchant, errand, resolved } = prepared;
     const merchantView = { id: merchant.id, displayName: merchant.displayName };
 
@@ -556,6 +570,7 @@ export class DelegatePurchaseService {
         recorded.requestedAmount.assetCode === request.amount.assetCode;
       if (!same) return failure("IDEMPOTENCY_KEY_REUSED", "This key was already used for a different purchase.");
       markReplayed();
+      log.info("purchase replayed from the spending log", { intentId, decisionId: recorded.id });
       return { ok: true, purchase: purchaseView(recorded, merchantView) };
     }
 

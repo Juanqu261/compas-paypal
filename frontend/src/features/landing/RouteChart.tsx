@@ -162,7 +162,7 @@ function Chart({ layout, className }: { layout: ChartLayout; className: string }
         </text>
         <text x={labels.merchant.x} y={labels.merchant.y} textAnchor={labels.merchant.anchor}>
           <tspan className="font-display" fontSize="20">Pharmacy’s PayPal</tspan>
-          <tspan x={labels.merchant.x} dy="22" fontSize="14" fill="var(--color-ink-soft)">Nequi Negocios, simulated</tspan>
+          <tspan x={labels.merchant.x} dy="22" fontSize="14" fill="var(--color-ink-soft)">PayPal Business, simulated</tspan>
         </text>
         <text x={labels.compas.x} y={labels.compas.y}>
           <tspan className="font-display" fontSize="20">COMPAS</tspan>

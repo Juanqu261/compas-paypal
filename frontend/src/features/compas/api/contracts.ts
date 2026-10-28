@@ -233,6 +233,34 @@ export type DemoMerchantsResponse = {
   merchants: readonly DemoMerchant[];
 };
 
+export type PayPalOrderStatus = "CREATED" | "SAVED" | "APPROVED" | "VOIDED" | "COMPLETED" | "PAYER_ACTION_REQUIRED";
+export type PayPalCaptureStatus = "COMPLETED" | "DECLINED" | "PARTIALLY_REFUNDED" | "PENDING" | "REFUNDED" | "FAILED";
+
+/** One COMPAS order to the merchant, as the PayPal sandbox reports it now. */
+export type MerchantPayPalPayment = {
+  orderId: string;
+  compasState?: PaymentState;
+  recordedAt: string;
+  paypal:
+    | {
+        read: "OK";
+        orderStatus: PayPalOrderStatus;
+        payeeMerchantId?: string;
+        amount?: Money;
+        capture?: { id: string; status: PayPalCaptureStatus; amount?: Money };
+      }
+    | { read: "UNAVAILABLE"; error: string };
+};
+
+/** GET /demo/merchants/:id/payments. Real sandbox orders, read live from PayPal. */
+export type MerchantPayPalPaymentsResponse = {
+  environment: "sandbox";
+  /** The real PayPal sandbox page where the merchant's test account sees its activity. */
+  sandboxActivityUrl: string;
+  merchant: { id: string; displayName: string; paypalMerchantId: string };
+  payments: readonly MerchantPayPalPayment[];
+};
+
 // ---------------------------------------------------------------------------
 // The AI analyst (`contracts/merchant-onboarding/README.md`). Merchant data
 // only, never a payer, delegate or errand. A finding never decides a payment.

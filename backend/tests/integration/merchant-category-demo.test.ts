@@ -54,7 +54,7 @@ test("the demo seed walks the ladder through real signature checks", async () =>
   const pharmacy = await service.registry.resolve(DEMO_DROGUERIA_PAYPAL_ID);
   const medication = pharmacy.categories.find((resolved) => resolved.category === "MEDICATION");
   assert.equal(medication?.trustLevel, "PROVIDER_VERIFIED");
-  assert.deepEqual(medication?.sourceIds, ["nequi-negocios-sim/merchant", "nequi-negocios-sim/kyb"]);
+  assert.deepEqual(medication?.sourceIds, ["wallet-kyb-sim/merchant", "wallet-kyb-sim/kyb"]);
 });
 
 test("medication fixture: the merchant step passes; alcohol fixture: it denies", async () => {
@@ -138,7 +138,7 @@ test("the configured PayPal sandbox liquor store gets the liquor store's evidenc
 test("with the demo seed off there are no sources and no evidence", async () => {
   const service = await createMerchantCategoryService({ env: { MERCHANT_CATEGORY_DEMO_SEED: "false" }, ...quiet });
   assert.equal(service.demoSubmissions, 0);
-  assert.equal(await service.sources.getById("nequi-negocios-sim/kyb"), undefined);
+  assert.equal(await service.sources.getById("wallet-kyb-sim/kyb"), undefined);
   assert.deepEqual((await service.registry.resolve(DEMO_DROGUERIA_PAYPAL_ID)).categories, []);
 });
 

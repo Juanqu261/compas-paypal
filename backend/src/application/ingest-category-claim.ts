@@ -14,6 +14,9 @@ import {
   type ParsedSubmission,
   type RawSubject,
 } from "./category-claim-submission.ts";
+import { logger } from "../lib/log.ts";
+
+const log = logger("trust-log");
 
 export const INGESTION_ERROR_CODES = [
   "INVALID_SUBMISSION",
@@ -51,6 +54,8 @@ export type IngestCategoryClaimDeps = {
 };
 
 function reject(code: IngestionErrorCode, message: string): IngestionResult {
+  // The demo seed re-sends its submissions on every start: a reused id is routine there.
+  log[code === "SUBMISSION_ID_REUSED" ? "debug" : "warn"]("submission refused", { code });
   return { ok: false, code, message };
 }
 
@@ -140,6 +145,7 @@ export async function ingestCategoryClaim(
   const bodyDigest = createHash("sha256").update(input.body).digest("base64url");
   const existing = await deps.trustLog.findBySubmission(source.id, submission.submissionId);
   if (existing) {
+    if (existing.bodyDigest === bodyDigest) log.debug("submission already on the log", { source: source.id, entryId: existing.id });
     return existing.bodyDigest === bodyDigest
       ? { ok: true, entryId: existing.id, duplicate: true }
       : reject("SUBMISSION_ID_REUSED", "submissionId was already used with a different body");
@@ -163,6 +169,13 @@ export async function ingestCategoryClaim(
   if (appended.duplicate && appended.entry.bodyDigest !== bodyDigest) {
     return reject("SUBMISSION_ID_REUSED", "submissionId was already used with a different body");
   }
+  log[appended.duplicate ? "debug" : "info"](appended.duplicate ? "submission already on the log" : "entry appended", {
+    source: source.id,
+    type: submission.type,
+    merchant: "paypalMerchantId" in submission ? submission.paypalMerchantId : undefined,
+    category: "category" in submission ? String(submission.category) : undefined,
+    entryId: appended.entry.id,
+  });
   return { ok: true, entryId: appended.entry.id, duplicate: appended.duplicate };
 }
 

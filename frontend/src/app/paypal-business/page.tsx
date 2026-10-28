@@ -1,13 +1,13 @@
 import { loadDemoScenarios } from "@/demo/load-scenarios";
 import { DemoSessionProvider } from "@/features/demo/DemoSession";
-import { NequiBusinessExperience } from "@/features/nequi-business/NequiBusinessExperience";
+import { PayPalBusinessExperience } from "@/features/paypal-business/PayPalBusinessExperience";
 import { SurfaceStage } from "@/features/site/SurfaceStage";
 
-export default function NequiBusinessPage() {
+export default function PayPalBusinessPage() {
   return (
-    <SurfaceStage surface="nequi-negocios">
+    <SurfaceStage surface="paypal-business">
       <DemoSessionProvider scenarios={loadDemoScenarios()}>
-        <NequiBusinessExperience />
+        <PayPalBusinessExperience />
       </DemoSessionProvider>
     </SurfaceStage>
   );

@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { MerchantAnalysisResult } from "./run-merchant-analysis.ts";
+import { logger } from "../lib/log.ts";
+
+const log = logger("analyst");
 
 export const ANALYST_JOB_STATUSES = ["QUEUED", "RUNNING", "COMPLETED", "FAILED"] as const;
 export type AnalystJobStatus = (typeof ANALYST_JOB_STATUSES)[number];
@@ -54,15 +57,18 @@ export class AnalystJobQueue {
       createdAt: this.#now().toISOString(),
     };
     this.#jobs.set(job.id, job);
+    log.info("job queued", { jobId: job.id, merchantId });
     this.#tail = this.#tail.then(() => this.#execute(job));
     return { ...job };
   }
 
   async #execute(job: AnalystJob): Promise<void> {
     job.status = "RUNNING";
+    log.debug("job running", { jobId: job.id, merchantId: job.merchantId });
     try {
       job.result = await this.#run(job.merchantId);
       job.status = "COMPLETED";
+      log.info("job completed", { jobId: job.id, merchantId: job.merchantId, status: job.result.status });
     } catch (error) {
       job.status = "FAILED";
       job.error = error instanceof Error ? error.name : "Error";

@@ -9,6 +9,7 @@ Routes served by `server.ts`. Contracts are in `contracts/`. The browser never d
 | `POST /merchant-category-claims`, `GET /merchants/categories` | `merchant-categories.ts` | `merchant-categories/` |
 | `POST /demo/sessions`, `GET /me`, `/mandates…` | `demo-identity.ts`, `mandates.ts` | `mandates/` |
 | `GET /demo/merchants`, `POST /purchases`, `/purchases/preview` | `purchases.ts` | `purchases/` |
+| `GET /demo/merchants/:id/payments` | `merchant-payments.ts` | `purchases/` |
 | `POST /errands/drafts`, `POST /errands`, `GET /errands`, `POST /errands/:id/cancel` | `errands.ts` | `errands/` |
 | `GET /paypal/identity/start`, `/return`, `POST /demo/merchant-sessions`, `POST /merchant-onboarding/certificate` | `merchant-onboarding.ts` | `merchant-onboarding/` |
 | `POST /analyst/jobs`, `GET /analyst/findings`, `POST /analyst/findings/:id/response`, `POST /operator/findings/:id/withdraw` | `merchant-onboarding.ts` | `merchant-onboarding/` |

@@ -11,7 +11,7 @@ flowchart TB
   subgraph frontendApp ["frontend"]
     paypalApp["PayPal app simulation"]
     nequi["Nequi simulation"]
-    business["Nequi Negocios simulation"]
+    business["PayPal Business simulation"]
   end
 
   backendApp["backend"]
@@ -35,7 +35,7 @@ flowchart TB
   gateway -->|"order only after ALLOW, capture only after the payer approved"| paypal
 ```
 
-The PayPal app, Nequi, and Nequi Negocios screens are UX simulations inside the frontend. The PayPal REST API, in the sandbox, is the payment layer. COMPAS never sits in the path as a custodian.
+The PayPal app, Nequi, and PayPal Business screens are UX simulations inside the frontend. The PayPal Business screen's payments are not: the backend reads each COMPAS order to the merchant from the PayPal sandbox (`getOrder` only). The PayPal REST API, in the sandbox, is the payment layer. COMPAS never sits in the path as a custodian.
 
 ## Backend components
 
@@ -70,11 +70,11 @@ Ports:
 - `PurposeClassifier`
 - `AuditRepository`
 
-The PayPal adapter is real: `PayPalRestGateway` in `backend/src/integrations/paypal/`, on the sandbox only. It is used when `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set. Otherwise `UnimplementedPayPalGateway` throws. The merchant category service is real but in memory: `TrustLogMerchantRegistry` with `InMemoryTrustLog`, seeded with simulated Nequi Negocios evidence. Its RUES and health-registry feeds throw. The other adapters still throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
+The PayPal adapter is real: `PayPalRestGateway` in `backend/src/integrations/paypal/`, on the sandbox only. It is used when `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set. Otherwise `UnimplementedPayPalGateway` throws. The merchant category service is real but in memory: `TrustLogMerchantRegistry` with `InMemoryTrustLog`, seeded with simulated wallet KYB evidence. Its RUES and health-registry feeds throw. The other adapters still throw `NotImplementedError`. They do not return fake successes. Repository placeholders live in `backend/src/ports/unimplemented-repositories.ts` because there is no storage integration yet.
 
 Two functions guard money. `createPayPalOrderIfAllowed` in `backend/src/application/create-paypal-order-if-allowed.ts` returns before the gateway for `DENY` and `REVIEW`. `PayPalOrderSettlement` in `backend/src/application/settle-paypal-order.ts` is the only caller of `captureOrder`, and it checks the mandate and the order again first. See [ADR 0008](adr/0008-paypal-rail-per-order-approval.md).
 
-The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the PayPal return and cancel redirects `GET /paypal/orders/return` and `GET /paypal/orders/cancel`, the merchant category routes `POST /merchant-category-claims`, `GET /merchants/categories` and `GET /demo/merchants`, the mandate routes (demo sessions, `/me`, `/mandates…`) and the delegate's purchase routes `POST /purchases/preview` and `POST /purchases`. The PayPal redirects answer only with a redirect to the frontend, after the settlement captured or closed the order. `POST /purchases` runs `purchaseUnderMandate` and is off for demo sessions unless the operator sets `COMPAS_DEMO_PURCHASES=enabled`. Shapes are in `contracts/merchant-categories/`, `contracts/mandates/` and `contracts/purchases/`. Mandates are in Postgres with `DATABASE_URL`, in memory without it. The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
+The frontend does not import these modules. It calls the backend over HTTP, through the `/compas-api/*` rewrite in `frontend/next.config.ts`. Routes today: `GET /health`, the PayPal return and cancel redirects `GET /paypal/orders/return` and `GET /paypal/orders/cancel`, the merchant category routes `POST /merchant-category-claims`, `GET /merchants/categories` and `GET /demo/merchants`, the merchant's sandbox payments `GET /demo/merchants/:id/payments`, the mandate routes (demo sessions, `/me`, `/mandates…`) and the delegate's purchase routes `POST /purchases/preview` and `POST /purchases`. The PayPal redirects answer only with a redirect to the frontend, after the settlement captured or closed the order. `POST /purchases` runs `purchaseUnderMandate` and is off for demo sessions unless the operator sets `COMPAS_DEMO_PURCHASES=enabled`. Shapes are in `contracts/merchant-categories/`, `contracts/mandates/` and `contracts/purchases/`. Mandates are in Postgres with `DATABASE_URL`, in memory without it. The COMPAS experience is described in [plans/compas-experience.md](plans/compas-experience.md).
 
 ## Three surfaces, one frontend
 
@@ -84,7 +84,7 @@ flowchart TB
   session["DemoSessionProvider"]
   paypalApp["PayPalExperience"]
   nequi["NequiExperience"]
-  business["NequiBusinessExperience"]
+  business["PayPalBusinessExperience"]
   frame["PhoneFrame"]
 
   demo --> session
@@ -94,7 +94,7 @@ flowchart TB
   frame --> business
   paypalRoute["/paypal"] --> paypalApp
   nequiRoute["/nequi"] --> nequi
-  businessRoute["/nequi-negocios"] --> business
+  businessRoute["/paypal-business"] --> business
 ```
 
 `/demo` renders the three experiences inside `PhoneFrame` under one `DemoSessionProvider`, so a scenario change is visible on every phone. The standalone routes use the same components with their own provider. There are no iframes and no second implementation of a surface.

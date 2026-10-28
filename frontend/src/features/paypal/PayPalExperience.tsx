@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { readPayPalReturn } from "@/features/compas/demo-identities";
 import { PayPalCompasShell } from "./PayPalCompasShell";
 import { PayPalHome } from "./PayPalHome";
+import { paypalTheme } from "./paypal-theme";
 
 const noSubscription = () => () => {};
 
@@ -11,19 +12,6 @@ const noSubscription = () => () => {};
 function useLocationSearch(): string {
   return useSyncExternalStore(noSubscription, () => window.location.search, () => "");
 }
-
-/** PayPal app simulation palette, scoped to this surface. */
-const paypalTheme = {
-  "--pp-ink": "#001435",
-  "--pp-navy": "#002991",
-  "--pp-blue": "#0070E0",
-  "--pp-sky": "#60CDFF",
-  "--pp-chip": "#F1F2F4",
-  "--pp-chip-strong": "#E3E5E9",
-  "--pp-line": "#E8E9ED",
-  "--pp-muted": "#5E6271",
-  "--pp-green": "#0D8040",
-} as CSSProperties;
 
 type PayPalView = "home" | "compas";
 

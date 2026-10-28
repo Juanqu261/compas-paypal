@@ -58,6 +58,14 @@ import {
   isPurchaseApiPath,
   MAX_PURCHASE_BODY_BYTES,
 } from "./purchases.ts";
+import { handleMerchantPayments, merchantPaymentsId } from "./merchant-payments.ts";
+import { elapsed, logger } from "../lib/log.ts";
+
+const log = logger("server");
+const httpLog = logger("http");
+const app = logger("app");
+// The services' injected warning callback.
+const logWarning = (message: string) => app.warn(message);
 
 const port = Number(process.env.PORT?.trim() || 4000);
 const returnUrl =
@@ -66,26 +74,26 @@ const returnUrl =
 new URL(returnUrl);
 // Where a merchant's browser lands after Log in with PayPal.
 const merchantReturnUrl =
-  process.env.PAYPAL_IDENTITY_FRONTEND_RETURN_URL?.trim() || "http://localhost:3000/nequi-negocios";
+  process.env.PAYPAL_IDENTITY_FRONTEND_RETURN_URL?.trim() || "http://localhost:3000/paypal-business";
 new URL(merchantReturnUrl);
 
 // With DATABASE_URL, mandates, spending and the trust log live in Supabase Postgres (data/migrations/).
 const database = connectDatabase();
-console.log(database ? "Storage: Postgres (DATABASE_URL)." : "Storage: in memory. A restart loses every log.");
+log.info(database ? "Storage: Postgres (DATABASE_URL)." : "Storage: in memory. A restart loses every log.");
 
 // PayPal sandbox only. Without the app credentials every PayPal call throws.
 const paypal = createPayPalGateway();
 if (!paypal.configured) {
-  console.warn(`PayPal is not configured (missing ${paypal.missing.join(", ")}). PayPal calls will throw.`);
+  log.warn(`PayPal is not configured (missing ${paypal.missing.join(", ")}). PayPal calls will throw.`);
 }
 
 const merchantCategories = await createMerchantCategoryService({
-  logWarning: (message) => console.warn(message),
+  logWarning,
   ...(database ? { database } : {}),
 });
 if (merchantCategories.demoSubmissions > 0) {
-  console.log(
-    `Merchant categories: seeded ${merchantCategories.demoSubmissions} simulated Nequi Negocios submissions (demo/test data).`,
+  log.info(
+    `Merchant categories: seeded ${merchantCategories.demoSubmissions} simulated wallet KYB submissions (demo/test data).`,
   );
 }
 
@@ -93,7 +101,7 @@ if (merchantCategories.demoSubmissions > 0) {
 // tienda's history is seeded with the rest of the demo data.
 const merchantHistory = await createMerchantHistoryService(database ? { database } : {});
 if (merchantHistory.demoObservations > 0) {
-  console.log(
+  log.info(
     `Merchant history: seeded ${merchantHistory.demoObservations} observations for the demo tienda (demo/test data).`,
   );
 }
@@ -119,7 +127,7 @@ const settlement = new PayPalOrderSettlement({
   parties,
   history: merchantHistory,
   errands: errandRepository,
-  logWarning: (message) => console.warn(message),
+  logWarning,
 });
 
 const mandates = new MandateService({
@@ -129,7 +137,7 @@ const mandates = new MandateService({
   spending,
   acceptsAsset: paypalAcceptsAsset,
   ...(paypal.configured ? { settlement } : {}),
-  logWarning: (message) => console.warn(message),
+  logWarning,
 });
 // Purchases. The delegate's flow runs purchaseUnderMandate on the same
 // mandates and spending log as above, so the payer sees each attempt.
@@ -148,14 +156,14 @@ const analyst = await createAnalystLayer({
   mandates,
   demo: demoSeed,
   errands: errandRepository,
-  logWarning: (message) => console.warn(message),
+  logWarning,
 });
 if (analyst.elastic.missing.length > 0) {
-  console.warn(`Elastic is not fully configured (missing ${analyst.elastic.missing.join(", ")}). Analyst and errand-draft calls will throw.`);
+  log.warn(`Elastic is not fully configured (missing ${analyst.elastic.missing.join(", ")}). Analyst and errand-draft calls will throw.`);
 }
-console.log(`Analyst model: ${analyst.modelVendor === "claude" ? "Claude (Claude API)" : "Elastic Inference API"}.`);
+log.info(`Analyst model: ${analyst.modelVendor === "claude" ? "Claude (Claude API)" : "Elastic Inference API"}.`);
 if (analyst.demoCatalogItems > 0) {
-  console.log(`Merchant catalogs: seeded ${analyst.demoCatalogItems} demo SKUs (demo/test data). CUM mappings come from analyst runs.`);
+  log.info(`Merchant catalogs: seeded ${analyst.demoCatalogItems} demo SKUs (demo/test data). CUM mappings come from analyst runs.`);
 }
 const analystJobsMode = readAnalystJobsMode();
 const operatorToken = process.env.COMPAS_OPERATOR_TOKEN?.trim();
@@ -175,7 +183,7 @@ const purchases = new DelegatePurchaseService({
     : purchasesMode.enabled
       ? { allowed: true }
       : { allowed: false, code: "PURCHASES_DISABLED_FOR_DEMO", reason: purchasesMode.reason },
-  logWarning: (message) => console.warn(message),
+  logWarning,
 });
 
 const payerPinned = Boolean((await parties.getById(DEMO_PARTY_IDS.pedro))?.paypalPayerId);
@@ -187,10 +195,10 @@ const runtimeFacts: RuntimeFacts = {
   purchases: !paypal.configured ? "not_configured" : purchasesMode.enabled ? "enabled" : "disabled_for_demo",
 };
 if (paypal.configured && !purchasesMode.enabled) {
-  console.warn(`Purchases are off for demo sessions: ${purchasesMode.reason}`);
+  log.warn(`Purchases are off for demo sessions: ${purchasesMode.reason}`);
 }
 if (paypal.configured && !payerPinned) {
-  console.warn(
+  log.warn(
     "DEMO_PAYER_PAYPAL_ID is not set: COMPAS captures an order whichever PayPal account approved it.",
   );
 }
@@ -198,11 +206,11 @@ if (paypal.configured && !payerPinned) {
 const demoIdentityMode = readDemoIdentityMode();
 const demoIdentity = demoIdentityMode.enabled ? new DemoIdentityProvider({ parties }) : undefined;
 if (demoIdentityMode.enabled) {
-  console.warn(
+  log.warn(
     "Demo identities are enabled (demo/test data): any caller can act as Pedro, Andrea or Gladys. Not for real funds.",
   );
 } else {
-  console.warn(`Demo identities are disabled (${demoIdentityMode.reason}). Mandate routes answer 503.`);
+  log.warn(`Demo identities are disabled (${demoIdentityMode.reason}). Mandate routes answer 503.`);
 }
 
 function sendJson(response: ServerResponse, { status, body }: JsonResponse): void {
@@ -318,6 +326,19 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
+  // The path only: query strings carry PayPal tokens and OAuth codes.
+  const start = performance.now();
+  response.on("finish", () => {
+    const status = response.statusCode;
+    const fields = { status, ms: elapsed(start) };
+    const line = `${request.method} ${url.pathname}`;
+    if (status >= 500) httpLog.error(line, fields);
+    else if (status >= 400) httpLog.warn(line, fields);
+    // The frontend polls its reads every few seconds: those show with LOG_LEVEL=debug.
+    else if (request.method === "GET" && status < 300) httpLog.debug(line, fields);
+    else httpLog.info(line, fields);
+  });
+
   if (request.method === "GET" && url.pathname === "/health") {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(
@@ -343,9 +364,9 @@ const server = createServer(async (request, response) => {
     const { location, result } = await handlePayPalReturn(url, {
       settlement,
       returnUrl,
-      logError: (message) => console.error(message),
+      logError: (message) => httpLog.error(message),
     });
-    console.log(`PayPal ${url.pathname.endsWith("cancel") ? "cancel" : "return"}: ${result}`);
+    log.info(`PayPal ${url.pathname.endsWith("cancel") ? "cancel" : "return"}: ${result}`);
     response.writeHead(302, { location });
     response.end();
     return;
@@ -359,12 +380,32 @@ const server = createServer(async (request, response) => {
         return;
       }
     } catch (error) {
-      console.error(
+      httpLog.error(
         `Merchant category request failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       sendJson(response, { status: 500, body: { error: "internal_error" } });
       return;
     }
+  }
+
+  const paymentsMerchantId = request.method === "GET" ? merchantPaymentsId(url.pathname) : undefined;
+  if (paymentsMerchantId) {
+    try {
+      sendJson(
+        response,
+        await handleMerchantPayments(paymentsMerchantId, {
+          enabled: Boolean(demoIdentity),
+          paypalConfigured: paypal.configured,
+          merchants: merchantDirectory,
+          spending,
+          payments: paypal.gateway,
+        }),
+      );
+    } catch (error) {
+      httpLog.error(`Merchant payments request failed: ${error instanceof Error ? error.name : "error"}`);
+      sendJson(response, { status: 500, body: { error: "internal_error" } });
+    }
+    return;
   }
 
   if (request.method === "GET" && url.pathname === DEMO_MERCHANTS_PATH) {
@@ -379,7 +420,7 @@ const server = createServer(async (request, response) => {
         }),
       );
     } catch (error) {
-      console.error(`Demo merchant request failed: ${error instanceof Error ? error.message : String(error)}`);
+      httpLog.error(`Demo merchant request failed: ${error instanceof Error ? error.message : String(error)}`);
       sendJson(response, { status: 500, body: { error: "internal_error" } });
     }
     return;
@@ -428,7 +469,7 @@ const server = createServer(async (request, response) => {
         sendJson(response, result);
       }
     } catch (error) {
-      console.error(`Merchant onboarding request failed: ${error instanceof Error ? error.name : "error"}`);
+      httpLog.error(`Merchant onboarding request failed: ${error instanceof Error ? error.name : "error"}`);
       sendJson(response, { status: 500, body: { error: "internal_error" } });
     }
     return;
@@ -443,7 +484,7 @@ const server = createServer(async (request, response) => {
     try {
       sendJson(response, await routeMandates(request, url));
     } catch (error) {
-      console.error(`Mandate request failed: ${error instanceof Error ? error.message : String(error)}`);
+      httpLog.error(`Mandate request failed: ${error instanceof Error ? error.message : String(error)}`);
       sendJson(response, { status: 500, body: { error: "internal_error" } });
     }
     return;
@@ -454,5 +495,5 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, () => {
-  console.log(`COMPAS backend listening on ${port}`);
+  log.info(`COMPAS backend listening on ${port}`);
 });

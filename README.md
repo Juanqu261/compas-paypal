@@ -20,13 +20,13 @@ Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicin
 
 | Path | What |
 | --- | --- |
-| `frontend/` | Next.js demo: `/demo`, `/paypal` (Pedro), `/nequi` (Andrea), `/nequi-negocios` (pharmacy) |
+| `frontend/` | Next.js demo: `/demo`, `/paypal` (Pedro), `/nequi` (Andrea), `/paypal-business` (online pharmacy) |
 | `backend/` | Domain, policy, PayPal, analyst, HTTP API. See [backend/README.md](backend/README.md) |
 | `contracts/` | API contracts shared by frontend and backend |
 | `data/` | Seeds, demo fixtures, Postgres migrations |
 | `docs/` | Product, architecture, ADRs |
 
-The PayPal app, Nequi and Nequi Negocios screens are simulations. The PayPal orders are real sandbox orders.
+The PayPal, PayPal Business and Nequi screens are simulations. The PayPal orders are real sandbox orders.
 
 ## Run
 

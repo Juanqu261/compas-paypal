@@ -151,7 +151,7 @@ test("trust log: idempotent append and every lookup the resolver uses", { skip }
   const run = randomUUID();
   const merchant = freshMerchantId();
   const subjectRef = HMAC_LIKE(run);
-  const base = { sourceId: "nequi-negocios-sim/kyb", bodyDigest: "digest", recordedAt: "2026-10-16T12:00:00.000Z" };
+  const base = { sourceId: "wallet-kyb-sim/kyb", bodyDigest: "digest", recordedAt: "2026-10-16T12:00:00.000Z" };
   const claim: TrustLogEntry = {
     ...base,
     id: `${run}-1`,

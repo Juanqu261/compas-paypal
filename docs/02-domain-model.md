@@ -65,7 +65,7 @@ History never changes a trust level, and it never lifts a category to `HIGH` on 
 
 Observations of paid purchases and payer verdicts live in their own append-only log. They hold categories and HMAC refs only, never line descriptions, product names, amounts or party ids.
 
-Every source in the MVP is simulated. The backend seeds a Nequi Negocios simulation for the demo wallets in `data/fixtures/demo/`, labeled `demo/test data`, plus a *tienda* with fabricated confirmed history. The Cámara de Comercio registry lookup and the health-registry feed throw.
+Every source in the MVP is simulated. The backend seeds a simulated wallet KYB provider (`wallet-kyb-sim/*`) for the demo merchants in `data/fixtures/demo/`, labeled `demo/test data`, plus a *tienda* with fabricated confirmed history. The Cámara de Comercio registry lookup and the health-registry feed throw.
 
 A later mixed basket can mark lines independently. Acetaminophen and losartan can be `MEDICATION` while shampoo is `PERSONAL_CARE`. A future rule could fund only the eligible subtotal. Split tender is not implemented.
 

@@ -25,4 +25,6 @@ export interface SpendingLog {
   ): Promise<SpendingRecord | undefined>;
   findByPayPalOrderId(orderId: string): Promise<SpendingRecord | undefined>;
   listByMandate(mandateId: string): Promise<readonly SpendingRecord[]>;
+  /** The merchant's attempts that reached PayPal (an order exists), newest first, at most `limit`. */
+  listOrdersByMerchant(paypalMerchantId: string, limit: number): Promise<readonly SpendingRecord[]>;
 }

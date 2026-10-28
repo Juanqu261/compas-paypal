@@ -35,6 +35,6 @@ Checked against the sandbox REST API on 2026-10-26:
 - Every purchase needs Pedro at PayPal before the pharmacy is paid. The demo shows that step in the simulated PayPal app ("Aprobar en PayPal"); the approval opens in a new tab so the shared demo state survives.
 - An unapproved order holds its reservation until Pedro cancels it, PayPal expires it, or the next activity read reconciles it.
 - When PayPal enables Vault for the app, a payer-absent charge for all-green purchases can be added beside the approval path. All-green would also need the errand check of the idea doc, which is not built.
-- `PROVIDER_VERIFIED` evidence still comes from the simulated Nequi Negocios source. PayPal signs no category attestations, so on a real PayPal deployment that tier is empty and `HIGH` needs the Cámara binding the idea doc describes. That binding is not built.
+- `PROVIDER_VERIFIED` evidence still comes from a simulated wallet KYB source (`wallet-kyb-sim/*`). PayPal signs no category attestations, so on a real PayPal deployment that tier is empty and `HIGH` needs the Cámara binding the idea doc describes. That binding is not built.
 - PayPal converts the payer's funding currency itself. COMPAS orders in the budget's currency and does not convert: a budget in a currency PayPal doesn't take, such as COP, is refused.
 - Refunds and disputes are not handled. There are no webhooks yet.

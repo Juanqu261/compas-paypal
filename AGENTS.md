@@ -22,7 +22,7 @@ COMPAS is not a wallet, a bank, a payment rail, a custody account, a token, a bl
 
 Demo story: Pedro is the payer. He pays with his PayPal, in USD, and wants up to USD 40 available for medication for his grandmother Gladys. Gladys is the beneficiary and does not manage a wallet. Andrea is the delegate. She lives with Gladys and must not receive the USD 40 as unrestricted money. A pharmacy purchase for `MEDICATION` is the allowed story: it becomes a PayPal order that Pedro approves. An alcohol purchase against the same mandate is rejected before any PayPal order exists.
 
-The PayPal app (Pedro), Nequi (Andrea) and Nequi Negocios (the pharmacy) are simulated embedding surfaces, not production integrations. Only the PayPal app's screens are simulated: Pedro approves each order at the real PayPal sandbox. The PayPal accounts are sandbox accounts.
+The PayPal app (Pedro), Nequi (Andrea) and the PayPal Business app (the pharmacy, an online business that takes PayPal) are simulated embedding surfaces, not production integrations. Only their screens are simulated: Pedro approves each order at the real PayPal sandbox, and the pharmacy is paid in its own PayPal sandbox business account. The pharmacy's screen shows that account's real COMPAS payments, each order read live from PayPal (`GET /demo/merchants/:id/payments`), and opens the sandbox site, where the merchant test account sees the money arrive. The PayPal accounts are sandbox test accounts: one personal account for the payer, one business account for the merchant.
 
 The same mandate can later describe a business, NGO, or government allocation. The demo implements the family story only. COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail. It does not solve corruption.
 
@@ -30,7 +30,7 @@ Terms:
 
 - A purpose category such as `MEDICATION` is a COMPAS concept, never a PayPal concept.
 - A merchant is named by its PayPal merchant id (`payee.merchant_id`), never by a URL the browser sends.
-- A `PROVIDER_VERIFIED` claim is a wallet's signed attestation about its own merchant. PayPal signs none: in the demo, the simulated Nequi Negocios source fills that tier.
+- A `PROVIDER_VERIFIED` claim is a wallet's signed attestation about its own merchant. PayPal signs none: in the demo, a simulated wallet KYB provider (`wallet-kyb-sim/*`, `demo/test data`) fills that tier. It is not PayPal and must never be presented as PayPal.
 - An `EXTERNAL_VERIFIED` claim comes from a registry check, such as RUES at the Cámara de Comercio. On PayPal it needs the Cámara binding: the certificate's email equals the PayPal account's, proven by Log in with PayPal. In the demo the Cámara is a fixture (`camara-fixture`, `demo/test data`).
 - **CUM** (INVIMA's medicine code) is the only product registry, because this MVP covers medicine only. Another category may need another registry with its own codes and verifier (ADR 0009). Don't generalize the code until a second category is asked for.
 - A **pointer** from the AI analyst ("SKU x is CUM y") counts only once a deterministic verifier re-reads it from the source. A **judgment** can only flag. See ADR 0009.
@@ -48,7 +48,7 @@ Terms:
 - Purpose categories belong to COMPAS.
 - PayPal must never be faked. An unimplemented or unconfigured gateway throws.
 - COMPAS talks to the PayPal sandbox only.
-- The PayPal app, Nequi, and Nequi Negocios surfaces are simulations. The order approval is not: it happens at the PayPal sandbox.
+- The PayPal app, Nequi, and PayPal Business surfaces are simulations. The order approval is not: it happens at the PayPal sandbox. The merchant's payments list is not either: it is read from the PayPal sandbox, and a failed read shows as unavailable, never as a guessed state.
 - The frontend and the backend do not import each other's source. Shared contracts belong in `contracts/`.
 
 ## Design decisions (do not re-litigate)
@@ -68,7 +68,7 @@ Terms:
 
 The repository is a product monorepo. The root is documentation and agent context. It is not an application and it has no workspace orchestrator.
 
-- `frontend/` is one Next.js app. `/paypal`, `/nequi`, `/nequi-negocios`, and `/demo` are simulated wallet surfaces. `/demo` shows the three experiences in phone frames under one session. They are not separate apps.
+- `frontend/` is one Next.js app. `/paypal`, `/nequi`, `/paypal-business`, and `/demo` are simulated wallet surfaces. `/demo` shows the three experiences in phone frames under one session. They are not separate apps.
 - `backend/` owns the domain, policy gate, PayPal port, settlement, merchant registry, purpose classifier, audit, and the HTTP API. Ports live in `backend/src/ports/`, adapters in `backend/src/integrations/`.
 - `data/` holds fixtures, seeds, and the Postgres schema and migrations.
 - `contracts/` is where a shared API or event schema goes. There is no shared TypeScript package.
@@ -135,7 +135,7 @@ There is no root `package.json`. Domain and policy tests live in `backend/tests`
 
 `frontend/AGENTS.md` is the Next.js agent note. `next dev` writes it, so leave it in place.
 
-The PayPal app, Nequi and Nequi Negocios simulations imitate the real apps, without their logos. COMPAS's own screens have their own look.
+The PayPal app, Nequi and PayPal Business simulations imitate the real apps, without their logos. COMPAS's own screens have their own look.
 
 Demo fixtures are labeled `demo/test data`. An unimplemented integration throws. It does not return a fake success. Do not claim a simulated provider integration is real.
 
@@ -162,7 +162,7 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 ## Pitch guardrails
 
 - Say plainly that purpose enforcement and the budget are COMPAS's job. PayPal enforces the payer's consent: Pedro approves every payment at PayPal.
-- The PayPal app screens, Nequi and Nequi Negocios are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
+- The PayPal and PayPal Business app screens and Nequi are simulations, and the PayPal accounts are sandbox accounts. No production PayPal integration is implied.
 - The demo is in USD. COMPAS does not convert, and PayPal takes no COP. Any COP figure is labeled `demo/test data`.
 - Don't claim fraud that isn't documented, such as bonus resale. Do cite the documented problems in `docs/10-reference.md`.
 

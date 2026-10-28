@@ -1,6 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { FetchLike } from "../../lib/fetch-like.ts";
 import { type AnalystModel, AnalystModelError, type AnalystTool } from "../../ports/analyst-model.ts";
+import { elapsed, errorLabel, logger } from "../../lib/log.ts";
+
+const log = logger("claude");
 
 export const DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5";
 const MAX_TOKENS = 16_000;
@@ -28,6 +31,7 @@ export class ClaudeAnalystModel implements AnalystModel {
   }
 
   async callTool(input: { system: string; user: string; tool: AnalystTool }): Promise<unknown> {
+    const start = performance.now();
     const response = await this.#client.messages.create({
       model: this.#model,
       max_tokens: MAX_TOKENS,
@@ -37,6 +41,16 @@ export class ClaudeAnalystModel implements AnalystModel {
       ].join("\n"),
       messages: [{ role: "user", content: input.user }],
       output_config: { effort: "medium", format: { type: "json_schema", schema: outputSchema(input.tool.parameters) } },
+    }).catch((error: unknown) => {
+      log.error(`${input.tool.name} failed`, { model: this.#model, error: errorLabel(error), ms: elapsed(start) });
+      throw error;
+    });
+    log.info(input.tool.name, {
+      model: this.#model,
+      stop: response.stop_reason,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      ms: elapsed(start),
     });
 
     if (response.stop_reason === "refusal") throw new AnalystModelError("Claude declined to answer.");

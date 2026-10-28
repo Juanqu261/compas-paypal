@@ -5,6 +5,9 @@ import type {
 } from "../ports/merchant-account-verifications.ts";
 import type { MerchantDirectory } from "../ports/merchant-directory.ts";
 import type { PayPalIdentityGateway } from "../ports/paypal-identity.ts";
+import { logger } from "../lib/log.ts";
+
+const log = logger("merchant-login");
 
 export const LOGIN_STATE_TTL_MS = 10 * 60 * 1000;
 export const MERCHANT_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -57,6 +60,7 @@ export class MerchantIdentityService {
     if (!(await this.#merchants.getById(merchantId))) return undefined;
     const state = this.#newToken();
     this.#states.set(state, { merchantId, expiresAt: this.#now().getTime() + LOGIN_STATE_TTL_MS });
+    log.info("Log in with PayPal started", { merchantId });
     return this.#paypal.authorizeUrl(state);
   }
 
@@ -65,6 +69,7 @@ export class MerchantIdentityService {
     // Single use, whatever happens next.
     this.#states.delete(state);
     if (!pending || this.#now().getTime() >= pending.expiresAt) {
+      log.warn("login returned with an unknown or expired state");
       return { ok: false, code: "INVALID_STATE", message: "The login expired or was already used. Start again." };
     }
     const merchant = await this.#merchants.getById(pending.merchantId);
@@ -72,6 +77,7 @@ export class MerchantIdentityService {
 
     const identity = await this.#paypal.exchange(code);
     if (identity.payerId !== merchant.paypalMerchantId) {
+      log.warn("login with another PayPal account than the merchant's", { merchantId: merchant.id });
       return {
         ok: false,
         code: "ACCOUNT_MISMATCH",
@@ -86,6 +92,11 @@ export class MerchantIdentityService {
       verifiedAt: this.#now().toISOString(),
     };
     await this.#verifications.put(verification);
+    log.info("merchant PayPal account verified", {
+      merchantId: merchant.id,
+      emailConfirmed: identity.emailConfirmed,
+      verifiedAccount: identity.verifiedAccount,
+    });
     const actor: MerchantActor = { merchantId: merchant.id, paypalMerchantId: merchant.paypalMerchantId, proof: "PAYPAL_LOGIN" };
     return { ok: true, token: this.#startSession(actor), actor };
   }

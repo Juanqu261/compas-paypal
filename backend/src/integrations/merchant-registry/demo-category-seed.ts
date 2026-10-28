@@ -13,9 +13,9 @@ import type {
 export const DEMO_DROGUERIA_PAYPAL_ID = "DEMPHARMACY22";
 export const DEMO_LIQUOR_PAYPAL_ID = "DEMLAGERBAR22";
 
-export const DEMO_KEY_REF = "nequi-negocios-sim";
-const MERCHANT_SOURCE = "nequi-negocios-sim/merchant";
-const KYB_SOURCE = "nequi-negocios-sim/kyb";
+export const DEMO_KEY_REF = "wallet-kyb-sim";
+const MERCHANT_SOURCE = "wallet-kyb-sim/merchant";
+const KYB_SOURCE = "wallet-kyb-sim/kyb";
 
 export type DemoSigningKey = { publicKeyJwk: JsonWebKey; privateKey: KeyObject };
 

@@ -10,7 +10,6 @@ import {
   PiggyIcon,
   SendIcon,
   SmileIcon,
-  StoreIcon,
 } from "./NequiIcons";
 
 const hideScrollbar = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
@@ -176,14 +175,6 @@ export function NequiHomeSections({
           </button>
         }
       >
-        <Tile
-          label="App Nequi Negocios"
-          icon={
-            <span className="grid size-14 place-items-center rounded-lg bg-(--nequi-sky) text-white">
-              <StoreIcon className="size-9" />
-            </span>
-          }
-        />
         <Tile label="Tarjeta" icon={<PhoneCardIcon className="size-11" />} />
         <Tile label="Créditos" icon={<SmileIcon className="size-11" />} />
         <Tile

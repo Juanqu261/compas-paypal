@@ -2,9 +2,9 @@
  * The site's routes in story order. Navigation slides forward or back along
  * this order: home, demo, then the payer, delegate and merchant surfaces.
  */
-export const storyOrder = ["/", "/demo", "/paypal", "/nequi", "/nequi-negocios"];
+export const storyOrder = ["/", "/demo", "/paypal", "/nequi", "/paypal-business"];
 
-export type SurfaceId = "paypal" | "nequi" | "nequi-negocios";
+export type SurfaceId = "paypal" | "nequi" | "paypal-business";
 
 export type Surface = {
   id: SurfaceId;
@@ -39,19 +39,20 @@ export const surfaces: readonly Surface[] = [
     role: "Delegate",
     app: "Nequi",
     summary:
-      "Andrea pays at the counter for Gladys. She can cause a payment that fits the mandate, but she never receives the funds.",
+      "Andrea orders Gladys’s medication from an online pharmacy and reviews the charge in Nequi. She can cause a payment that fits the mandate, but she never receives the funds.",
     simulation: "Nequi here is a simulation for the COMPAS demo, not an integration.",
   },
   {
-    id: "nequi-negocios",
-    href: "/nequi-negocios",
+    id: "paypal-business",
+    href: "/paypal-business",
     step: 3,
     person: "Droguería Central",
     role: "Merchant",
-    app: "Nequi Negocios",
+    app: "PayPal Business",
     summary:
-      "The pharmacy collects as it always does. Once COMPAS allows the purchase and Pedro approves it, the payment arrives straight from Pedro’s PayPal.",
-    simulation: "Nequi Negocios here is a simulation for the COMPAS demo, not an integration.",
+      "An online pharmacy that already takes PayPal. It charges the order with COMPAS. Once COMPAS allows the purchase and Pedro approves it, the payment arrives straight from Pedro’s PayPal to the pharmacy’s.",
+    simulation:
+      "The PayPal Business look is a simulation, not the official app. The account and its COMPAS payments are real PayPal sandbox data: a test business account, read live from PayPal, with a link into the sandbox itself.",
   },
 ];
 

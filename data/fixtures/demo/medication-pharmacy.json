@@ -2,10 +2,10 @@
   "dataLabel": "demo/test data",
   "id": "medication-pharmacy",
   "title": "Pharmacy medication purchase",
-  "merchantSurface": "Nequi Negocios simulation",
+  "merchantSurface": "PayPal Business simulation",
   "notes": [
     "Expected ALLOW is the story outcome once eligible evidence exists. It is not a decision this scaffold computed.",
-    "The intent carries no category evidence. COMPAS resolves it from the merchant's PayPal merchant id. The backend seeds a simulated Nequi Negocios self-declaration and KYB attestation (CIIU 4773) for this merchant.",
+    "The intent carries no category evidence. COMPAS resolves it from the merchant's PayPal merchant id. The backend seeds a simulated self-declaration and wallet KYB attestation (CIIU 4773) for this merchant.",
     "Droguería Central is simulated. Its PayPal merchant id has PayPal's format but names no PayPal account, so PayPal would refuse an order to it.",
     "The charge is in USD, the budget's asset. On ALLOW, COMPAS creates one PayPal order for exactly this amount, and Pedro approves it at PayPal. COMPAS does not convert currencies."
   ],

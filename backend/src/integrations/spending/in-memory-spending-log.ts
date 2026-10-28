@@ -49,4 +49,12 @@ export class InMemorySpendingLog implements SpendingLog {
       .filter((record) => record.mandateId === mandateId)
       .map((record) => structuredClone(record));
   }
+
+  async listOrdersByMerchant(paypalMerchantId: string, limit: number): Promise<readonly SpendingRecord[]> {
+    return [...this.#records.values()]
+      .filter((record) => record.paypalMerchantId === paypalMerchantId && record.paypal.orderId)
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt) || b.id.localeCompare(a.id))
+      .slice(0, limit)
+      .map((record) => structuredClone(record));
+  }
 }

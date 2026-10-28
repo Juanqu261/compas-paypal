@@ -15,7 +15,7 @@ A submission has no `trustLevel` field, and one that includes it is refused. The
 ```json
 {
   "schemaVersion": "1",
-  "sourceId": "nequi-negocios-sim/kyb",
+  "sourceId": "wallet-kyb-sim/kyb",
   "submissionId": "demo-kyb-drogueria-central",
   "type": "CATEGORY_CLAIM",
   "subject": { "kind": "PAYPAL_MERCHANT", "paypalMerchantId": "DEMPHARMACY22" },
@@ -42,15 +42,15 @@ Entry types: `CATEGORY_CLAIM`, `LICENSE_CLAIM`, `IDENTITY_BINDING` (PayPal merch
 
 `GET /merchants/categories?paypalMerchantId=<PayPal merchant id>`
 
-For the Nequi Negocios simulation and the demo screen. It returns COMPAS categories, trust levels and source ids. It never returns subject refs, NITs or trust-log entry ids. This is a view, not a policy decision.
+For the PayPal Business simulation and the demo screen. It returns COMPAS categories, trust levels and source ids. It never returns subject refs, NITs or trust-log entry ids. This is a view, not a policy decision.
 
 ```json
 {
   "dataLabel": "demo/test data",
   "paypalMerchantId": "DEMPHARMACY22",
   "categories": [
-    { "category": "MEDICATION", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/merchant", "nequi-negocios-sim/kyb"], "simulated": true },
-    { "category": "PERSONAL_CARE", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["nequi-negocios-sim/kyb"], "simulated": true }
+    { "category": "MEDICATION", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["wallet-kyb-sim/merchant", "wallet-kyb-sim/kyb"], "simulated": true },
+    { "category": "PERSONAL_CARE", "trustLevel": "PROVIDER_VERIFIED", "sourceIds": ["wallet-kyb-sim/kyb"], "simulated": true }
   ],
   "declarations": [
     { "category": "MEDICATION", "corroboration": "PROVIDER_VERIFIED" }
@@ -65,7 +65,7 @@ For the Nequi Negocios simulation and the demo screen. It returns COMPAS categor
 
 `declarations` lists the categories the merchant declared itself and how independent evidence bears on each (`CONTRADICTED`, `UNCORROBORATED`, `REGISTRY_UNBOUND`, `PROVIDER_VERIFIED`, `EXTERNAL_VERIFIED`). Only a declared category can make a merchant eligible. The confidence also depends on purchase history, so it is computed at decision time and not shown here. See `docs/adr/0007-merchant-confidence-matrix.md`.
 
-`dataLabel` appears when any evidence comes from a simulated source. `simulated: true` marks a category backed by a simulated source. The UI must label it "simulated Nequi Negocios provider attestation", not a real Nequi signal.
+`dataLabel` appears when any evidence comes from a simulated source. `simulated: true` marks a category backed by a simulated source. The UI must label it "simulated wallet KYB attestation", never a PayPal or other real provider signal.
 
 A missing or malformed `paypalMerchantId` returns `400 { "error": "INVALID_PAYPAL_MERCHANT_ID" }`. It is normalized first: trimmed and upper-cased.
 
@@ -83,7 +83,7 @@ demo/test data. The merchants a purchase may name (`contracts/purchases/README.m
 }
 ```
 
-`categorySources: "NONE_REGISTERED"` means no evidence source that can support a category is registered, so every merchant has no category. That is the state with `MERCHANT_CATEGORY_DEMO_SEED=false`: the demo sources (`nequi-negocios-sim/*`, `camara-fixture`) are registered only with the seed on. COMPAS's own sources (`compas-analyst`, `compas-onboarding/merchant`) are always registered and can only flag or bind.
+`categorySources: "NONE_REGISTERED"` means no evidence source that can support a category is registered, so every merchant has no category. That is the state with `MERCHANT_CATEGORY_DEMO_SEED=false`: the demo sources (`wallet-kyb-sim/*`, `camara-fixture`) are registered only with the seed on. COMPAS's own sources (`compas-analyst`, `compas-onboarding/merchant`) are always registered and can only flag or bind.
 
 The demo merchants are Droguería Central, the liquor store and the lookalike Droguería Centrall (`DEMCENTRALL22`, self-declared `MEDICATION`, never a PayPal account).
 
