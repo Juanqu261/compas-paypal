@@ -157,7 +157,8 @@ function FlagCard({ flag, model }: { flag: StandingFlag; model: string }) {
 export function AnalystAct() {
   const [merchantId, setMerchantId] = useState<string>(PHARMACIES[0].id);
   const [runs, setRuns] = useState<Record<string, Run>>({});
-  const [now, setNow] = useState(() => Date.now());
+  // Read in the browser only: the page is prerendered, and a clock read at build time fails it.
+  const [now, setNow] = useState(0);
   const shared = useResource(`analyst-latest:${merchantId}`, () => compasApi.analystLatestRun(merchantId));
   const runStatus = shared.resource.status === "ready" ? shared.resource.data : undefined;
   const run = runs[merchantId];
@@ -196,8 +197,13 @@ export function AnalystAct() {
 
   // The button re-enables itself when the cooldown passes.
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), CLOCK_MS);
-    return () => clearInterval(timer);
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, CLOCK_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
   }, []);
 
   const start = () => {

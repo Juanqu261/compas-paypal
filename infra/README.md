@@ -11,7 +11,7 @@ Why the demo can be public, and what limits it: [ADR 0012](../docs/adr/0012-publ
 ## Deploy
 
 1. In Render: **New → Blueprint**, pick this repository. Render reads `render.yaml` and creates `compas-backend` and `compas-frontend`.
-2. Enter the `sync: false` values. Each service gets an address like `https://compas-backend.onrender.com`, shown in its dashboard; use the real ones.
+2. Render asks for every `sync: false` value while it creates the Blueprint. The URLs below depend on the services' addresses, which exist only after that. Enter the secrets now, and for the URLs use the expected addresses `https://compas-backend.onrender.com` and `https://compas-frontend.onrender.com`. Once both services exist, compare those with the addresses shown in each dashboard; Render adds a suffix when a name is taken. Fix any that differ under the service's Environment tab.
 
    | Service | Variable | Value |
    | --- | --- | --- |
