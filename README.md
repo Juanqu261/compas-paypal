@@ -45,12 +45,21 @@ cd frontend && npm install && npm run dev    # demo on http://localhost:3000
 
 Configuration goes in `backend/.env`, starting from `backend/.env.example`.
 
-## Test
+### Connect your own AI agent
+
+Any MCP client can shop for Andrea, locally. With Claude Code:
 
 ```bash
-cd backend && npm run typecheck && npm test
-cd frontend && npm run typecheck && npm test
+claude mcp add --transport http compas http://localhost:4000/mcp
 ```
+
+1. Open `/demo` and give Andrea an errand: run Act 3 once, or set up a budget and an errand in Act 2. Choose the sandbox accounts in Act 2 if the agent should create a PayPal order.
+2. Sign the client in (in Claude Code: `/mcp`, then `compas`, then Authenticate). It opens `/agents/authorize` in your default browser. Use the browser where `/demo` is open, because the consent screen acts as that demo's Andrea and lists her open errands.
+3. Andrea picks the errands the agent may use. Then ask the agent to buy one, for example "Pide la losartán de mi abuela". It has four tools: `search_eligible_merchants`, `check_purchase`, `propose_purchase` and `get_mandate_status`. An `ALLOW` creates a PayPal order that Pedro approves on his phone in Act 2. The agent can't approve it.
+
+What the agent did is in Act 3's server log and in Pedro's and Andrea's activity. The routes and tools are in [contracts/agents/](contracts/agents/README.md).
+
+## Test
 
 The backend suite covers the policy gate, PayPal, the trust matrix, the analyst, CUM mapping, the Cámara binding and errands. The live checks run against the sandbox and Elastic: `paypal:smoke`, `compas:smoke`, `cum:index` and `analyst:smoke`. Details are in [backend/README.md](backend/README.md#tests).
 

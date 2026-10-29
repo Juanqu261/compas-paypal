@@ -453,6 +453,7 @@ const server = createServer(async (request, response) => {
         merchantLogin: analyst.identityConfigured ? "paypal_sandbox" : "not_configured",
         analystJobs: analystJobsMode.enabled ? "enabled" : "disabled",
         demoWorkspaces: workspaces.size,
+        mcpUrl: workspaceShared.mcpUrl,
       }),
     );
     return;

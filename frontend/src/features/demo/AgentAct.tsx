@@ -328,6 +328,7 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
 
   const health = useResource("health", () => compasApi.health());
   const facts = health.resource.status === "ready" ? health.resource.data : undefined;
+  const mcpUrl = run?.mcpUrl ?? facts?.mcpUrl;
 
   const mandates = useMandateList(ANDREA, "delegate", true, setupVersion);
   const mandate: MandateView | undefined =
@@ -576,10 +577,11 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
               ))}
             </select>
           </label>
-          {run?.mcpUrl ? (
+          {mcpUrl ? (
             <p className="text-sm text-ink-soft">
               Any MCP client can use this server, not only this script:{" "}
-              <code className="rounded bg-ink/[0.06] px-1.5 py-0.5 font-mono text-xs text-ink">claude mcp add --transport http compas {run.mcpUrl}</code>
+              <code className="rounded bg-ink/[0.06] px-1.5 py-0.5 font-mono text-xs text-ink">claude mcp add --transport http compas {mcpUrl}</code>. Its
+              sign-in opens in your default browser: use the one with this demo open, after Andrea has an errand.
             </p>
           ) : null}
         </div>

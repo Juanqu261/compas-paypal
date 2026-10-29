@@ -368,6 +368,8 @@ export type HealthResponse = {
   analystJobs?: "enabled" | "disabled";
   /** Whether a demo session may create PayPal orders. Act 3's clean cart needs "enabled". */
   purchases?: "enabled" | "disabled_for_demo" | "not_configured";
+  /** Where an MCP client connects (`COMPAS_PUBLIC_URL` + `/mcp`). */
+  mcpUrl?: string;
 };
 
 // ---------------------------------------------------------------------------
