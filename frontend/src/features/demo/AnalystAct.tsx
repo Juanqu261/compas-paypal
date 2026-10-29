@@ -1,12 +1,21 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useEffectEvent, useState } from "react";
 import { compasApi, errorCode } from "@/features/compas/api/client";
 import type { AnalystFinding, AnalystJob, AnalyzedSku } from "@/features/compas/api/contracts";
 import { useResource } from "@/features/compas/api/hooks";
 import { DEMO_MERCHANTS } from "@/features/compas/demo-identities";
 import { FlowDiagram, type Step } from "./flow-diagram";
-import { analystRecord, invimaLabel, ITEM_CLASS_LABEL, JUDGMENT_TITLE, runFailureText, type StandingFlag } from "./analyst-view";
+import {
+  analystRecord,
+  invimaLabel,
+  ITEM_CLASS_LABEL,
+  JUDGMENT_TITLE,
+  liveRunButton,
+  runFailureText,
+  runTime,
+  type StandingFlag,
+} from "./analyst-view";
 import {
   elasticIndexLink,
   elasticQueryLink,
@@ -38,8 +47,14 @@ const PHARMACIES = [
 
 const EVIDENCE = readEvidenceConfig();
 const POLL_MS = 1000;
+/** How often the button checks whether the cooldown has passed. */
+const CLOCK_MS = 30_000;
 
-/** A run in this session. `findings` are read once the job ends, so the verdict is never the previous run's. */
+/**
+ * A run this visitor watched. `findings` are read once the job ends, so the
+ * verdict is never the previous run's. Without one, the screen shows the
+ * pharmacy's last real run, which every visitor shares.
+ */
 type Run = { job?: AnalystJob; findings?: readonly AnalystFinding[]; starting?: boolean; error?: string };
 
 function seconds(job: AnalystJob): string | undefined {
@@ -142,8 +157,13 @@ function FlagCard({ flag, model }: { flag: StandingFlag; model: string }) {
 export function AnalystAct() {
   const [merchantId, setMerchantId] = useState<string>(PHARMACIES[0].id);
   const [runs, setRuns] = useState<Record<string, Run>>({});
+  const [now, setNow] = useState(() => Date.now());
+  const shared = useResource(`analyst-latest:${merchantId}`, () => compasApi.analystLatestRun(merchantId));
+  const runStatus = shared.resource.status === "ready" ? shared.resource.data : undefined;
   const run = runs[merchantId];
-  const job = run?.job;
+  // This visitor's run, else one another visitor started, else the last real run.
+  const job = run?.job ?? runStatus?.running ?? runStatus?.latest;
+  const refreshShared = useEffectEvent(() => shared.reload());
   const pharmacy = PHARMACIES.find((item) => item.id === merchantId) ?? PHARMACIES[0];
   const health = useResource("health", () => compasApi.health());
   const onFile = useResource(`analyst-findings:${merchantId}`, () => compasApi.analystFindings(merchantId));
@@ -163,6 +183,7 @@ export function AnalystAct() {
             ? await compasApi.analystFindings(next.merchantId).then((body) => body.findings, () => undefined)
             : undefined;
         if (!cancelled) setRuns((current) => ({ ...current, [next.merchantId]: { job: next, ...(findings ? { findings } : {}) } }));
+        if (!cancelled && next.status !== "QUEUED" && next.status !== "RUNNING") refreshShared();
       } catch (error) {
         if (!cancelled) setRuns((current) => ({ ...current, [job.merchantId]: { job, error: errorCode(error) } }));
       }
@@ -173,16 +194,42 @@ export function AnalystAct() {
     };
   }, [job]);
 
+  // The button re-enables itself when the cooldown passes.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), CLOCK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
   const start = () => {
     const id = merchantId;
     setRuns((current) => ({ ...current, [id]: { starting: true } }));
     compasApi.startAnalystJob(id).then(
       (queued) => setRuns((current) => ({ ...current, [id]: { job: queued } })),
-      (error: unknown) => setRuns((current) => ({ ...current, [id]: { error: errorCode(error) } })),
+      (error: unknown) => {
+        const code = errorCode(error);
+        // Someone else's real run started the cooldown meanwhile: show theirs.
+        setRuns((current) => {
+          const rest = { ...current };
+          delete rest[id];
+          return code === "ANALYST_COOLDOWN" ? rest : { ...current, [id]: { error: code } };
+        });
+        if (code === "ANALYST_COOLDOWN") shared.reload();
+      },
     );
   };
 
   const busy = Boolean(run?.starting || job?.status === "QUEUED" || job?.status === "RUNNING");
+  const button = liveRunButton({
+    busy,
+    hasRun: Boolean(runStatus?.latest),
+    ...(runStatus?.nextRunAt ? { nextRunAt: runStatus.nextRunAt } : {}),
+    now,
+  });
+  // The last live try failed after the real run on screen (no credits, a rate limit): said, not hidden.
+  const lastTryFailed =
+    !run && runStatus?.failure?.finishedAt && (!runStatus.latest?.finishedAt || runStatus.failure.finishedAt > runStatus.latest.finishedAt)
+      ? runStatus.failure
+      : undefined;
   const failure = run?.error ?? (job?.status === "FAILED" ? (job.error ?? "Error") : undefined);
   const result = job?.status === "COMPLETED" && job.result?.status === "COMPLETED" ? job.result : undefined;
   const findings = run?.findings ?? (onFile.resource.status === "ready" ? onFile.resource.data.findings : undefined);
@@ -309,10 +356,12 @@ export function AnalystAct() {
           <button
             type="button"
             onClick={start}
-            disabled={busy}
-            className="rounded-xl bg-route px-5 py-3 font-semibold text-paper transition-colors duration-200 hover:bg-route-deep disabled:cursor-progress disabled:opacity-60 motion-reduce:transition-none"
+            disabled={button.disabled}
+            className={`rounded-xl bg-route px-5 py-3 font-semibold text-paper transition-colors duration-200 hover:bg-route-deep disabled:opacity-60 motion-reduce:transition-none ${
+              busy ? "disabled:cursor-progress" : "disabled:cursor-not-allowed"
+            }`}
           >
-            {busy ? "Running…" : result ? "Run again" : "Run the analyst"}
+            {button.label}
           </button>
         </div>
       </div>
@@ -324,16 +373,31 @@ export function AnalystAct() {
               <span className="size-2 animate-pulse rounded-full bg-route motion-reduce:animate-none" aria-hidden />
               {job?.status === "RUNNING" ? "Reading the catalog" : "Starting"}
             </span>
-          ) : took ? (
-            <span className="rounded-full bg-paper px-3 py-1 text-sm font-medium text-ink">Done in {took}</span>
+          ) : job?.status === "COMPLETED" && job.finishedAt ? (
+            <span className="rounded-full bg-paper px-3 py-1 text-sm font-medium text-ink">
+              A real run at {runTime(job.finishedAt, new Date(now))}
+              {took ? ` · took ${took}` : ""}
+            </span>
           ) : null}
         </div>
         <FlowDiagram key={job?.id ?? "idle"} steps={steps} state={busy ? "running" : result ? "done" : "idle"} />
       </div>
 
+      {runStatus && runStatus.cooldownHours > 0 ? (
+        <p className="mt-3 text-sm text-ink-soft">
+          Each pharmacy runs live at most once every {runStatus.cooldownHours} hours, to keep the demo’s AI costs bounded.
+          Everyone sees the last real run meanwhile.
+        </p>
+      ) : null}
+
       {failure ? (
         <p role="alert" className="mt-6 rounded-xl border border-ink/20 bg-paper px-4 py-3 text-ink">
           {runFailureText(failure)}
+        </p>
+      ) : lastTryFailed?.finishedAt ? (
+        <p className="mt-6 rounded-xl border border-ink/20 bg-paper px-4 py-3 text-ink">
+          The last live try, at {runTime(lastTryFailed.finishedAt, new Date(now))}, failed: {runFailureText(lastTryFailed.error ?? "Error")}
+          {runStatus?.latest ? " The run shown is the last one that completed." : ""}
         </p>
       ) : null}
       {job?.result?.status === "NO_CATALOG" ? <p className="mt-6 text-ink-soft">This merchant has no catalog to read.</p> : null}

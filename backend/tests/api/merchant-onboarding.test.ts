@@ -91,6 +91,32 @@ test("analyst jobs are on for the demo, can be turned off, and never run in prod
   assert.equal(readAnalystJobsMode({ NODE_ENV: "production" }).enabled, false);
 });
 
+test("Act 1 reads the last real run; a live run during the cooldown is refused with when the next may start", async () => {
+  const queue = new AnalystJobQueue({ run: async () => { throw new Error("no model call during the cooldown"); } });
+  const finishedAt = new Date().toISOString();
+  queue.restore({
+    id: "analyst-job-earlier",
+    merchantId: MERCHANT,
+    status: "COMPLETED",
+    result: { runId: "run-earlier", status: "COMPLETED", items: 8, verifiedMappings: 6, rejectedMappings: 0, newFlags: 0, skus: [] },
+    createdAt: finishedAt,
+    finishedAt,
+  });
+  const { call } = deps({ jobs: { mode: { enabled: true }, queue } });
+
+  const latest = await call("GET", `/analyst/runs/latest?merchantId=${MERCHANT}`);
+  assert.equal(latest.status, 200);
+  const body = (latest as { body: Record<string, unknown> }).body;
+  assert.equal((body.latest as { id: string }).id, "analyst-job-earlier");
+  assert.equal(body.cooldownHours, 6);
+  assert.equal(body.nextRunAt, new Date(new Date(finishedAt).getTime() + 6 * 60 * 60 * 1000).toISOString());
+
+  const refused = await call("POST", "/analyst/jobs", { body: { merchantId: MERCHANT } });
+  assert.equal(refused.status, 409);
+  assert.equal((refused as { body: Record<string, unknown> }).body.error, "ANALYST_COOLDOWN");
+  assert.equal((await call("GET", "/analyst/runs/latest?merchantId=nobody")).status, 404);
+});
+
 test("findings outside a demo need the merchant's own session", async () => {
   const { call } = deps({ demoSessions: false });
   assert.equal((await call("GET", `/analyst/findings?merchantId=${MERCHANT}`)).status, 401);

@@ -338,6 +338,19 @@ export type AnalystFinding =
 
 export type AnalystFindingsResponse = { merchantId: string; findings: readonly AnalystFinding[] };
 
+/**
+ * A pharmacy's analyst runs, shared by every visitor: the last real run, one
+ * in progress, the last failed try, and when a live run may start (absent: now).
+ */
+export type AnalystRunStatusResponse = {
+  merchantId: string;
+  latest?: AnalystJob;
+  running?: AnalystJob;
+  failure?: AnalystJob;
+  nextRunAt?: string;
+  cooldownHours: number;
+};
+
 /** `GET /health`, the fields the demo reads. */
 export type HealthResponse = {
   status: string;

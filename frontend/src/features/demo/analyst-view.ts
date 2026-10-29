@@ -55,6 +55,8 @@ export const JUDGMENT_TITLE: Record<StandingFlag["judgment"], string> = {
 /** Plain English for a run that didn't complete. The backend gives an error's name only. */
 export function runFailureText(code: string): string {
   switch (code) {
+    case "ANALYST_COOLDOWN":
+      return "This pharmacy had a real run recently. Its result is shown until the next live run may start.";
     case "ANALYST_JOBS_DISABLED":
       return "Analyst runs are turned off on this backend (COMPAS_ANALYST_JOBS).";
     case "BACKEND_UNAVAILABLE":
@@ -67,4 +69,32 @@ export function runFailureText(code: string): string {
     default:
       return `The run failed (${code}).`;
   }
+}
+
+/** A run's time in the viewer's clock: "14:02" today, "Oct 28, 14:02" another day. */
+export function runTime(iso: string, now = new Date(), locale?: string): string {
+  const at = new Date(iso);
+  const time = at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return at.toDateString() === now.toDateString()
+    ? time
+    : `${at.toLocaleDateString(locale, { month: "short", day: "numeric" })}, ${time}`;
+}
+
+/**
+ * The run button. A live run may start only once the backend's cooldown
+ * (`nextRunAt`) has passed; until then everyone sees the last real run. The
+ * backend refuses an early start anyway: this only says so ahead of time.
+ */
+export function liveRunButton(input: {
+  busy: boolean;
+  hasRun: boolean;
+  nextRunAt?: string;
+  now: number;
+  locale?: string;
+}): { label: string; disabled: boolean } {
+  if (input.busy) return { label: "Running…", disabled: true };
+  if (input.nextRunAt && Date.parse(input.nextRunAt) > input.now) {
+    return { label: `Next live run at ${runTime(input.nextRunAt, new Date(input.now), input.locale)}`, disabled: true };
+  }
+  return { label: input.hasRun ? "Run again live" : "Run the analyst", disabled: false };
 }

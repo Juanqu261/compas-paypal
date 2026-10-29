@@ -12,6 +12,7 @@ import { createMerchantCategoryService } from "../integrations/merchant-registry
 import { createDemoMerchantDirectory } from "../integrations/merchants/demo-merchant-directory.ts";
 import { createPayPalGateway } from "../integrations/paypal/create-paypal-gateway.ts";
 import { connectDatabase } from "../integrations/postgres/database.ts";
+import { PostgresAnalystRunStore } from "../integrations/postgres/postgres-analyst-run-store.ts";
 import {
   DEMO_SESSIONS_PATH,
   DemoIdentityProvider,
@@ -145,6 +146,7 @@ const analyst = await createAnalystLayer({
   ingest: merchantCategories.ingest,
   demo: demoSeed,
   logWarning,
+  ...(database ? { runs: new PostgresAnalystRunStore(database) } : {}),
 });
 if (analyst.elastic.missing.length > 0) {
   log.warn(`Elastic is not fully configured (missing ${analyst.elastic.missing.join(", ")}). Analyst and errand-draft calls will throw.`);
@@ -153,6 +155,9 @@ log.info(`Analyst model: ${analyst.modelVendor === "claude" ? "Claude (Claude AP
 if (analyst.demoCatalogItems > 0) {
   log.info(`Merchant catalogs: seeded ${analyst.demoCatalogItems} demo SKUs (demo/test data). CUM mappings come from analyst runs.`);
 }
+// The last real run per merchant, shown to everyone until the next live run may start.
+const restoredRuns = await analyst.restoreRuns();
+if (restoredRuns > 0) log.info(`Analyst: restored the last real run of ${restoredRuns} merchant(s); their CUM pointers were verified again.`);
 const analystJobsMode = readAnalystJobsMode();
 const operatorToken = process.env.COMPAS_OPERATOR_TOKEN?.trim();
 

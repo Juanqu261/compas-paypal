@@ -15,6 +15,7 @@ export const DEMO_CAMARA_CERTIFICATE_PATH = "/demo/camara-certificate";
 export const CERTIFICATE_PATH = "/merchant-onboarding/certificate";
 export const ANALYST_JOBS_PATH = "/analyst/jobs";
 export const ANALYST_FINDINGS_PATH = "/analyst/findings";
+export const ANALYST_LATEST_RUN_PATH = "/analyst/runs/latest";
 const JOB_PATH = /^\/analyst\/jobs\/(analyst-job-[A-Za-z0-9-]{1,80})$/;
 const RESPONSE_PATH = /^\/analyst\/findings\/(finding-[A-Za-z0-9-]{1,80})\/response$/;
 const WITHDRAW_PATH = /^\/operator\/findings\/(finding-[A-Za-z0-9-]{1,80})\/withdraw$/;
@@ -91,6 +92,7 @@ export function isMerchantOnboardingPath(pathname: string): boolean {
     pathname === DEMO_CAMARA_CERTIFICATE_PATH ||
     pathname === CERTIFICATE_PATH ||
     pathname === ANALYST_JOBS_PATH ||
+    pathname === ANALYST_LATEST_RUN_PATH ||
     pathname === ANALYST_FINDINGS_PATH ||
     JOB_PATH.test(pathname) ||
     RESPONSE_PATH.test(pathname) ||
@@ -166,7 +168,32 @@ export async function handleMerchantOnboardingRequest(
     if (!deps.jobs.mode.enabled) return { status: 403, body: { error: "ANALYST_JOBS_DISABLED", message: deps.jobs.mode.reason } };
     const merchantId = typeof body.merchantId === "string" && MERCHANT_ID.test(body.merchantId) ? body.merchantId : "";
     if (!merchantId || !(await deps.merchants.getById(merchantId))) return { status: 404, body: { error: "UNKNOWN_MERCHANT" } };
-    return { status: 202, body: { job: deps.jobs.queue.enqueue(merchantId) } };
+    const queued = deps.jobs.queue.enqueue(merchantId);
+    if (!queued.ok) {
+      return {
+        status: 409,
+        body: {
+          error: queued.code,
+          message: queued.latest
+            ? "This merchant had a real analyst run recently. Its result is shown until the next live run may start."
+            : "The last live try failed. The next one may start soon.",
+          nextRunAt: queued.nextRunAt,
+        },
+      };
+    }
+    return { status: 202, body: { job: queued.job } };
+  }
+
+  // The last real run, a run in progress, the last failure and when a live run may start. Read-only: works with jobs disabled.
+  if (pathname === ANALYST_LATEST_RUN_PATH && method === "GET") {
+    const merchantId = searchParams.get("merchantId") ?? "";
+    if (!MERCHANT_ID.test(merchantId) || !(await deps.merchants.getById(merchantId))) {
+      return { status: 404, body: { error: "UNKNOWN_MERCHANT" } };
+    }
+    return {
+      status: 200,
+      body: { ...deps.jobs.queue.status(merchantId), cooldownHours: deps.jobs.queue.cooldownMs / (60 * 60 * 1000) },
+    };
   }
 
   const job = JOB_PATH.exec(pathname);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AnalystFinding, AnalyzedSku } from "../../src/features/compas/api/contracts.ts";
-import { analystRecord, invimaLabel, runFailureText } from "../../src/features/demo/analyst-view.ts";
+import { analystRecord, invimaLabel, liveRunButton, runFailureText, runTime } from "../../src/features/demo/analyst-view.ts";
 
 const AT = "2026-10-27T12:00:00.000Z";
 
@@ -59,4 +59,24 @@ test("a failed run says why in plain words and never claims a result", () => {
   assert.match(runFailureText("NotImplementedError"), /isn’t configured/);
   assert.match(runFailureText("AnalystOutputError"), /failed closed/);
   assert.equal(runFailureText("TypeError"), "The run failed (TypeError).");
+});
+
+test("the run button waits for the cooldown and says until when; a run in progress says so", () => {
+  const now = Date.parse("2026-10-29T15:00:00Z");
+  const next = "2026-10-29T20:00:00Z";
+  const waiting = liveRunButton({ busy: false, hasRun: true, nextRunAt: next, now, locale: "en-GB" });
+  assert.equal(waiting.disabled, true);
+  assert.match(waiting.label, /^Next live run at \d{2}:\d{2}$/);
+  assert.deepEqual(liveRunButton({ busy: false, hasRun: true, nextRunAt: next, now: Date.parse(next) }), {
+    label: "Run again live",
+    disabled: false,
+  });
+  assert.deepEqual(liveRunButton({ busy: false, hasRun: false, now }), { label: "Run the analyst", disabled: false });
+  assert.deepEqual(liveRunButton({ busy: true, hasRun: true, nextRunAt: next, now }), { label: "Running…", disabled: true });
+});
+
+test("a run's time is the time alone today, with the date another day", () => {
+  const now = new Date("2026-10-29T15:00:00");
+  assert.match(runTime("2026-10-29T14:02:00", now, "en-GB"), /^14:02$/);
+  assert.match(runTime("2026-10-28T14:02:00", now, "en-GB"), /^28 Oct, 14:02$/);
 });

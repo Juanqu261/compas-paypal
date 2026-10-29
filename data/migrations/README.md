@@ -6,4 +6,6 @@ Applied to the team's Supabase project as named.
 - `20261026120000_paypal_rail.sql`: the PayPal rail. Applied 2026-10-27. **Destructive:** it empties the runtime tables. Never run it again.
 - `20261027170000_analyst_errands.sql`: catalogs, product mappings as `(registry, code)` (only `INVIMA_CUM` in this medicine MVP), analyst findings, merchant logins, errands. Applied 2026-10-27. Additive only. Its tables stay empty until the backend has Postgres adapters for them.
 
+- `20261029120000_analyst_runs.sql`: the latest real analyst run per demo merchant, with its findings, so Act 1's cooldown and result survive a restart. Additive only. **Not applied yet.** Until it is, the backend logs that it can't read or keep runs, and keeps them in memory.
+
 Details: `../schema/README.md`.

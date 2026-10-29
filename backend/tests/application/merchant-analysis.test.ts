@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { respondToJudgment, withdrawJudgment } from "../../src/application/analyst-appeals.ts";
 import { AnalystOutputError } from "../../src/application/analyst-output.ts";
-import { AnalystJobQueue } from "../../src/application/analyst-jobs.ts";
+import { type AnalystJob, AnalystJobQueue, type EnqueueResult } from "../../src/application/analyst-jobs.ts";
 import { resolveCatalogLine } from "../../src/application/catalog-mappings.ts";
 import { runMerchantAnalysis } from "../../src/application/run-merchant-analysis.ts";
 import type { Judgment } from "../../src/domain/analyst.ts";
@@ -231,14 +231,104 @@ test("the job queue runs one job per merchant at a time and records failures by 
       if (merchantId === "bad") throw new AnalystOutputError("model said: <secret merchant text>");
       return { runId: "run-1", status: "COMPLETED", items: 1, verifiedMappings: 1, rejectedMappings: 0, newFlags: 0, skus: [] };
     },
+    cooldownMs: 0,
+    retryAfterFailureMs: 0,
   });
-  const first = queue.enqueue("good");
-  assert.equal(queue.enqueue("good").id, first.id);
-  const bad = queue.enqueue("bad");
+  const job = (result: EnqueueResult) => {
+    assert.ok(result.ok);
+    return result.job;
+  };
+  const first = job(queue.enqueue("good"));
+  assert.equal(job(queue.enqueue("good")).id, first.id);
+  const bad = job(queue.enqueue("bad"));
   release();
   await queue.whenIdle();
   assert.equal(queue.get(first.id)?.status, "COMPLETED");
   assert.equal(queue.get(bad.id)?.status, "FAILED");
   assert.equal(queue.get(bad.id)?.error, "AnalystOutputError");
-  assert.notEqual(queue.enqueue("good").id, first.id, "a finished job does not block a new one");
+  assert.notEqual(job(queue.enqueue("good")).id, first.id, "a finished job does not block a new one without a cooldown");
+});
+
+/** A queue on a clock the test moves. Each run calls the "model" once. */
+function cooldownQueue(outcome: { fail?: boolean; status?: "COMPLETED" | "NO_CATALOG" } = {}) {
+  let now = new Date("2026-10-29T14:00:00Z").getTime();
+  const kept: AnalystJob[] = [];
+  let modelCalls = 0;
+  const queue = new AnalystJobQueue({
+    run: async () => {
+      modelCalls += 1;
+      if (outcome.fail) throw new Error("credit balance too low");
+      return { runId: `run-${modelCalls}`, status: outcome.status ?? "COMPLETED", items: 1, verifiedMappings: 1, rejectedMappings: 0, newFlags: 0, skus: [] };
+    },
+    onCompleted: async (job) => {
+      kept.push(job);
+    },
+    now: () => new Date(now),
+  });
+  return { queue, kept, calls: () => modelCalls, advance: (ms: number) => (now += ms) };
+}
+
+const HOUR = 60 * 60 * 1000;
+
+test("after a real run, everyone sees it and no live run starts for six hours", async () => {
+  const { queue, kept, calls, advance } = cooldownQueue();
+  assert.ok(queue.enqueue("drogueria").ok);
+  await queue.whenIdle();
+  assert.equal(kept.length, 1, "the real run is kept past a restart");
+
+  const status = queue.status("drogueria");
+  assert.equal(status.latest?.finishedAt, "2026-10-29T14:00:00.000Z");
+  assert.equal(status.nextRunAt, "2026-10-29T20:00:00.000Z");
+
+  advance(5 * HOUR);
+  const refused = queue.enqueue("drogueria");
+  assert.equal(refused.ok, false);
+  assert.equal(!refused.ok && refused.nextRunAt, "2026-10-29T20:00:00.000Z");
+  assert.ok(queue.enqueue("lookalike").ok, "the cooldown is per merchant");
+  await queue.whenIdle();
+
+  advance(HOUR);
+  assert.ok(queue.enqueue("drogueria").ok);
+  await queue.whenIdle();
+  assert.equal(calls(), 3);
+});
+
+test("a failed run doesn't start the cooldown: the next try waits only a few minutes, and the last real run stays shown", async () => {
+  const good = cooldownQueue();
+  assert.ok(good.queue.enqueue("drogueria").ok);
+  await good.queue.whenIdle();
+
+  const failing = cooldownQueue({ fail: true });
+  failing.queue.restore(good.queue.status("drogueria").latest!);
+  failing.advance(7 * HOUR);
+  assert.ok(failing.queue.enqueue("drogueria").ok);
+  await failing.queue.whenIdle();
+  const status = failing.queue.status("drogueria");
+  assert.equal(status.failure?.error, "Error");
+  assert.equal(status.latest?.result?.runId, "run-1", "the last real run is still what everyone sees");
+  assert.equal(status.nextRunAt, "2026-10-29T21:15:00.000Z");
+  assert.equal(failing.kept.length, 0);
+  failing.advance(15 * 60 * 1000);
+  assert.ok(failing.queue.enqueue("drogueria").ok);
+});
+
+test("a run that called no model starts no cooldown, and a restored run counts like a fresh one", async () => {
+  const empty = cooldownQueue({ status: "NO_CATALOG" });
+  assert.ok(empty.queue.enqueue("tienda").ok);
+  await empty.queue.whenIdle();
+  assert.ok(empty.queue.enqueue("tienda").ok);
+  assert.equal(empty.kept.length, 0);
+
+  const restarted = cooldownQueue();
+  restarted.queue.restore({
+    id: "analyst-job-before-restart",
+    merchantId: "drogueria",
+    status: "COMPLETED",
+    result: { runId: "run-0", status: "COMPLETED", items: 1, verifiedMappings: 1, rejectedMappings: 0, newFlags: 0, skus: [] },
+    createdAt: "2026-10-29T12:59:00.000Z",
+    finishedAt: "2026-10-29T13:00:00.000Z",
+  });
+  assert.equal(restarted.queue.enqueue("drogueria").ok, false);
+  assert.equal(restarted.queue.status("drogueria").nextRunAt, "2026-10-29T19:00:00.000Z");
+  assert.equal(restarted.calls(), 0);
 });

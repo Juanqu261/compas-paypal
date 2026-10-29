@@ -5,6 +5,7 @@ import type {
   AgentScenario,
   AnalystFindingsResponse,
   AnalystJob,
+  AnalystRunStatusResponse,
   AuthorizeResponse,
   CreateMandateBody,
   DemoAccountsBody,
@@ -257,6 +258,12 @@ export const compasApi = {
     });
     if (!response.ok) throw await readError(response);
     return ((await response.json()) as { job: AnalystJob }).job;
+  },
+  /** The last real run, shown to everyone during the cooldown, and when a live run may start. */
+  analystLatestRun: async (merchantId: string) => {
+    const response = await send(`/analyst/runs/latest?merchantId=${encodeURIComponent(merchantId)}`, { method: "GET" });
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as AnalystRunStatusResponse;
   },
   analystJob: async (id: string) => {
     const response = await send(`/analyst/jobs/${encodeURIComponent(id)}`, { method: "GET" });
