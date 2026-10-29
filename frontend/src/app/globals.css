@@ -106,13 +106,6 @@ body {
   animation: none;
 }
 
-/* The active-page marker travels along the nav. */
-::view-transition-group(nav-marker) {
-  animation-duration: var(--duration-move);
-  animation-timing-function: var(--ease-chart);
-  z-index: 101;
-}
-
 /* Pages slide along the story: home, demo, payer, delegate, merchant. */
 ::view-transition-old(.nav-forward) {
   --slide-offset: -56px;
