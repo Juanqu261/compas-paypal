@@ -1,0 +1,85 @@
+# Render Blueprint: the COMPAS backend and frontend as two web services.
+# Deploy checklist and what each value is: infra/README.md.
+# `sync: false` values are entered in the Render dashboard and never committed.
+services:
+  - type: web
+    name: compas-backend
+    runtime: node
+    rootDir: backend
+    # Starter, not free: a free instance sleeps when idle, and a restart empties every visitor's demo.
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Do not set NODE_ENV=production here: it turns off demo sessions and demo purchases.
+      - key: PAYPAL_ENVIRONMENT
+        value: sandbox
+      - key: COMPAS_DEMO_PURCHASES
+        value: enabled
+      - key: COMPAS_ERRAND_DRAFTS
+        value: disabled
+      # The presenter link is /demo?presenter=<this value>. Render generates it; read it in the dashboard.
+      - key: COMPAS_PRESENTER_KEY
+        generateValue: true
+      # Secrets.
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: MERCHANT_SUBJECT_HMAC_KEY
+        sync: false
+      - key: ELASTICSEARCH_URL
+        sync: false
+      - key: ELASTICSEARCH_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # The presenter's sandbox accounts (Droguería Central's evidence and the presenter option).
+      - key: DEMO_MERCHANT_PAYPAL_ID
+        sync: false
+      - key: DEMO_MERCHANT_PAYPAL_EMAIL
+        sync: false
+      - key: DEMO_LIQUOR_PAYPAL_ID
+        sync: false
+      - key: DEMO_PAYER_PAYPAL_ID
+        sync: false
+      # Public URLs, once both services have theirs (see infra/README.md).
+      - key: COMPAS_PUBLIC_URL
+        sync: false
+      - key: PAYPAL_RETURN_URI
+        sync: false
+      - key: PAYPAL_CANCEL_URI
+        sync: false
+      - key: PAYPAL_FRONTEND_RETURN_URL
+        sync: false
+      - key: PAYPAL_IDENTITY_RETURN_URI
+        sync: false
+      - key: PAYPAL_IDENTITY_FRONTEND_RETURN_URL
+        sync: false
+      - key: COMPAS_AGENT_CONSENT_URL
+        sync: false
+
+  - type: web
+    name: compas-frontend
+    runtime: node
+    rootDir: frontend
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # The backend that /compas-api/* proxies to. Set before the first build.
+      - key: COMPAS_BACKEND_URL
+        sync: false
+      - key: NEXT_PUBLIC_DEMO_ELASTIC_CUM_INDEX
+        value: compas-cum-v1
+      - key: NEXT_PUBLIC_DEMO_KIBANA_URL
+        sync: false
+      - key: NEXT_PUBLIC_DEMO_SUPABASE_PROJECT_REF
+        sync: false

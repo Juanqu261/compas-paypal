@@ -20,7 +20,7 @@ const MINUTE = 60 * 1000;
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
 
 /** A registry over plain objects, so only its own bookkeeping is under test. */
-function registry(options: { max?: number; maxPerAddress?: number } = {}) {
+function registry(options: { max?: number } = {}) {
   let now = 0;
   let n = 0;
   const ended: string[] = [];
@@ -34,11 +34,8 @@ function registry(options: { max?: number; maxPerAddress?: number } = {}) {
   return { workspaces, ended, advance: (ms: number) => (now += ms) };
 }
 
-async function started(workspaces: DemoWorkspaces<unknown>, address = "198.51.100.7") {
-  const created = await workspaces.create(address);
-  assert.equal(created.ok, true);
-  if (!created.ok) throw new Error("unreachable");
-  return created;
+function started(workspaces: DemoWorkspaces<unknown>) {
+  return workspaces.create();
 }
 
 test("a workspace token finds its workspace; a forged one finds nothing", async () => {
@@ -80,6 +77,17 @@ test("an idle workspace ends: its token, orders and agent tokens find nothing, a
   assert.equal(workspaces.size, 0);
 });
 
+test("a visitor can end their own workspace; another token ends nothing", async () => {
+  const { workspaces, ended } = registry();
+  const a = await started(workspaces);
+  workspaces.byId(a.id)!.hooks.onOrder("5O190127TN364715T");
+  assert.equal(workspaces.end("x".repeat(43)), false);
+  assert.equal(workspaces.end(a.token), true);
+  assert.deepEqual(ended, [a.id]);
+  assert.equal(workspaces.byOrder("5O190127TN364715T"), undefined);
+  assert.equal(workspaces.end(a.token), false);
+});
+
 test("at the cap, a new workspace ends the least recently used one", async () => {
   const { workspaces, ended, advance } = registry({ max: 2 });
   const a = await started(workspaces);
@@ -93,18 +101,6 @@ test("at the cap, a new workspace ends the least recently used one", async () =>
   assert.ok(workspaces.byToken(a.token));
   assert.ok(workspaces.byToken(c.token));
   assert.equal(workspaces.size, 2);
-});
-
-test("one address may start only so many workspaces per hour", async () => {
-  const { workspaces, advance } = registry({ maxPerAddress: 2 });
-  await started(workspaces, "198.51.100.7");
-  await started(workspaces, "198.51.100.7");
-  const refused = await workspaces.create("198.51.100.7");
-  assert.equal(refused.ok, false);
-  assert.equal(refused.ok ? undefined : refused.code, "TOO_MANY_WORKSPACES");
-  await started(workspaces, "203.0.113.9");
-  advance(60 * MINUTE);
-  await started(workspaces, "198.51.100.7");
 });
 
 test("a session starts only inside a live workspace, and ends with it", async () => {

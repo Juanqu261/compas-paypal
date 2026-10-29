@@ -29,6 +29,21 @@ function fail(result: ErrandFailure): JsonResponse {
   };
 }
 
+export type ErrandDraftsMode = { enabled: true } | { enabled: false; reason: string };
+
+/**
+ * Whether `POST /errands/drafts` may call the model. No demo screen drafts
+ * an errand, and every draft is a paid model call, so the public deploy turns
+ * it off with `COMPAS_ERRAND_DRAFTS=disabled`. Never on in production.
+ */
+export function readErrandDraftsMode(env: NodeJS.ProcessEnv = process.env): ErrandDraftsMode {
+  if (env.NODE_ENV?.trim() === "production") return { enabled: false, reason: "Errand drafts are off in production." };
+  if (env.COMPAS_ERRAND_DRAFTS?.trim().toLowerCase() === "disabled") {
+    return { enabled: false, reason: "Errand drafts are off on this server. Write the errand yourself." };
+  }
+  return { enabled: true };
+}
+
 /**
  * Errand routes. The actor comes from the session. A draft stores nothing and
  * is never an errand: only `POST /errands` with `confirmed: true`, by the
@@ -37,11 +52,14 @@ function fail(result: ErrandFailure): JsonResponse {
 export async function handleErrandRequest(
   request: { method: string; url: URL; body?: unknown },
   actor: Actor,
-  deps: { service: ErrandService },
+  deps: { service: ErrandService; drafts?: ErrandDraftsMode },
 ): Promise<JsonResponse> {
   const { pathname } = request.url;
   if (pathname === ERRAND_DRAFTS_PATH) {
     if (request.method !== "POST") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
+    if (deps.drafts && !deps.drafts.enabled) {
+      return { status: 403, body: { error: "ERRAND_DRAFTS_DISABLED", message: deps.drafts.reason } };
+    }
     try {
       const result = await deps.service.draft(actor, request.body);
       return result.ok ? { status: 200, body: { draft: result.draft, confirmed: false } } : fail(result);

@@ -201,7 +201,12 @@ export type PurchasePreview = {
 };
 
 /** Why this demo can't create PayPal orders. SANDBOX_ACCOUNTS_REQUIRED: no sandbox accounts chosen yet. */
-export type PurchaseExecutionBlock = "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED" | "SANDBOX_ACCOUNTS_REQUIRED";
+export type PurchaseExecutionBlock =
+  | "PURCHASES_DISABLED_FOR_DEMO"
+  | "PAYPAL_NOT_CONFIGURED"
+  | "SANDBOX_ACCOUNTS_REQUIRED"
+  /** This demo created as many PayPal orders, budgets or errands as one demo may. */
+  | "DEMO_LIMIT_REACHED";
 
 /**
  * demo/test data: the PayPal sandbox accounts this browser's demo pays with.

@@ -70,6 +70,22 @@ const WORKSPACE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 let workspace: Promise<string> | undefined;
 
 /**
+ * Whether this page had to start a new demo because the backend no longer
+ * knew this browser's (idle for 2 hours, or a restart). The demo screens say so.
+ */
+let renewed = false;
+const renewedListeners = new Set<() => void>();
+
+export function subscribeWorkspaceRenewed(listener: () => void): () => void {
+  renewedListeners.add(listener);
+  return () => renewedListeners.delete(listener);
+}
+
+export function workspaceWasRenewed(): boolean {
+  return renewed;
+}
+
+/**
  * Reads give up after this long. Writes have no client timeout: giving up on
  * a write the backend may still finish would only make its outcome unknown.
  */
@@ -140,6 +156,10 @@ async function workspaceToken(ended?: string): Promise<string> {
       window.localStorage.setItem(WORKSPACE_KEY, token);
     } catch {
       // No storage: the workspace lives as long as the page.
+    }
+    if (ended && !renewed) {
+      renewed = true;
+      for (const listener of renewedListeners) listener();
     }
     return token;
   })();
@@ -322,6 +342,25 @@ export const compasApi = {
     return (await response.json()) as AnalystFindingsResponse;
   },
 };
+
+/**
+ * "Reset my demo": ends this browser's workspace on the backend, so its
+ * budgets, purchases, errands and sandbox accounts are gone, and forgets its
+ * token. The caller reloads the page, and the next call starts a new demo.
+ */
+export async function resetDemo(): Promise<void> {
+  const current = await currentWorkspace()?.catch(() => undefined);
+  if (current) {
+    await send("/demo/workspaces/end", { method: "POST", headers: { "x-compas-workspace": current } }).catch(() => undefined);
+  }
+  try {
+    window.localStorage.removeItem(WORKSPACE_KEY);
+  } catch {
+    // No storage: nothing kept.
+  }
+  workspace = undefined;
+  sessions.clear();
+}
 
 /** A key for one purchase attempt. Reused only to ask again about that same attempt. */
 export function newIdempotencyKey(): string {

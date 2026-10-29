@@ -10,6 +10,7 @@ import { AnalystAct } from "@/features/demo/AnalystAct";
 import { analystRecord } from "@/features/demo/analyst-view";
 import type { Act } from "@/features/demo/chapters";
 import { SandboxAccounts } from "@/features/demo/SandboxAccounts";
+import { DemoNotices } from "@/features/demo/DemoNotices";
 import { StoryRail } from "@/features/demo/StoryRail";
 import { DemoSessionProvider, useDemoSession, type DemoCharge } from "@/features/demo/DemoSession";
 import { PayPalBusinessExperience } from "@/features/paypal-business/PayPalBusinessExperience";
@@ -211,6 +212,7 @@ export function DemoStage({
   return (
     <DemoSessionProvider scenarios={scenarios}>
       <StoryRail act={act} onChange={show} />
+      <DemoNotices />
       {/* Activity keeps a hidden act's state: the phones keep their screens while Act 1 shows. */}
       <Activity mode={act === 1 ? "visible" : "hidden"}>
         <div role="tabpanel" id="act-panel-1" aria-labelledby="act-tab-1">

@@ -58,6 +58,7 @@ The backend suite covers the policy gate, PayPal, the trust matrix, the analyst,
 
 - [AGENTS.md](AGENTS.md): context for coding agents.
 - [docs/](docs/): vision, domain model, PayPal mapping, policy engine, AI, security.
-- [docs/adr/](docs/adr/): decisions. 0008 is the PayPal rail, 0009 the AI analyst, 0010 errands, 0011 agents over MCP.
+- [docs/adr/](docs/adr/): decisions. 0008 is the PayPal rail, 0009 the AI analyst, 0010 errands, 0011 agents over MCP, 0012 the public demo.
+- [infra/README.md](infra/README.md): deploying to Render.
 
 Hackathon proof of concept. Not affiliated with or endorsed by PayPal or Elastic. No production integration is implied.

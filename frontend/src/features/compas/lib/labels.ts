@@ -224,6 +224,8 @@ export function errorText(code: string): string {
       return "Payments are turned off in this demo. Nothing was charged.";
     case "SANDBOX_ACCOUNTS_REQUIRED":
       return "Choose the PayPal sandbox accounts this demo pays with first. Nothing was charged.";
+    case "DEMO_LIMIT_REACHED":
+      return "This demo reached its limit. Use “Reset my demo” at the top to start over. Nothing was charged.";
     case "PAYEE_ACCOUNT_INVALID":
       return "PayPal doesn't know the business account this demo pays. Check its account ID. Nothing was charged.";
     case "UNKNOWN_MERCHANT":

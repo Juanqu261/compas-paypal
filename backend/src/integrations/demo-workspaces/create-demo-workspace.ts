@@ -38,6 +38,8 @@ export type DemoWorkspaceShared = {
   model: AnalystModel;
   search: CumCandidateSearch;
   execution: PurchaseExecutionMode;
+  /** PayPal orders one visitor's demo may create. */
+  ordersPerDemo?: number;
   /** Agent clients and pending authorization requests, before any workspace answers them. */
   agents: AgentRepository;
   /** This server's public URL, the issuer the scripted agent talks to. */
@@ -75,11 +77,14 @@ export async function createDemoWorkspace(
   const spending = new InMemorySpendingLog();
   const errands = new InMemoryErrandRepository();
   const history = await createMerchantHistoryService();
+  /** What this demo has used, against the limits in api/demo-limits.ts. */
+  const usage = { orders: 0, budgets: 0, errands: 0 };
 
   // Every order this workspace creates is announced, so PayPal's return finds it here.
   const payments: PayPalGateway = {
     createOrder: async (input) => {
       const order = await shared.paypal.gateway.createOrder(input);
+      usage.orders += 1;
       hooks.onOrder(order.id);
       return order;
     },
@@ -119,14 +124,16 @@ export async function createDemoWorkspace(
     capacity: mandateRepository,
     catalog: { catalogs: shared.catalogs, mappings: shared.mappings },
     errands,
-    execution: () =>
-      !shared.execution.allowed || accounts.get()
-        ? shared.execution
-        : {
-            allowed: false,
-            code: "SANDBOX_ACCOUNTS_REQUIRED",
-            reason: "Choose the PayPal sandbox accounts this demo pays with first.",
-          },
+    execution: () => {
+      if (!shared.execution.allowed) return shared.execution;
+      if (!accounts.get()) {
+        return { allowed: false, code: "SANDBOX_ACCOUNTS_REQUIRED", reason: "Choose the PayPal sandbox accounts this demo pays with first." };
+      }
+      if (shared.ordersPerDemo !== undefined && usage.orders >= shared.ordersPerDemo) {
+        return { allowed: false, code: "DEMO_LIMIT_REACHED", reason: `This demo created its ${shared.ordersPerDemo} PayPal orders. Reset it to start over.` };
+      }
+      return shared.execution;
+    },
     logWarning,
   });
 
@@ -171,7 +178,7 @@ export async function createDemoWorkspace(
     grantIdOf: async (accessToken) => (await agentAuth.authenticate(`Bearer ${accessToken}`))?.grant.id,
   });
 
-  return { accounts, parties, merchants, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents };
+  return { usage, accounts, parties, merchants, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents };
 }
 
 export type DemoWorkspace = Awaited<ReturnType<typeof createDemoWorkspace>>;

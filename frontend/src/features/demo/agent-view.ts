@@ -72,6 +72,7 @@ const ERROR_PLAIN: Record<string, string> = {
   PAYPAL_NOT_CONFIGURED: "PayPal orders are off on this server.",
   PURCHASES_DISABLED_FOR_DEMO: "Demo purchases are off on this server.",
   SANDBOX_ACCOUNTS_REQUIRED: "Choose the PayPal sandbox accounts in Act 2 first.",
+  DEMO_LIMIT_REACHED: "This demo reached its limit. Reset it to start over.",
   PAYEE_ACCOUNT_INVALID: "PayPal doesn’t know the business account this demo pays.",
   UNKNOWN_MERCHANT: "That isn’t a pharmacy Compas pays.",
   UNKNOWN_SKU: "That pharmacy doesn’t sell that product.",

@@ -74,7 +74,7 @@ The repository is a product monorepo. The root is documentation and agent contex
 - `backend/` owns the domain, policy gate, PayPal port, settlement, merchant registry, purpose classifier, audit, and the HTTP API. Ports live in `backend/src/ports/`, adapters in `backend/src/integrations/`.
 - `data/` holds fixtures, seeds, and the Postgres schema and migrations.
 - `contracts/` is where a shared API or event schema goes. There is no shared TypeScript package.
-- `infra/` is reserved. Nothing is deployed from it yet.
+- `infra/` documents the public deploy: two Render web services from `render.yaml` at the repository root. See `infra/README.md` and ADR 0012.
 - `docs/` is the product and research documentation.
 
 The frontend must not import `backend/src`. The backend must not import `frontend/src`. A browser result is not an authoritative `ALLOW`, `DENY`, or `REVIEW`. A `?paypalOrder=…` hint in a URL is not a payment result.
@@ -176,4 +176,4 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 - `docs/00-product-vision.md` to `docs/07-security-privacy-ethics.md`: vision, demo story, domain model, architecture, PayPal mapping, policy engine, AI classification, security and privacy.
 - `docs/09-research-and-prior-art.md`: purpose-bound money and other prior art.
 - `docs/10-reference.md`: PayPal facts checked against the sandbox, CIIU categories, the Colombian research the design rests on, and sources.
-- `docs/adr/`: architecture decisions. ADR 0008 is the PayPal rail, ADR 0009 the AI analyst's evidence, ADR 0010 errands, ADR 0011 agents over MCP.
+- `docs/adr/`: architecture decisions. ADR 0008 is the PayPal rail, ADR 0009 the AI analyst's evidence, ADR 0010 errands, ADR 0011 agents over MCP, ADR 0012 the public demo (visitor workspaces, their own sandbox accounts, the shared analyst run, per-demo caps).

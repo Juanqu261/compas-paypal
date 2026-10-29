@@ -87,13 +87,14 @@ export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { titl
     if (result.preview.next === "STOP_DENY") return { title: "Purchase not allowed", tone: "stop" };
     if (result.preview.next === "STOP_REVIEW") return { title: "Held for review", tone: "wait" };
     if (result.preview.execution === "ENABLED") return { title: "Waiting for confirmation", tone: "wait" };
-    return result.preview.execution === "SANDBOX_ACCOUNTS_REQUIRED"
-      ? { title: "Fits the rules. Waiting for sandbox accounts", tone: "wait" }
-      : { title: "Fits the rules. Payments off in this demo", tone: "wait" };
+    if (result.preview.execution === "SANDBOX_ACCOUNTS_REQUIRED") return { title: "Fits the rules. Waiting for sandbox accounts", tone: "wait" };
+    if (result.preview.execution === "DEMO_LIMIT_REACHED") return { title: "Fits the rules. This demo reached its limit", tone: "wait" };
+    return { title: "Fits the rules. Payments off in this demo", tone: "wait" };
   }
   if (result.kind === "ERROR") {
     if (result.code === "PURCHASES_DISABLED_FOR_DEMO") return { title: "Payments off in this demo", tone: "wait" };
     if (result.code === "SANDBOX_ACCOUNTS_REQUIRED") return { title: "Waiting for sandbox accounts", tone: "wait" };
+    if (result.code === "DEMO_LIMIT_REACHED") return { title: "This demo reached its limit", tone: "stop" };
     if (result.code === "PAYEE_ACCOUNT_INVALID") return { title: "PayPal doesn't know this account", tone: "stop" };
     return { title: "Could not complete", tone: "stop" };
   }

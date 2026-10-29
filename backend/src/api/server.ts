@@ -22,10 +22,11 @@ import {
   readDemoPurchasesMode,
 } from "./demo-identity.ts";
 import { DEMO_ACCOUNTS_PATH, handleDemoAccounts, MAX_ACCOUNTS_BODY_BYTES } from "./demo-accounts.ts";
+import { limitReached, readDemoLimits } from "./demo-limits.ts";
 import {
   bearerSecretHash,
-  clientAddress,
   DEMO_WORKSPACES_PATH,
+  END_WORKSPACE_PATH,
   handleStartDemoWorkspace,
   oauthSecretHash,
   UNKNOWN_WORKSPACE,
@@ -61,7 +62,7 @@ import {
   MAX_OAUTH_BODY_BYTES,
 } from "./oauth.ts";
 import { handlePayPalReturn, isPayPalReturnPath } from "./paypal-return.ts";
-import { handleErrandRequest, isErrandApiPath, MAX_ERRAND_BODY_BYTES } from "./errands.ts";
+import { ERRANDS_PATH, handleErrandRequest, isErrandApiPath, MAX_ERRAND_BODY_BYTES, readErrandDraftsMode } from "./errands.ts";
 import {
   handleMerchantOnboardingRequest,
   isMerchantOnboardingPath,
@@ -161,8 +162,14 @@ if (restoredRuns > 0) log.info(`Analyst: restored the last real run of ${restore
 const analystJobsMode = readAnalystJobsMode();
 const operatorToken = process.env.COMPAS_OPERATOR_TOKEN?.trim();
 
+// What one visitor's demo may create (api/demo-limits.ts), and whether errand drafts may call the model.
+const limits = readDemoLimits();
+const errandDrafts = readErrandDraftsMode();
+if (!errandDrafts.enabled) log.info(`Errand drafts: off. ${errandDrafts.reason}`);
+
 // What every visitor's demo workspace shares.
 const workspaceShared: DemoWorkspaceShared = {
+  ordersPerDemo: limits.ordersPerDemo,
   paypal,
   merchants: merchantDirectory,
   registry: merchantCategories.registry,
@@ -232,7 +239,6 @@ const workspaces = new DemoWorkspaces<DemoWorkspace>({
   onEnd: (id) => demoIdentity?.endScope(id),
 });
 setInterval(() => workspaces.sweep(), 5 * 60 * 1000).unref();
-const trustForwardedFor = process.env.COMPAS_TRUST_FORWARDED_FOR?.trim().toLowerCase() === "true";
 
 // Answers the agent calls that come before any workspace is known (discovery,
 // registration, the authorization request) and those whose token no live
@@ -321,7 +327,7 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   }
   if (url.pathname === DEMO_WORKSPACES_PATH) {
     if (request.method !== "POST") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
-    return handleStartDemoWorkspace(workspaces, clientAddress(request, trustForwardedFor));
+    return handleStartDemoWorkspace(workspaces);
   }
   if (url.pathname === DEMO_SESSIONS_PATH) {
     if (request.method !== "POST") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
@@ -346,9 +352,17 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
       if (!parsed.ok) return parsed.response;
       errandBody = parsed.body;
     }
-    return handleErrandRequest({ method: request.method ?? "GET", url, body: errandBody }, actor, {
+    const { usage } = workspace;
+    const posting = request.method === "POST";
+    if (posting && url.pathname === ERRANDS_PATH && usage.errands >= limits.errandsPerDemo) {
+      return limitReached("errands", limits.errandsPerDemo);
+    }
+    const result = await handleErrandRequest({ method: request.method ?? "GET", url, body: errandBody }, actor, {
       service: workspace.errandService,
+      drafts: errandDrafts,
     });
+    if (posting && url.pathname === ERRANDS_PATH && result.status === 201) usage.errands += 1;
+    return result;
   }
 
   if (isPurchaseApiPath(url.pathname)) {
@@ -362,16 +376,20 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   }
 
   let body: unknown;
-  if (request.method === "POST" && url.pathname === MANDATES_PATH) {
+  const creating = request.method === "POST" && url.pathname === MANDATES_PATH;
+  if (creating) {
+    if (workspace.usage.budgets >= limits.budgetsPerDemo) return limitReached("budgets", limits.budgetsPerDemo);
     const parsed = await readJsonBody(request, MAX_MANDATE_BODY_BYTES);
     if (!parsed.ok) return parsed.response;
     body = parsed.body;
   }
-  return handleMandateRequest(
+  const result = await handleMandateRequest(
     { method: request.method ?? "GET", url, body },
     actor,
     { service: workspace.mandates, facts: factsFor(workspace) },
   );
+  if (creating && result.status === 201) workspace.usage.budgets += 1;
+  return result;
 }
 
 /** The delegate's answers to an agent's request, and the agent grants. Needs a COMPAS session. */
@@ -464,6 +482,13 @@ const server = createServer(async (request, response) => {
       sendJson(response, { status: 500, body: { error: "internal_error" } });
       return;
     }
+  }
+
+  if (url.pathname === END_WORKSPACE_PATH && request.method === "POST") {
+    // Ends the visitor's demo now: its budgets, sessions, accounts and orders are forgotten.
+    const ended = workspaces.end(request.headers[WORKSPACE_HEADER]);
+    sendJson(response, ended ? { status: 200, body: { ended: true } } : UNKNOWN_WORKSPACE);
+    return;
   }
 
   if (url.pathname === DEMO_ACCOUNTS_PATH) {

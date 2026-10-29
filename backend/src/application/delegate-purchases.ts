@@ -292,7 +292,12 @@ function failure(code: PurchaseErrorCode, message: string, extra: Partial<Purcha
  * Why this caller can't create PayPal orders. SANDBOX_ACCOUNTS_REQUIRED: the
  * visitor's demo has no PayPal sandbox accounts to pay with yet.
  */
-export type PurchaseExecutionBlock = "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED" | "SANDBOX_ACCOUNTS_REQUIRED";
+export type PurchaseExecutionBlock =
+  | "PURCHASES_DISABLED_FOR_DEMO"
+  | "PAYPAL_NOT_CONFIGURED"
+  | "SANDBOX_ACCOUNTS_REQUIRED"
+  /** The visitor's demo created as many PayPal orders as one demo may. */
+  | "DEMO_LIMIT_REACHED";
 
 export type PurchaseExecutionMode =
   | { allowed: true }

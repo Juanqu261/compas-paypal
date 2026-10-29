@@ -1,10 +1,11 @@
-import type { IncomingMessage } from "node:http";
 import { hashSecret } from "../application/agent-auth.ts";
 import type { DemoWorkspaces } from "../integrations/demo-workspaces/demo-workspaces.ts";
 import type { JsonResponse } from "./merchant-categories.ts";
 import { OAUTH_REVOKE_PATH, OAUTH_TOKEN_PATH } from "./oauth.ts";
 
 export const DEMO_WORKSPACES_PATH = "/demo/workspaces";
+/** POST with the workspace header: the visitor's "Reset my demo". */
+export const END_WORKSPACE_PATH = "/demo/workspaces/end";
 /** Names the visitor's demo on reads that have no demo person, such as the pharmacy's payments. */
 export const WORKSPACE_HEADER = "x-compas-workspace";
 
@@ -13,26 +14,9 @@ export const UNKNOWN_WORKSPACE: JsonResponse = {
   body: { error: "UNKNOWN_WORKSPACE", message: "This demo ended. Start a new one." },
 };
 
-/**
- * Who asked, for the per-address limit on new demos. Behind a proxy that
- * sets X-Forwarded-For (Next's rewrite does), `trustForwardedFor` reads its
- * first entry. A caller that reaches this server directly can set that header
- * itself, so the cap on live workspaces is what bounds memory.
- */
-export function clientAddress(request: IncomingMessage, trustForwardedFor: boolean): string {
-  const forwarded = request.headers["x-forwarded-for"];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
-  if (trustForwardedFor && first) return first;
-  return request.socket.remoteAddress ?? "unknown";
-}
-
 /** POST /demo/workspaces: a new, empty demo for this visitor. */
-export async function handleStartDemoWorkspace(
-  workspaces: Pick<DemoWorkspaces<unknown>, "create">,
-  address: string,
-): Promise<JsonResponse> {
-  const created = await workspaces.create(address);
-  if (!created.ok) return { status: 429, body: { error: created.code, message: created.message } };
+export async function handleStartDemoWorkspace(workspaces: Pick<DemoWorkspaces<unknown>, "create">): Promise<JsonResponse> {
+  const created = await workspaces.create();
   return { status: 201, body: { workspace: created.token, expiresAt: created.expiresAt, identity: "DEMO" } };
 }
 
