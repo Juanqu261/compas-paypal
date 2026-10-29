@@ -1,24 +1,16 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { AgentAuthService } from "../application/agent-auth.ts";
-import { AgentShoppingService } from "../application/agent-shopping.ts";
-import { DemoAgentRuns } from "../application/demo-agent-run.ts";
-import { DelegatePurchaseService } from "../application/delegate-purchases.ts";
-import { MandateService } from "../application/mandates.ts";
-import { PayPalOrderSettlement } from "../application/settle-paypal-order.ts";
 import { InMemoryAgentRepository } from "../integrations/agents/in-memory-agent-repository.ts";
-import { InMemoryAuditRepository } from "../integrations/audit/in-memory-audit-repository.ts";
+import {
+  createDemoWorkspace,
+  type DemoWorkspace,
+  type DemoWorkspaceShared,
+} from "../integrations/demo-workspaces/create-demo-workspace.ts";
+import { DemoWorkspaces } from "../integrations/demo-workspaces/demo-workspaces.ts";
 import { createDemoPartyDirectory, DEMO_PARTY_IDS } from "../integrations/mandates/demo-party-directory.ts";
-import { InMemoryMandateRepository } from "../integrations/mandates/in-memory-mandate-repository.ts";
-import { createMerchantHistoryService } from "../integrations/merchant-history/create-merchant-history-service.ts";
 import { createMerchantCategoryService } from "../integrations/merchant-registry/create-merchant-category-service.ts";
 import { createDemoMerchantDirectory } from "../integrations/merchants/demo-merchant-directory.ts";
-import { paypalAcceptsAsset } from "../integrations/paypal/amounts.ts";
 import { createPayPalGateway } from "../integrations/paypal/create-paypal-gateway.ts";
 import { connectDatabase } from "../integrations/postgres/database.ts";
-import { PostgresAuditRepository } from "../integrations/postgres/postgres-audit-repository.ts";
-import { PostgresMandateRepository } from "../integrations/postgres/postgres-mandate-repository.ts";
-import { PostgresSpendingLog } from "../integrations/postgres/postgres-spending-log.ts";
-import { InMemorySpendingLog } from "../integrations/spending/in-memory-spending-log.ts";
 import {
   DEMO_SESSIONS_PATH,
   DemoIdentityProvider,
@@ -27,6 +19,15 @@ import {
   readDemoIdentityMode,
   readDemoPurchasesMode,
 } from "./demo-identity.ts";
+import {
+  bearerSecretHash,
+  clientAddress,
+  DEMO_WORKSPACES_PATH,
+  handleStartDemoWorkspace,
+  oauthSecretHash,
+  UNKNOWN_WORKSPACE,
+  WORKSPACE_HEADER,
+} from "./demo-workspaces.ts";
 import {
   handleMandateRequest,
   isMandateApiPath,
@@ -65,7 +66,6 @@ import {
   readAnalystJobsMode,
 } from "./merchant-onboarding.ts";
 import { createAnalystLayer } from "../integrations/analyst/create-analyst-layer.ts";
-import { InMemoryErrandRepository } from "../integrations/errands/in-memory-errand-repository.ts";
 import {
   DEMO_MERCHANTS_PATH,
   handleListDemoMerchants,
@@ -74,6 +74,7 @@ import {
   MAX_PURCHASE_BODY_BYTES,
 } from "./purchases.ts";
 import { handleMerchantPayments, merchantPaymentsId } from "./merchant-payments.ts";
+import type { Actor } from "../application/mandates.ts";
 import { elapsed, logger } from "../lib/log.ts";
 
 const log = logger("server");
@@ -101,9 +102,15 @@ const mcpAllowedOrigins = new Set([
   ...(process.env.COMPAS_MCP_ALLOWED_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? []),
 ]);
 
-// With DATABASE_URL, mandates, spending and the trust log live in Supabase Postgres (data/migrations/).
+// With DATABASE_URL, the merchant trust log lives in Supabase Postgres
+// (data/migrations/). A visitor's demo never does: budgets, spending, errands
+// and agent grants live in that visitor's workspace, in memory.
 const database = connectDatabase();
-log.info(database ? "Storage: Postgres (DATABASE_URL)." : "Storage: in memory. A restart loses every log.");
+log.info(
+  database
+    ? "Storage: trust log in Postgres (DATABASE_URL). Visitors' demos are in memory."
+    : "Storage: in memory. A restart loses every log and every visitor's demo.",
+);
 
 // PayPal sandbox only. Without the app credentials every PayPal call throws.
 const paypal = createPayPalGateway();
@@ -121,65 +128,20 @@ if (merchantCategories.demoSubmissions > 0) {
   );
 }
 
-// The purchase and confirmation flows read it. Started here so the demo
-// tienda's history is seeded with the rest of the demo data.
-const merchantHistory = await createMerchantHistoryService(database ? { database } : {});
-if (merchantHistory.demoObservations > 0) {
-  log.info(
-    `Merchant history: seeded ${merchantHistory.demoObservations} observations for the demo tienda (demo/test data).`,
-  );
-}
-
-// Mandates. With DATABASE_URL every part lives in Postgres: compas.mandates
-// (with the atomic capacity reservation), compas.spending_records and
-// compas.audit_events. Without it, everything is in memory and a restart loses it.
-const parties = createDemoPartyDirectory();
-const mandateRepository = database ? new PostgresMandateRepository(database) : new InMemoryMandateRepository();
-const spending = database ? new PostgresSpendingLog(database) : new InMemorySpendingLog();
-const mandateAudit = database ? new PostgresAuditRepository(database) : new InMemoryAuditRepository();
-
-// Errands, in memory. Shared by the purchase flow, which reserves an errand's
-// units, and the settlement, which gives them back when nothing is paid.
-const errandRepository = new InMemoryErrandRepository();
-
-// The only path to a capture: it reads the order from PayPal and the mandate
-// from the repository again, and captures only what still matches.
-const settlement = new PayPalOrderSettlement({
-  payments: paypal.gateway,
-  spending,
-  mandates: mandateRepository,
-  parties,
-  history: merchantHistory,
-  errands: errandRepository,
-  logWarning,
-});
-
-const mandates = new MandateService({
-  mandates: mandateRepository,
-  parties,
-  audit: mandateAudit,
-  spending,
-  acceptsAsset: paypalAcceptsAsset,
-  ...(paypal.configured ? { settlement } : {}),
-  logWarning,
-});
-// Purchases. The delegate's flow runs purchaseUnderMandate on the same
-// mandates and spending log as above, so the payer sees each attempt.
 // A demo session creates PayPal orders only if the operator opted in.
 const purchasesMode = readDemoPurchasesMode();
 const merchantDirectory = createDemoMerchantDirectory();
 
-// The AI analyst, merchant catalogs with CUM mapping, the Cámara binding
-// through Log in with PayPal, and errands. Elastic, the analyst's model and
-// Log in with PayPal throw when not configured. Their stores are in memory.
+// The AI analyst, merchant catalogs with CUM mapping, and the Cámara binding
+// through Log in with PayPal. Elastic, the analyst's model and Log in with
+// PayPal throw when not configured. Their stores are in memory, shared by
+// every visitor: they describe merchants, not visitors.
 const demoSeed = process.env.MERCHANT_CATEGORY_DEMO_SEED?.trim().toLowerCase() !== "false";
 const analyst = await createAnalystLayer({
   merchants: merchantDirectory,
   registry: merchantCategories.registry,
   ingest: merchantCategories.ingest,
-  mandates,
   demo: demoSeed,
-  errands: errandRepository,
   logWarning,
 });
 if (analyst.elastic.missing.length > 0) {
@@ -192,62 +154,33 @@ if (analyst.demoCatalogItems > 0) {
 const analystJobsMode = readAnalystJobsMode();
 const operatorToken = process.env.COMPAS_OPERATOR_TOKEN?.trim();
 
-const purchases = new DelegatePurchaseService({
-  mandates,
+// What every visitor's demo workspace shares.
+const workspaceShared: DemoWorkspaceShared = {
+  paypal,
   merchants: merchantDirectory,
   registry: merchantCategories.registry,
-  history: merchantHistory,
-  payments: paypal.gateway,
-  spending,
-  capacity: mandateRepository,
-  catalog: { catalogs: analyst.catalogs, mappings: analyst.mappings },
-  errands: errandRepository,
+  catalogs: analyst.catalogs,
+  mappings: analyst.mappings,
+  cumRegistry: analyst.cumRegistry,
+  model: analyst.model,
+  search: analyst.elastic.search,
   execution: !paypal.configured
     ? { allowed: false, code: "PAYPAL_NOT_CONFIGURED", reason: "PayPal is not configured in this environment." }
     : purchasesMode.enabled
       ? { allowed: true }
       : { allowed: false, code: "PURCHASES_DISABLED_FOR_DEMO", reason: purchasesMode.reason },
-  logWarning,
-});
-
-// AI agents over MCP (ADR 0011). An agent holds a grant bound to the errands
-// its delegate picked, and reaches PayPal only through `purchases` above.
-// Grants and tokens are in memory: a restart asks every agent to authorize again.
-const agentAuth = new AgentAuthService({
-  repo: new InMemoryAgentRepository(),
-  errands: errandRepository,
-  mandates,
-  resource: `${publicUrl}${MCP_PATH}`,
-});
-const agentShopping = new AgentShoppingService({
-  errands: errandRepository,
-  mandates,
-  merchants: merchantDirectory,
-  registry: merchantCategories.registry,
-  history: merchantHistory,
-  catalogs: analyst.catalogs,
-  mappings: analyst.mappings,
-  cum: analyst.cumRegistry,
-  purchases,
-});
-
-// The demo's scripted agent: a client of this same MCP endpoint, over HTTP. It is a script, not a model.
-const demoAgents = new DemoAgentRuns({
-  origin: publicUrl,
+  // Agent clients and pending requests: an MCP client registers before any visitor answers it.
+  agents: new InMemoryAgentRepository(),
+  publicUrl,
   mcpUrl: `${publicUrl}${MCP_PATH}`,
-  fetch: (url, init) => fetch(url, init),
-  errands: errandRepository,
-  mandates,
-  merchants: merchantDirectory,
-  catalogs: analyst.catalogs,
-  mappings: analyst.mappings,
-  grantIdOf: async (accessToken) => (await agentAuth.authenticate(`Bearer ${accessToken}`))?.grant.id,
-});
+  logWarning,
+};
 
+const parties = createDemoPartyDirectory();
 const payerPinned = Boolean((await parties.getById(DEMO_PARTY_IDS.pedro))?.paypalPayerId);
 const runtimeFacts: RuntimeFacts = {
   identity: "DEMO",
-  persistence: database ? "POSTGRES" : "IN_MEMORY_DEMO",
+  persistence: "IN_MEMORY_DEMO",
   paypal: paypal.configured ? "sandbox" : "not_configured",
   payerApproval: payerPinned ? "PINNED" : "ANY_ACCOUNT",
   purchases: !paypal.configured ? "not_configured" : purchasesMode.enabled ? "enabled" : "disabled_for_demo",
@@ -265,11 +198,25 @@ const demoIdentityMode = readDemoIdentityMode();
 const demoIdentity = demoIdentityMode.enabled ? new DemoIdentityProvider({ parties }) : undefined;
 if (demoIdentityMode.enabled) {
   log.warn(
-    "Demo identities are enabled (demo/test data): any caller can act as Pedro, Andrea or Gladys. Not for real funds.",
+    "Demo identities are enabled (demo/test data): each visitor's demo has its own Pedro, Andrea and Gladys. Not for real funds.",
   );
 } else {
   log.warn(`Demo identities are disabled (${demoIdentityMode.reason}). Mandate routes answer 503.`);
 }
+
+// One workspace per visitor. Its sessions end with it.
+const workspaces = new DemoWorkspaces<DemoWorkspace>({
+  create: (hooks) => createDemoWorkspace(workspaceShared, createDemoPartyDirectory(), hooks),
+  onEnd: (id) => demoIdentity?.endScope(id),
+});
+setInterval(() => workspaces.sweep(), 5 * 60 * 1000).unref();
+const trustForwardedFor = process.env.COMPAS_TRUST_FORWARDED_FOR?.trim().toLowerCase() === "true";
+
+// Answers the agent calls that come before any workspace is known (discovery,
+// registration, the authorization request) and those whose token no live
+// workspace issued. No visitor ever acts in it, so it holds no one's data.
+const lobby = await createDemoWorkspace(workspaceShared, parties, { onOrder: () => {}, onAgentToken: () => {} });
+const agentWorkspace = (secretHash: string | undefined) => (secretHash && workspaces.byAgentSecret(secretHash)) || lobby;
 
 function sendJson(response: ServerResponse, { status, body }: JsonResponse): void {
   response.writeHead(status, { "content-type": "application/json" });
@@ -338,10 +285,21 @@ async function readJsonBody(
   }
 }
 
-/** Demo sessions and the mandate routes. The actor always comes from the session token. */
+/** The actor behind the session token, and the visitor's workspace the session acts in. */
+function sessionIn(request: IncomingMessage): { actor: Actor; workspace: DemoWorkspace } | undefined {
+  const session = demoIdentity?.resolve(request.headers.authorization);
+  const workspace = workspaces.byId(session?.scope);
+  return session && workspace ? { actor: session.actor, workspace } : undefined;
+}
+
+/** Demo workspaces, demo sessions and the mandate routes. The actor always comes from the session token. */
 async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonResponse> {
   if (!demoIdentity) {
     return { status: 503, body: { error: "IDENTITY_NOT_CONFIGURED", message: "No identity provider is enabled." } };
+  }
+  if (url.pathname === DEMO_WORKSPACES_PATH) {
+    if (request.method !== "POST") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
+    return handleStartDemoWorkspace(workspaces, clientAddress(request, trustForwardedFor));
   }
   if (url.pathname === DEMO_SESSIONS_PATH) {
     if (request.method !== "POST") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
@@ -352,11 +310,12 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
       if (error instanceof BodyTooLargeError) return { status: 413, body: { error: "BODY_TOO_LARGE" } };
       throw error;
     }
-    return handleStartDemoSession(body, demoIdentity);
+    return handleStartDemoSession(body, demoIdentity, (token) => workspaces.idOf(token));
   }
 
-  const actor = demoIdentity.authenticate(request.headers.authorization);
-  if (!actor) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
+  const session = sessionIn(request);
+  if (!session) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
+  const { actor, workspace } = session;
 
   if (isErrandApiPath(url.pathname)) {
     let errandBody: unknown;
@@ -366,7 +325,7 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
       errandBody = parsed.body;
     }
     return handleErrandRequest({ method: request.method ?? "GET", url, body: errandBody }, actor, {
-      service: analyst.errandService,
+      service: workspace.errandService,
     });
   }
 
@@ -377,7 +336,7 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
       if (!parsed.ok) return parsed.response;
       purchaseBody = parsed.body;
     }
-    return handlePurchaseRequest({ method: request.method ?? "GET", url, body: purchaseBody }, actor, { service: purchases });
+    return handlePurchaseRequest({ method: request.method ?? "GET", url, body: purchaseBody }, actor, { service: workspace.purchases });
   }
 
   let body: unknown;
@@ -389,7 +348,7 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   return handleMandateRequest(
     { method: request.method ?? "GET", url, body },
     actor,
-    { service: mandates, facts: runtimeFacts },
+    { service: workspace.mandates, facts: runtimeFacts },
   );
 }
 
@@ -398,8 +357,9 @@ async function routeAgentConsent(request: IncomingMessage, url: URL): Promise<Ap
   if (!demoIdentity) {
     return { status: 503, body: { error: "IDENTITY_NOT_CONFIGURED", message: "No identity provider is enabled." } };
   }
-  const actor = demoIdentity.authenticate(request.headers.authorization);
-  if (!actor) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
+  const session = sessionIn(request);
+  if (!session) return { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } };
+  const { actor, workspace } = session;
   let body: unknown;
   if (request.method === "POST") {
     const parsed = await readJsonBody(request, MAX_CONSENT_BODY_BYTES);
@@ -407,15 +367,16 @@ async function routeAgentConsent(request: IncomingMessage, url: URL): Promise<Ap
     body = parsed.body;
   }
   if (isDemoAgentPath(url.pathname)) {
-    return handleDemoAgentRequest({ method: request.method ?? "GET", url, body }, actor, { runs: demoAgents });
+    return handleDemoAgentRequest({ method: request.method ?? "GET", url, body }, actor, { runs: workspace.demoAgents });
   }
-  return handleAgentConsentRequest({ method: request.method ?? "GET", url, body }, actor, { auth: agentAuth });
+  return handleAgentConsentRequest({ method: request.method ?? "GET", url, body }, actor, { auth: workspace.agentAuth });
 }
 
 /**
  * Health check, the PayPal return and cancel redirects, the merchant
- * category service, demo sessions, the mandate routes, the purchase routes,
- * and the agent routes: OAuth, the consent answers and the MCP endpoint.
+ * category service, demo workspaces and sessions, the mandate routes, the
+ * purchase routes, and the agent routes: OAuth, the consent answers and the
+ * MCP endpoint.
  */
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
@@ -449,6 +410,7 @@ const server = createServer(async (request, response) => {
         cumRegistry: analyst.cumRegistry.provenance,
         merchantLogin: analyst.identityConfigured ? "paypal_sandbox" : "not_configured",
         analystJobs: analystJobsMode.enabled ? "enabled" : "disabled",
+        demoWorkspaces: workspaces.size,
       }),
     );
     return;
@@ -456,7 +418,7 @@ const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && isPayPalReturnPath(url.pathname)) {
     const { location, result } = await handlePayPalReturn(url, {
-      settlement,
+      settlementFor: (orderId) => workspaces.byOrder(orderId)?.settlement,
       returnUrl,
       logError: (message) => httpLog.error(message),
     });
@@ -484,6 +446,12 @@ const server = createServer(async (request, response) => {
 
   const paymentsMerchantId = request.method === "GET" ? merchantPaymentsId(url.pathname) : undefined;
   if (paymentsMerchantId) {
+    // The visitor's own demo: the pharmacy has no demo person, so the workspace is named directly.
+    const workspace = workspaces.byToken(request.headers[WORKSPACE_HEADER]);
+    if (demoIdentity && !workspace) {
+      sendJson(response, UNKNOWN_WORKSPACE);
+      return;
+    }
     try {
       sendJson(
         response,
@@ -491,7 +459,7 @@ const server = createServer(async (request, response) => {
           enabled: Boolean(demoIdentity),
           paypalConfigured: paypal.configured,
           merchants: merchantDirectory,
-          spending,
+          spending: (workspace ?? lobby).spending,
           payments: paypal.gateway,
         }),
       );
@@ -588,7 +556,11 @@ const server = createServer(async (request, response) => {
           response,
           await handleOAuthRequest(
             { method: request.method ?? "GET", url, ...(rawBody ? { rawBody } : {}) },
-            { auth: agentAuth, issuer: publicUrl, consentUrl: agentConsentUrl },
+            {
+              auth: agentWorkspace(oauthSecretHash(url.pathname, rawBody)).agentAuth,
+              issuer: publicUrl,
+              consentUrl: agentConsentUrl,
+            },
           ),
         );
       } else if (url.pathname === MCP_PATH) {
@@ -602,6 +574,7 @@ const server = createServer(async (request, response) => {
           body = parsed.body;
         }
         const protocolVersion = request.headers["mcp-protocol-version"];
+        const workspace = agentWorkspace(bearerSecretHash(request.headers.authorization));
         sendApi(
           response,
           await handleMcpRequest(
@@ -613,8 +586,8 @@ const server = createServer(async (request, response) => {
               body,
             },
             {
-              auth: agentAuth,
-              shopping: agentShopping,
+              auth: workspace.agentAuth,
+              shopping: workspace.agentShopping,
               resourceMetadataUrl: `${publicUrl}/.well-known/oauth-protected-resource/mcp`,
               allowedOrigins: mcpAllowedOrigins,
             },
@@ -631,6 +604,7 @@ const server = createServer(async (request, response) => {
   }
 
   if (
+    url.pathname === DEMO_WORKSPACES_PATH ||
     url.pathname === DEMO_SESSIONS_PATH ||
     isMandateApiPath(url.pathname) ||
     isPurchaseApiPath(url.pathname) ||

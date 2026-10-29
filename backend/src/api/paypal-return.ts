@@ -6,9 +6,10 @@ export { PAYPAL_ORDER_CANCEL_PATH, PAYPAL_ORDER_RETURN_PATH };
 /**
  * What the frontend is told, as a hint only: the screen reads the mandate's
  * activity again. UNCONFIRMED: PayPal gave no clear answer, and the next read
- * of the activity reconciles the order.
+ * of the activity reconciles the order. ENDED: the visitor's demo that made
+ * the order is gone, so nothing was captured.
  */
-export type PayerReturnResult = "completed" | "pending" | "waiting" | "cancelled" | "failed" | "unconfirmed";
+export type PayerReturnResult = "completed" | "pending" | "waiting" | "cancelled" | "failed" | "unconfirmed" | "ended";
 
 /** PayPal order ids are short upper-case tokens. Anything else is not looked up. */
 const ORDER_ID = /^[A-Z0-9]{1,36}$/;
@@ -23,7 +24,8 @@ const RESULT_BY_STATE: Record<SettlementResult, PayerReturnResult> = {
 };
 
 export type PayPalReturnDeps = {
-  settlement: Pick<PayPalOrderSettlement, "approved" | "cancelled">;
+  /** The settlement of the demo that created the order, or undefined when that demo has ended. */
+  settlementFor: (orderId: string) => Pick<PayPalOrderSettlement, "approved" | "cancelled"> | undefined;
   /** Frontend page the payer's browser returns to. */
   returnUrl: string;
   logError?: (message: string) => void;
@@ -48,12 +50,14 @@ export async function handlePayPalReturn(
   let result: PayerReturnResult = "failed";
   let mandateId: string | undefined;
 
-  if (orderId && ORDER_ID.test(orderId)) {
+  const settlement = orderId && ORDER_ID.test(orderId) ? deps.settlementFor(orderId) : undefined;
+  if (orderId && ORDER_ID.test(orderId) && !settlement) result = "ended";
+  if (orderId && settlement) {
     try {
       const outcome =
         requestUrl.pathname === PAYPAL_ORDER_CANCEL_PATH
-          ? await deps.settlement.cancelled(orderId)
-          : await deps.settlement.approved(orderId);
+          ? await settlement.cancelled(orderId)
+          : await settlement.approved(orderId);
       result = RESULT_BY_STATE[outcome.result];
       mandateId = outcome.mandateId;
     } catch (error) {

@@ -11,7 +11,8 @@ import type { JsonResponse } from "./merchant-categories.ts";
  * backend resolves the actor from the token, so the browser never sends a
  * payer or delegate id that COMPAS trusts.
  *
- * Anyone who can reach this backend can start a session as any demo party.
+ * Anyone who can reach this backend can start a session as any demo party,
+ * inside their own demo workspace: no session reaches another visitor's.
  * That is acceptable only because no money moves on a COMPAS session alone:
  * every payment is a PayPal order the payer approves while logged in to
  * their own PayPal, and COMPAS talks only to the PayPal sandbox. It is never
@@ -67,12 +68,15 @@ export function readDemoPurchasesMode(env: NodeJS.ProcessEnv = process.env): Dem
 
 export type DemoSession = { token: string; party: PartyView; expiresAt: string };
 
+/** The actor behind a session, and the visitor's demo workspace it was started in. */
+export type ResolvedSession = { actor: Actor; scope?: string };
+
 export class DemoIdentityProvider {
   readonly #parties: PartyDirectory;
   readonly #ttlMs: number;
   readonly #now: () => Date;
   readonly #newToken: () => string;
-  readonly #sessions = new Map<string, { partyId: string; expiresAt: number }>();
+  readonly #sessions = new Map<string, { partyId: string; scope?: string; expiresAt: number }>();
 
   constructor(deps: {
     parties: PartyDirectory;
@@ -86,14 +90,17 @@ export class DemoIdentityProvider {
     this.#newToken = deps.newToken ?? (() => randomBytes(32).toString("base64url"));
   }
 
-  /** Starts a session for a known demo party. Unknown ids get nothing. */
-  async start(partyId: unknown): Promise<DemoSession | undefined> {
+  /**
+   * Starts a session for a known demo party. Unknown ids get nothing. With a
+   * scope, the session acts only inside that visitor's demo workspace.
+   */
+  async start(partyId: unknown, scope?: string): Promise<DemoSession | undefined> {
     if (typeof partyId !== "string" || partyId.length === 0 || partyId.length > 128) return undefined;
     const party = await this.#parties.getById(partyId);
     if (!party) return undefined;
     const token = this.#newToken();
     const expiresAt = this.#now().getTime() + this.#ttlMs;
-    this.#sessions.set(token, { partyId: party.id, expiresAt });
+    this.#sessions.set(token, { partyId: party.id, ...(scope ? { scope } : {}), expiresAt });
     return {
       token,
       party: { id: party.id, displayName: party.displayName },
@@ -101,8 +108,8 @@ export class DemoIdentityProvider {
     };
   }
 
-  /** The actor behind `Authorization: Bearer <token>`, or undefined. */
-  authenticate(authorization: string | undefined): Actor | undefined {
+  /** The session behind `Authorization: Bearer <token>`, or undefined. */
+  resolve(authorization: string | undefined): ResolvedSession | undefined {
     const match = authorization ? BEARER.exec(authorization.trim()) : null;
     if (!match) return undefined;
     const session = this.#sessions.get(match[1]);
@@ -111,14 +118,33 @@ export class DemoIdentityProvider {
       this.#sessions.delete(match[1]);
       return undefined;
     }
-    return { partyId: session.partyId };
+    return { actor: { partyId: session.partyId }, ...(session.scope ? { scope: session.scope } : {}) };
+  }
+
+  /** The actor behind `Authorization: Bearer <token>`, or undefined. */
+  authenticate(authorization: string | undefined): Actor | undefined {
+    return this.resolve(authorization)?.actor;
+  }
+
+  /** Ends every session of a scope, and drops expired ones. */
+  endScope(scope: string): void {
+    const now = this.#now().getTime();
+    for (const [token, session] of this.#sessions) {
+      if (session.scope === scope || now >= session.expiresAt) this.#sessions.delete(token);
+    }
   }
 }
 
-/** POST /demo/sessions with `{ "partyId": "…" }`. */
+/**
+ * POST /demo/sessions with `{ "partyId": "…", "workspace": "…" }`. With
+ * `scopeOf`, the workspace token is required and names the visitor's demo
+ * workspace; an ended one answers UNKNOWN_WORKSPACE, so the browser starts
+ * another.
+ */
 export async function handleStartDemoSession(
   body: Uint8Array,
   provider: Pick<DemoIdentityProvider, "start">,
+  scopeOf?: (workspaceToken: unknown) => string | undefined,
 ): Promise<JsonResponse> {
   let parsed: unknown;
   try {
@@ -126,7 +152,15 @@ export async function handleStartDemoSession(
   } catch {
     return { status: 400, body: { error: "INVALID_BODY", message: "body is not UTF-8 JSON" } };
   }
-  const session = await provider.start((parsed as { partyId?: unknown } | null)?.partyId);
+  const request = parsed as { partyId?: unknown; workspace?: unknown } | null;
+  let scope: string | undefined;
+  if (scopeOf) {
+    scope = scopeOf(request?.workspace);
+    if (!scope) {
+      return { status: 404, body: { error: "UNKNOWN_WORKSPACE", message: "This demo ended. Start a new one." } };
+    }
+  }
+  const session = await provider.start(request?.partyId, scope);
   if (!session) {
     return { status: 404, body: { error: "UNKNOWN_PARTY", message: "not a demo party" } };
   }

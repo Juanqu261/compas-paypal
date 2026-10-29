@@ -16,8 +16,6 @@ cp .env.example .env   # then fill it in
 npm run dev            # or npm start
 ```
 
-`GET /health` reports what is configured: PayPal, storage, Elastic, the analyst's model, merchant login and analyst jobs. Without `DATABASE_URL`, everything runs in memory.
-
 ## Configure
 
 The demo needs seven values, at the top of `.env.example`:

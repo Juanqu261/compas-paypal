@@ -37,7 +37,7 @@ test("the return and cancel paths are recognized", () => {
 test("an approval return settles the order and sends the payer back to the budget", async () => {
   const stub = settlementStub({ result: "COMPLETED", mandateId: "mandate-abc-1" });
   const { location, result } = await handlePayPalReturn(at(PAYPAL_ORDER_RETURN_PATH, "?token=5O190127TN364715T&PayerID=TESTPAYERPEDR"), {
-    settlement: stub.settlement,
+    settlementFor: () => stub.settlement,
     returnUrl: RETURN_URL,
   });
   assert.equal(result, "completed");
@@ -53,7 +53,7 @@ test("an approval return settles the order and sends the payer back to the budge
 test("a cancel return closes the order unpaid", async () => {
   const stub = settlementStub({ result: "CANCELLED", mandateId: "mandate-abc-1" });
   const { result } = await handlePayPalReturn(at(PAYPAL_ORDER_CANCEL_PATH, "?token=5O190127TN364715T"), {
-    settlement: stub.settlement,
+    settlementFor: () => stub.settlement,
     returnUrl: RETURN_URL,
   });
   assert.equal(result, "cancelled");
@@ -64,7 +64,7 @@ test("a missing or malformed token is not looked up", async () => {
   for (const query of ["", "?token=", "?token=../../v1/oauth2/token", "?token=abc%20def"]) {
     const stub = settlementStub({ result: "COMPLETED", mandateId: "mandate-abc-1" });
     const { location, result } = await handlePayPalReturn(at(PAYPAL_ORDER_RETURN_PATH, query), {
-      settlement: stub.settlement,
+      settlementFor: () => stub.settlement,
       returnUrl: RETURN_URL,
     });
     assert.equal(result, "failed", query);
@@ -75,17 +75,33 @@ test("a missing or malformed token is not looked up", async () => {
 
 test("an order no COMPAS purchase names, or a settlement that fails, is never reported as paid", async () => {
   const unknown = await handlePayPalReturn(at(PAYPAL_ORDER_RETURN_PATH, "?token=5O190127TN364715T"), {
-    settlement: settlementStub({ result: "UNKNOWN_ORDER" }).settlement,
+    settlementFor: () => settlementStub({ result: "UNKNOWN_ORDER" }).settlement,
     returnUrl: RETURN_URL,
   });
   assert.equal(unknown.result, "failed");
 
   const errors: string[] = [];
   const thrown = await handlePayPalReturn(at(PAYPAL_ORDER_RETURN_PATH, "?token=5O190127TN364715T"), {
-    settlement: settlementStub(Object.assign(new Error("timeout"), { code: "UPSTREAM" })).settlement,
+    settlementFor: () => settlementStub(Object.assign(new Error("timeout"), { code: "UPSTREAM" })).settlement,
     returnUrl: RETURN_URL,
     logError: (message) => errors.push(message),
   });
   assert.equal(thrown.result, "unconfirmed");
   assert.match(errors[0], /UPSTREAM/);
+});
+
+test("an order whose demo has ended is reported as ended, and nothing is looked up or captured", async () => {
+  const asked: string[] = [];
+  const { location, result } = await handlePayPalReturn(at(PAYPAL_ORDER_RETURN_PATH, "?token=5O190127TN364715T"), {
+    settlementFor: (orderId) => {
+      asked.push(orderId);
+      return undefined;
+    },
+    returnUrl: RETURN_URL,
+  });
+  assert.equal(result, "ended");
+  assert.deepEqual(asked, ["5O190127TN364715T"]);
+  const back = new URL(location);
+  assert.equal(back.searchParams.get("paypalOrder"), "ended");
+  assert.equal(back.searchParams.has("mandateId"), false);
 });

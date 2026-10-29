@@ -31,6 +31,10 @@ import type {
  * Identity: each host app starts a DEMO session for its demo person, and the
  * backend resolves the actor from the session token. This client never sends
  * a payer or delegate id that the backend trusts.
+ *
+ * Every session belongs to this browser's demo workspace: its own Pedro,
+ * Andrea and Gladys and everything they create, kept in the backend's memory
+ * and seen by no other visitor.
  */
 const BASE = "/compas-api";
 
@@ -52,6 +56,15 @@ export class CompasApiError extends Error {
 
 /** One session per demo person and tab. A backend restart invalidates it, and the next call starts another. */
 const sessions = new Map<string, Promise<string>>();
+
+/**
+ * The workspace token, kept in localStorage so the demo survives the trip to
+ * PayPal and back and is shared by this browser's tabs. Without storage it
+ * lasts as long as the page.
+ */
+const WORKSPACE_KEY = "compas.demoWorkspace";
+const WORKSPACE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+let workspace: Promise<string> | undefined;
 
 /**
  * Reads give up after this long. Writes have no client timeout: giving up on
@@ -92,16 +105,69 @@ async function readError(response: Response): Promise<CompasApiError> {
   );
 }
 
+function currentWorkspace(): Promise<string> | undefined {
+  if (!workspace) {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(WORKSPACE_KEY);
+    } catch {
+      // No storage: the workspace lives as long as the page.
+    }
+    if (stored && WORKSPACE_TOKEN.test(stored)) workspace = Promise.resolve(stored);
+  }
+  return workspace;
+}
+
+/**
+ * This browser's workspace token. `ended` is a token the backend no longer
+ * knows: then a new demo starts, once, however many screens noticed.
+ */
+async function workspaceToken(ended?: string): Promise<string> {
+  const current = currentWorkspace();
+  if (current) {
+    const token = await current.catch(() => undefined);
+    if (workspace !== current) return workspaceToken(ended);
+    if (token && token !== ended) return token;
+  }
+  const started = (async () => {
+    const response = await send("/demo/workspaces", { method: "POST" });
+    if (!response.ok) throw await readError(response);
+    const token = ((await response.json()) as { workspace: string }).workspace;
+    try {
+      window.localStorage.setItem(WORKSPACE_KEY, token);
+    } catch {
+      // No storage: the workspace lives as long as the page.
+    }
+    return token;
+  })();
+  workspace = started;
+  sessions.clear();
+  started.catch(() => {
+    if (workspace === started) workspace = undefined;
+  });
+  return started;
+}
+
+function startSession(partyId: string, workspaceToken: string): Promise<Response> {
+  return send("/demo/sessions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ partyId, workspace: workspaceToken }),
+  });
+}
+
 function sessionToken(partyId: string, fresh = false): Promise<string> {
   const existing = sessions.get(partyId);
   if (existing && !fresh) return existing;
   const started = (async () => {
-    const response = await send("/demo/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ partyId }),
-    });
-    if (!response.ok) throw await readError(response);
+    const current = await workspaceToken();
+    let response = await startSession(partyId, current);
+    if (!response.ok) {
+      const error = await readError(response);
+      if (error.code !== "UNKNOWN_WORKSPACE") throw error;
+      response = await startSession(partyId, await workspaceToken(current));
+      if (!response.ok) throw await readError(response);
+    }
     const body = (await response.json()) as { token: string };
     return body.token;
   })();
@@ -182,7 +248,11 @@ export const compasApi = {
   /** demo/test data: a merchant's analyst findings. The backend shows them without a merchant session in demo mode only. */
   /** The merchant's COMPAS orders, each read live from the PayPal sandbox. */
   merchantPayPalPayments: async (merchantId: string) => {
-    const response = await send(`/demo/merchants/${encodeURIComponent(merchantId)}/payments`, { method: "GET" });
+    const read = (token: string) =>
+      send(`/demo/merchants/${encodeURIComponent(merchantId)}/payments`, { method: "GET", headers: { "x-compas-workspace": token } });
+    const current = await workspaceToken();
+    let response = await read(current);
+    if (response.status === 401) response = await read(await workspaceToken(current));
     if (!response.ok) throw await readError(response);
     return (await response.json()) as MerchantPayPalPaymentsResponse;
   },

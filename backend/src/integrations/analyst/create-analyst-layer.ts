@@ -1,9 +1,7 @@
 import { AnalystJobQueue } from "../../application/analyst-jobs.ts";
 import { respondToJudgment, withdrawJudgment } from "../../application/analyst-appeals.ts";
 import { bindMerchantCertificate } from "../../application/bind-merchant-certificate.ts";
-import { ErrandService } from "../../application/errands.ts";
 import type { IngestCategoryClaimInput, IngestionResult } from "../../application/ingest-category-claim.ts";
-import type { MandateService } from "../../application/mandates.ts";
 import { InMemoryMerchantAccountVerifications, MerchantIdentityService } from "../../application/merchant-identity.ts";
 import { runMerchantAnalysis } from "../../application/run-merchant-analysis.ts";
 import { notImplemented } from "../../lib/not-implemented.ts";
@@ -17,7 +15,6 @@ import { SocrataCumRegistry } from "../cum/socrata-cum-registry.ts";
 import type { AnalystModel } from "../../ports/analyst-model.ts";
 import { ClaudeAnalystModel } from "../anthropic/claude-analyst-model.ts";
 import { createElastic, type ElasticSetup } from "../elastic/create-elastic.ts";
-import { InMemoryErrandRepository } from "../errands/in-memory-errand-repository.ts";
 import { seedDemoCatalogs } from "../merchant-catalog/demo-catalog-seed.ts";
 import { InMemoryCatalogMappings, InMemoryMerchantCatalogs } from "../merchant-catalog/in-memory-catalogs.ts";
 import { DEMO_CAMARA_DIR, DEMO_CATALOGS_DIR, DEMO_CUM_FILE } from "../merchant-registry/data-paths.ts";
@@ -58,8 +55,9 @@ export function createAnalystModel(
 }
 
 /**
- * Wires the analyst, catalogs, CUM mapping, the Cámara binding with Log in
- * with PayPal, and errands. Stores are in memory. Elastic, the model and Log
+ * Wires the analyst, catalogs, CUM mapping and the Cámara binding with Log in
+ * with PayPal. Stores are in memory. Errands belong to each visitor's demo
+ * workspace, which drafts them with the `model` and `elastic.search` here. Elastic, the model and Log
  * in with PayPal throw when they are not configured, never fake.
  */
 export async function createAnalystLayer(options: {
@@ -67,13 +65,10 @@ export async function createAnalystLayer(options: {
   merchants: MerchantDirectory;
   registry: MerchantRegistry;
   ingest: (input: IngestCategoryClaimInput) => Promise<IngestionResult>;
-  mandates: Pick<MandateService, "forParticipant">;
   /** demo/test data: seed the demo catalogs and use the simulated Cámara. */
   demo: boolean;
   logWarning?: (message: string) => void;
   elastic?: ElasticSetup;
-  /** Shared with the settlement, which releases an errand's units with the capacity. */
-  errands?: InMemoryErrandRepository;
 }) {
   const env = options.env ?? process.env;
   const warn = options.logWarning ?? (() => {});
@@ -83,7 +78,6 @@ export async function createAnalystLayer(options: {
   const catalogs = new InMemoryMerchantCatalogs();
   const mappings = new InMemoryCatalogMappings();
   const findings = new InMemoryAnalystFindings();
-  const errands = options.errands ?? new InMemoryErrandRepository();
   const camara: CamaraVerifier & { certificateText?: (merchantId: string) => string | undefined } = options.demo
     ? new FixtureCamaraVerifier({ dir: DEMO_CAMARA_DIR, env })
     : new UnimplementedCamaraVerifier();
@@ -119,24 +113,17 @@ export async function createAnalystLayer(options: {
 
   return {
     elastic,
+    model,
     modelVendor,
     cumRegistry,
     catalogs,
     mappings,
     findings,
-    errands,
     camara,
     identity,
     identityConfigured: paypalIdentity.configured,
     demoCatalogItems,
     jobs: new AnalystJobQueue({ run: analyze, logWarning: warn }),
-    errandService: new ErrandService({
-      mandates: options.mandates,
-      errands,
-      registry: cumRegistry,
-      model,
-      search: elastic.search,
-    }),
     bindCertificate: (paypalMerchantId: string, certificateText: unknown) =>
       bindMerchantCertificate(
         { paypalMerchantId, certificateText },
