@@ -59,7 +59,7 @@ function readAccount(name: string, raw: string): Account {
 }
 
 function describe(account: Account): string {
-  return "merchant_id" in account ? `merchant_id ${account.merchant_id}` : `email ${account.email_address}`;
+  return "merchant_id" in account ? `account id ${account.merchant_id}` : `email ${account.email_address}`;
 }
 
 function minorToPayPal(minor: string): string {
