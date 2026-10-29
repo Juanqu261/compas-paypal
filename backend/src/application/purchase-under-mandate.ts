@@ -142,6 +142,7 @@ export async function purchaseUnderMandate(
       mandateId: mandate.id,
       purchaseIntentId: intent.id,
       paypalMerchantId: context.resolution?.paypalMerchantId ?? intent.paypalMerchantId,
+      ...(intent.payeeMerchantId ? { payeeMerchantId: intent.payeeMerchantId } : {}),
       ...(intent.merchantDisplayName ? { merchantDisplayName: intent.merchantDisplayName } : {}),
       requestedAmount: intent.amount,
       decision: { outcome: decision.outcome, reasons: decision.reasons },
@@ -220,7 +221,7 @@ export async function purchaseUnderMandate(
     order = await createPayPalOrderIfAllowed(decision.outcome, deps.payments, {
       // A retry of this decision returns the same order instead of a second one.
       requestId: decision.id,
-      payeeMerchantId: resolution.paypalMerchantId,
+      payeeMerchantId: intent.payeeMerchantId ?? resolution.paypalMerchantId,
       amount: intent.amount,
       lineAmounts: intent.lineItems.map((line) => line.amount),
       metadata: { compasMandateId: mandate.id, compasDecisionId: decision.id, externalReference: intent.id },

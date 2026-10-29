@@ -89,6 +89,26 @@ test("the merchant phone never says paid before PayPal captured it", () => {
   assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "PAYMENT_NOT_STARTED" } }).title, "Could not complete");
 });
 
+test("a demo without sandbox accounts waits for them; an account PayPal doesn't know stops the charge", () => {
+  const preview = {
+    kind: "PREVIEW" as const,
+    preview: {
+      mandateId: "m",
+      merchant: { id: "x", displayName: "x" },
+      requestedAmount: USD("1"),
+      mandateRules: { passed: true, reasonCodes: [] },
+      merchantCategories: [],
+      next: "ORDER" as const,
+      execution: "SANDBOX_ACCOUNTS_REQUIRED" as const,
+    },
+  };
+  assert.deepEqual(merchantChargeStatus({ result: preview }), { title: "Fits the rules. Waiting for sandbox accounts", tone: "wait" });
+  assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "SANDBOX_ACCOUNTS_REQUIRED" } }).tone, "wait");
+  assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "PAYEE_ACCOUNT_INVALID" } }).tone, "stop");
+  assert.match(errorText("SANDBOX_ACCOUNTS_REQUIRED"), /sandbox accounts/);
+  assert.match(errorText("PAYEE_ACCOUNT_INVALID"), /Nothing was charged/);
+});
+
 test("a decision is never shown as a completed payment", () => {
   assert.equal(purchaseStatusLabel({ outcome: "DENY", payment: { status: "NOT_CREATED" } }), "Purchase not allowed");
   assert.match(purchaseStatusLabel({ outcome: "REVIEW", payment: { status: "NOT_CREATED" } }), /held for review/);

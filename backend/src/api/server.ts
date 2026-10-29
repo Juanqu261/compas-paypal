@@ -5,8 +5,9 @@ import {
   type DemoWorkspace,
   type DemoWorkspaceShared,
 } from "../integrations/demo-workspaces/create-demo-workspace.ts";
+import { readPresenterAccounts } from "../integrations/demo-workspaces/demo-accounts.ts";
 import { DemoWorkspaces } from "../integrations/demo-workspaces/demo-workspaces.ts";
-import { createDemoPartyDirectory, DEMO_PARTY_IDS } from "../integrations/mandates/demo-party-directory.ts";
+import { createDemoPartyDirectory } from "../integrations/mandates/demo-party-directory.ts";
 import { createMerchantCategoryService } from "../integrations/merchant-registry/create-merchant-category-service.ts";
 import { createDemoMerchantDirectory } from "../integrations/merchants/demo-merchant-directory.ts";
 import { createPayPalGateway } from "../integrations/paypal/create-paypal-gateway.ts";
@@ -19,6 +20,7 @@ import {
   readDemoIdentityMode,
   readDemoPurchasesMode,
 } from "./demo-identity.ts";
+import { DEMO_ACCOUNTS_PATH, handleDemoAccounts, MAX_ACCOUNTS_BODY_BYTES } from "./demo-accounts.ts";
 import {
   bearerSecretHash,
   clientAddress,
@@ -177,21 +179,36 @@ const workspaceShared: DemoWorkspaceShared = {
 };
 
 const parties = createDemoPartyDirectory();
-const payerPinned = Boolean((await parties.getById(DEMO_PARTY_IDS.pedro))?.paypalPayerId);
 const runtimeFacts: RuntimeFacts = {
   identity: "DEMO",
   persistence: "IN_MEMORY_DEMO",
   paypal: paypal.configured ? "sandbox" : "not_configured",
-  payerApproval: payerPinned ? "PINNED" : "ANY_ACCOUNT",
+  payerApproval: "PINNED",
   purchases: !paypal.configured ? "not_configured" : purchasesMode.enabled ? "enabled" : "disabled_for_demo",
 };
 if (paypal.configured && !purchasesMode.enabled) {
   log.warn(`Purchases are off for demo sessions: ${purchasesMode.reason}`);
 }
-if (paypal.configured && !payerPinned) {
+
+// The sandbox accounts a demo pays with: each visitor's own, or the
+// presenter's configured ones, open to everyone unless COMPAS_PRESENTER_KEY
+// is set.
+const presenter = readPresenterAccounts();
+if (presenter.access === "OPEN") {
+  log.warn("Presenter accounts are open to every visitor. Set COMPAS_PRESENTER_KEY before deploying.");
+} else if (presenter.access === "KEY") {
+  log.info("Presenter accounts: only with the presenter link (COMPAS_PRESENTER_KEY).");
+}
+if (presenter.access !== "UNAVAILABLE" && !presenter.payerPinned) {
   log.warn(
-    "DEMO_PAYER_PAYPAL_ID is not set: COMPAS captures an order whichever PayPal account approved it.",
+    "DEMO_PAYER_PAYPAL_ID is not set: with the presenter's accounts, COMPAS captures an order whichever PayPal account approved it.",
   );
+}
+
+/** A visitor's own accounts always pin the payer. The presenter's do when DEMO_PAYER_PAYPAL_ID is set. */
+function factsFor(workspace: DemoWorkspace): RuntimeFacts {
+  const pinned = workspace.accounts.get()?.source === "VISITOR" || presenter.payerPinned;
+  return { ...runtimeFacts, payerApproval: pinned ? "PINNED" : "ANY_ACCOUNT" };
 }
 
 const demoIdentityMode = readDemoIdentityMode();
@@ -348,7 +365,7 @@ async function routeMandates(request: IncomingMessage, url: URL): Promise<JsonRe
   return handleMandateRequest(
     { method: request.method ?? "GET", url, body },
     actor,
-    { service: workspace.mandates, facts: runtimeFacts },
+    { service: workspace.mandates, facts: factsFor(workspace) },
   );
 }
 
@@ -444,6 +461,34 @@ const server = createServer(async (request, response) => {
     }
   }
 
+  if (url.pathname === DEMO_ACCOUNTS_PATH) {
+    // The visitor's own demo, named by its workspace token like the pharmacy's payments.
+    const workspace = workspaces.byToken(request.headers[WORKSPACE_HEADER]);
+    if (!demoIdentity) {
+      sendJson(response, { status: 503, body: { error: "IDENTITY_NOT_CONFIGURED", message: "Demo sessions are disabled." } });
+      return;
+    }
+    if (!workspace) {
+      sendJson(response, UNKNOWN_WORKSPACE);
+      return;
+    }
+    let body: unknown;
+    if (request.method === "POST") {
+      const parsed = await readJsonBody(request, MAX_ACCOUNTS_BODY_BYTES);
+      if (!parsed.ok) {
+        sendJson(response, parsed.response);
+        return;
+      }
+      body = parsed.body;
+    }
+    const result = handleDemoAccounts({ method: request.method ?? "GET", body }, { accounts: workspace.accounts, presenter });
+    if (request.method === "POST" && result.status === 200) {
+      log.info("demo accounts set", { source: workspace.accounts.get()?.source });
+    }
+    sendJson(response, result);
+    return;
+  }
+
   const paymentsMerchantId = request.method === "GET" ? merchantPaymentsId(url.pathname) : undefined;
   if (paymentsMerchantId) {
     // The visitor's own demo: the pharmacy has no demo person, so the workspace is named directly.
@@ -458,7 +503,7 @@ const server = createServer(async (request, response) => {
         await handleMerchantPayments(paymentsMerchantId, {
           enabled: Boolean(demoIdentity),
           paypalConfigured: paypal.configured,
-          merchants: merchantDirectory,
+          merchants: (workspace ?? lobby).merchants,
           spending: (workspace ?? lobby).spending,
           payments: paypal.gateway,
         }),

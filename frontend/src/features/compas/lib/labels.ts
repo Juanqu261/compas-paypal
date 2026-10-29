@@ -222,6 +222,10 @@ export function errorText(code: string): string {
       return "Only the authorized person can pay with this budget.";
     case "PURCHASES_DISABLED_FOR_DEMO":
       return "Payments are turned off in this demo. Nothing was charged.";
+    case "SANDBOX_ACCOUNTS_REQUIRED":
+      return "Choose the PayPal sandbox accounts this demo pays with first. Nothing was charged.";
+    case "PAYEE_ACCOUNT_INVALID":
+      return "PayPal doesn't know the business account this demo pays. Check its account ID. Nothing was charged.";
     case "UNKNOWN_MERCHANT":
       return "This merchant does not take COMPAS payments in this environment.";
     case "INVALID_PURCHASE":

@@ -29,7 +29,7 @@ The same mandate can later describe a business, NGO, or government allocation. T
 Terms:
 
 - A purpose category such as `MEDICATION` is a COMPAS concept, never a PayPal concept.
-- A merchant is named by its PayPal merchant id (`payee.merchant_id`), never by a URL the browser sends.
+- A merchant is named by its PayPal merchant id (`payee.merchant_id`), never by a URL the browser sends. In a visitor's demo the order's payee can differ: their own sandbox business account stands in for the demo shop, while the shop's evidence is still read for its own id (`payeeMerchantId` on the directory merchant, the intent and the spending record).
 - A `PROVIDER_VERIFIED` claim is a wallet's signed attestation about its own merchant. PayPal signs none: in the demo, a simulated wallet KYB provider (`wallet-kyb-sim/*`, `demo/test data`) fills that tier. It is not PayPal and must never be presented as PayPal.
 - An `EXTERNAL_VERIFIED` claim comes from a registry check, such as RUES at the Cámara de Comercio. On PayPal it needs the Cámara binding: the certificate's email equals the PayPal account's, proven by Log in with PayPal. In the demo the Cámara is a fixture (`camara-fixture`, `demo/test data`).
 - **CUM** (INVIMA's medicine code) is the only product registry, because this MVP covers medicine only. Another category may need another registry with its own codes and verifier (ADR 0009). Don't generalize the code until a second category is asked for.
@@ -93,7 +93,7 @@ Keep PayPal behind `PayPalGateway` in `backend/src/ports/paypal-gateway.ts`. Onl
 
 The client secret and access tokens stay inside the adapter. They never cross the port, reach HTTP responses, logs, errors or `data/`. `PAYPAL_ENVIRONMENT` accepts only `sandbox`.
 
-Call `createOrder` only through `createPayPalOrderIfAllowed`, after policy returns `ALLOW`. Call `captureOrder` only through `PayPalOrderSettlement`, which captures an order only if PayPal reports it `APPROVED`, its payee, amount and `custom_id` match the record, the mandate is still `ACTIVE` and in its window, and, with `DEMO_PAYER_PAYPAL_ID` set, that account approved it. Every state change on the spending record is one conditional transition, so a double return never captures, releases or records twice.
+Call `createOrder` only through `createPayPalOrderIfAllowed`, after policy returns `ALLOW`. Call `captureOrder` only through `PayPalOrderSettlement`, which captures an order only if PayPal reports it `APPROVED`, its payee, amount and `custom_id` match the record, the mandate is still `ACTIVE` and in its window, and, when the payer has a PayPal id (the visitor's own personal account, or `DEMO_PAYER_PAYPAL_ID` with the presenter's accounts), that account approved it. Every state change on the spending record is one conditional transition, so a double return never captures, releases or records twice.
 
 The order pays the merchant directly: `payee.merchant_id`. Do not set `brand_name`: PayPal must show the payer the merchant's own name. The approval link reaches the payer's view only, and the frontend opens only an https page on `paypal.com`.
 
@@ -101,7 +101,9 @@ COMPAS does not convert currencies. The order is in the charge's currency, which
 
 Do not put health data or other sensitive personal data in a PayPal order. Opaque references and neutral line names only.
 
-Configuration is in `backend/.env.example`: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_RETURN_URI`, `PAYPAL_CANCEL_URI`, `PAYPAL_FRONTEND_RETURN_URL`, and the demo's sandbox accounts `DEMO_MERCHANT_PAYPAL_ID`, `DEMO_LIQUOR_PAYPAL_ID`, `DEMO_PAYER_PAYPAL_ID`. The flow mapping is in `docs/04-paypal-mapping.md`.
+Configuration is in `backend/.env.example`: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_RETURN_URI`, `PAYPAL_CANCEL_URI`, `PAYPAL_FRONTEND_RETURN_URL`, and the presenter's sandbox accounts `DEMO_MERCHANT_PAYPAL_ID`, `DEMO_LIQUOR_PAYPAL_ID`, `DEMO_PAYER_PAYPAL_ID`. The flow mapping is in `docs/04-paypal-mapping.md`.
+
+A visitor's demo creates no PayPal order until it has sandbox accounts (`POST /demo/accounts`, Act 2's first card; `SANDBOX_ACCOUNTS_REQUIRED` until then). The main path is the visitor's own: one personal account ID (plays Pedro, the only approver captured) and one business account ID (receives every order). Account IDs only, never emails (PayPal accepts an order to an email with no account) and never a password: the visitor logs in at PayPal themselves, and the IDs live in the workspace's memory only. The alternative is the presenter's configured accounts: open to everyone when `COMPAS_PRESENTER_KEY` is unset (local), else only to a browser that opened `/demo?presenter=<key>`. Set `COMPAS_PRESENTER_KEY` before deploying. A business account PayPal doesn't know fails the order with `PAYEE_ACCOUNT_INVALID`, and nothing is held.
 
 The PayPal MCP tools failed server-side in an earlier session. Probe the sandbox through the REST API.
 

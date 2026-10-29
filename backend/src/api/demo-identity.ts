@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import type { Actor, PartyView } from "../application/mandates.ts";
-import { normalizePayPalAccountId } from "../domain/merchant-identifiers.ts";
 import type { PartyDirectory } from "../ports/party-directory.ts";
 import type { JsonResponse } from "./merchant-categories.ts";
 
@@ -42,10 +41,10 @@ export function readDemoIdentityMode(env: NodeJS.ProcessEnv = process.env): Demo
  * Off by default: anyone can start a demo session as Andrea, so a demo
  * session alone must not put orders in front of a real PayPal account. The
  * operator turns it on with `COMPAS_DEMO_PURCHASES=enabled` for a supervised
- * demo, which also needs the pharmacy's sandbox account in
- * `DEMO_MERCHANT_PAYPAL_ID`. COMPAS talks to the PayPal sandbox only, and
- * never in production. The policy still decides, and the payer still
- * approves every order at PayPal.
+ * demo. Each visitor's demo still pays only once it has sandbox accounts:
+ * the visitor's own, or the presenter's (`DEMO_MERCHANT_PAYPAL_ID`). COMPAS
+ * talks to the PayPal sandbox only, and never in production. The policy
+ * still decides, and the payer still approves every order at PayPal.
  */
 export function readDemoPurchasesMode(env: NodeJS.ProcessEnv = process.env): DemoIdentityMode {
   if (env.NODE_ENV?.trim() === "production") {
@@ -55,12 +54,6 @@ export function readDemoPurchasesMode(env: NodeJS.ProcessEnv = process.env): Dem
     return {
       enabled: false,
       reason: "Demo sessions can't create PayPal orders. Set COMPAS_DEMO_PURCHASES=enabled for a supervised sandbox demo.",
-    };
-  }
-  if (!normalizePayPalAccountId(env.DEMO_MERCHANT_PAYPAL_ID ?? "")) {
-    return {
-      enabled: false,
-      reason: "COMPAS_DEMO_PURCHASES needs DEMO_MERCHANT_PAYPAL_ID, the merchant id of the pharmacy's PayPal sandbox business account.",
     };
   }
   return { enabled: true };

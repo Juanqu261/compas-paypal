@@ -98,14 +98,14 @@ test("an invalid body answers 400 with field errors", async () => {
   assert.ok(Array.isArray(invalid.body.fieldErrors));
 });
 
-test("demo purchases are off by default, in production and without the pharmacy's sandbox account", () => {
+test("demo purchases are off by default and in production", () => {
   const sandbox = { COMPAS_DEMO_PURCHASES: "enabled", DEMO_MERCHANT_PAYPAL_ID: "SANDBXPHARMA2" };
   assert.equal(readDemoPurchasesMode({}).enabled, false);
   assert.equal(readDemoPurchasesMode({ DEMO_MERCHANT_PAYPAL_ID: "SANDBXPHARMA2" }).enabled, false, "off unless opted in");
   assert.equal(readDemoPurchasesMode(sandbox).enabled, true);
   assert.equal(readDemoPurchasesMode({ ...sandbox, NODE_ENV: "production" }).enabled, false);
-  assert.equal(readDemoPurchasesMode({ COMPAS_DEMO_PURCHASES: "enabled" }).enabled, false);
-  assert.equal(readDemoPurchasesMode({ ...sandbox, DEMO_MERCHANT_PAYPAL_ID: "https://wallet.example/x" }).enabled, false);
+  // Each visitor's demo brings its own business account, so the presenter's is not required.
+  assert.equal(readDemoPurchasesMode({ COMPAS_DEMO_PURCHASES: "enabled" }).enabled, true);
 });
 
 test("an allowed purchase answers with an order waiting for the payer, and no approval link", async () => {

@@ -213,7 +213,7 @@ export type PurchasePreview = {
    */
   next: "STOP_DENY" | "STOP_REVIEW" | "ORDER";
   /** Whether POST /purchases may run here. */
-  execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED";
+  execution: "ENABLED" | PurchaseExecutionBlock;
 };
 
 /** One purchase attempt as the delegate sees it. No PayPal account, order id, approval link or token. */
@@ -260,9 +260,10 @@ export type PurchaseErrorCode =
   | "INVALID_PURCHASE"
   | "UNKNOWN_MERCHANT"
   | "UNKNOWN_ERRAND"
-  | "PURCHASES_DISABLED_FOR_DEMO"
-  | "PAYPAL_NOT_CONFIGURED"
+  | PurchaseExecutionBlock
   | "IDEMPOTENCY_KEY_REUSED"
+  /** PayPal doesn't know the account the order would pay. Nothing was paid. */
+  | "PAYEE_ACCOUNT_INVALID"
   /**
    * Nothing was paid: the purchase stopped before COMPAS held a PayPal order
    * for it. An order PayPal may have created anyway can never be captured,
@@ -287,9 +288,15 @@ function failure(code: PurchaseErrorCode, message: string, extra: Partial<Purcha
 // Service
 // ---------------------------------------------------------------------------
 
+/**
+ * Why this caller can't create PayPal orders. SANDBOX_ACCOUNTS_REQUIRED: the
+ * visitor's demo has no PayPal sandbox accounts to pay with yet.
+ */
+export type PurchaseExecutionBlock = "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED" | "SANDBOX_ACCOUNTS_REQUIRED";
+
 export type PurchaseExecutionMode =
   | { allowed: true }
-  | { allowed: false; code: "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED"; reason: string };
+  | { allowed: false; code: PurchaseExecutionBlock; reason: string };
 
 export type DelegatePurchaseDeps = {
   mandates: Pick<MandateService, "forDelegatePurchase">;
@@ -310,7 +317,7 @@ export type DelegatePurchaseDeps = {
    * Anyone can start a demo session as Andrea, so the server keeps it off
    * unless the operator opted in.
    */
-  execution: PurchaseExecutionMode;
+  execution: PurchaseExecutionMode | (() => PurchaseExecutionMode);
   now?: () => Date;
   newId?: () => string;
   logWarning?: (message: string) => void;
@@ -336,8 +343,10 @@ export class DelegatePurchaseService {
     return this.#deps.now?.() ?? new Date();
   }
 
+  /** Read on every call: a visitor's demo can pay only once it has sandbox accounts. */
   get execution(): PurchaseExecutionMode {
-    return this.#deps.execution;
+    const execution = this.#deps.execution;
+    return typeof execution === "function" ? execution() : execution;
   }
 
   async #prepare(
@@ -394,6 +403,9 @@ export class DelegatePurchaseService {
       mandateId: request.mandateId,
       delegateId: actor.partyId,
       paypalMerchantId: merchant.paypalMerchantId,
+      ...(merchant.payeeMerchantId && merchant.payeeMerchantId !== merchant.paypalMerchantId
+        ? { payeeMerchantId: merchant.payeeMerchantId }
+        : {}),
       merchantDisplayName: merchant.displayName,
       lineItems: request.lines.map((line, index) => {
         const category = line.category ?? (resolved[index]?.cum ? ("MEDICATION" as const) : undefined);
@@ -424,7 +436,7 @@ export class DelegatePurchaseService {
       mandateId: mandate.id,
       merchant: { id: merchant.id, displayName: merchant.displayName },
       requestedAmount: intent.amount,
-      execution: this.#deps.execution.allowed ? ("ENABLED" as const) : this.#deps.execution.code,
+      execution: this.execution.allowed ? ("ENABLED" as const) : this.execution.code,
     };
     const errandCheck = errand
       ? checkErrand({
@@ -505,7 +517,7 @@ export class DelegatePurchaseService {
     actor: Actor,
     body: unknown,
   ): Promise<PurchaseResult<{ purchase: PurchaseView; replayed: boolean }>> {
-    const execution = this.#deps.execution;
+    const execution = this.execution;
     if (!execution.allowed) return failure(execution.code, execution.reason);
 
     const parsed = parsePurchaseRequest(body, { requireIdempotencyKey: true });
@@ -599,6 +611,9 @@ export class DelegatePurchaseService {
       this.#deps.logWarning?.(
         `Purchase ${intentId} on ${mandate.id} failed before a PayPal order was recorded: ${typeof code === "string" ? code : "error"}`,
       );
+      if (code === "PAYEE_ACCOUNT_INVALID") {
+        return failure("PAYEE_ACCOUNT_INVALID", "PayPal doesn't know the business account this purchase pays. Nothing was paid.");
+      }
       return failure("PAYMENT_NOT_STARTED", "The purchase stopped before a PayPal order existed for it. Nothing was paid.");
     }
   }

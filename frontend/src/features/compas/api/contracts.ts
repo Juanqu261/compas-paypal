@@ -197,8 +197,30 @@ export type PurchasePreview = {
   merchantCategories: readonly { category: CompasCategory; trustLevel: TrustLevel }[];
   /** ORDER: COMPAS would allow it and create a PayPal order for the payer to approve. */
   next: "STOP_DENY" | "STOP_REVIEW" | "ORDER";
-  execution: "ENABLED" | "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED";
+  execution: "ENABLED" | PurchaseExecutionBlock;
 };
+
+/** Why this demo can't create PayPal orders. SANDBOX_ACCOUNTS_REQUIRED: no sandbox accounts chosen yet. */
+export type PurchaseExecutionBlock = "PURCHASES_DISABLED_FOR_DEMO" | "PAYPAL_NOT_CONFIGURED" | "SANDBOX_ACCOUNTS_REQUIRED";
+
+/**
+ * demo/test data: the PayPal sandbox accounts this browser's demo pays with.
+ * Account IDs only, kept in the backend's memory for this demo and nowhere
+ * else. VISITOR: the visitor's own. PRESENTER: the server's configured ones.
+ */
+export type DemoAccountsView = {
+  accounts:
+    | null
+    | { source: "VISITOR"; payerPayPalId: string; payeeMerchantId: string }
+    | { source: "PRESENTER"; payerPinned: boolean };
+  /** Whether the presenter's accounts may be used: by anyone, with the presenter link, or not at all. */
+  presenter: "OPEN" | "KEY" | "UNAVAILABLE";
+  stored: "IN_THIS_DEMO_ONLY";
+};
+
+export type DemoAccountsBody =
+  | { source: "VISITOR"; payerPayPalId: string; payeeMerchantId: string }
+  | { source: "PRESENTER"; presenterKey?: string };
 
 /** One recorded purchase attempt. ALLOW is a decision; `payment` says what PayPal did. */
 export type PurchaseView = {

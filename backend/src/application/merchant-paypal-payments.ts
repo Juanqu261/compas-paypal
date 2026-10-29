@@ -83,7 +83,8 @@ export async function listMerchantPayPalPayments(
   );
   return {
     ok: true,
-    merchant: { id: merchant.id, displayName: merchant.displayName, paypalMerchantId: merchant.paypalMerchantId },
+    // The account the payments arrive in: in a visitor's demo, their business account.
+    merchant: { id: merchant.id, displayName: merchant.displayName, paypalMerchantId: merchant.payeeMerchantId ?? merchant.paypalMerchantId },
     payments,
   };
 }

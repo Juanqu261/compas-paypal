@@ -187,7 +187,8 @@ export class PayPalOrderSettlement {
     if (order.status === "COMPLETED") return this.#recordCapture(record, mandate, order);
     if (order.status !== "APPROVED") return "AWAITING_PAYER_APPROVAL";
 
-    if (order.payeeMerchantId !== record.paypalMerchantId || !sameAmount(order, record) || order.customId !== record.id) {
+    const payee = record.payeeMerchantId ?? record.paypalMerchantId;
+    if (order.payeeMerchantId !== payee || !sameAmount(order, record) || order.customId !== record.id) {
       return this.#fail(record, "ORDER_MISMATCH");
     }
     const payerPayPalId = (await this.#deps.parties.getById(mandate.payer.id))?.paypalPayerId;

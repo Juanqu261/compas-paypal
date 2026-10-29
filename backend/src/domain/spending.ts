@@ -28,6 +28,8 @@ export type SpendingRecord = {
   mandateId: string;
   purchaseIntentId: string;
   paypalMerchantId: string;
+  /** The PayPal account the order pays, when it is not `paypalMerchantId` (see PurchaseIntent). */
+  payeeMerchantId?: string;
   merchantDisplayName?: string;
   requestedAmount: MoneyAmount;
   decision: { outcome: PolicyOutcome; reasons: readonly PolicyReason[] };

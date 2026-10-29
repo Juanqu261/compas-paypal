@@ -16,6 +16,12 @@ export type PurchaseIntent = {
    * categories from it. The intent never carries category evidence.
    */
   paypalMerchantId: string;
+  /**
+   * The PayPal account the order pays, when it is not the merchant's own: in
+   * a visitor's demo, their sandbox business account stands in for the demo
+   * merchant. Evidence is still read for `paypalMerchantId`, never for this.
+   */
+  payeeMerchantId?: string;
   /** Display only. Not evidence. */
   merchantDisplayName?: string;
   lineItems: readonly PurchaseLineItem[];

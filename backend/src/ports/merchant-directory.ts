@@ -7,8 +7,13 @@
 export type DirectoryMerchant = {
   id: string;
   displayName: string;
-  /** The PayPal account the order pays: the order's payee. */
+  /** The merchant's PayPal account. Its categories and evidence are read for it. */
   paypalMerchantId: string;
+  /**
+   * The PayPal account an order pays, when it is not `paypalMerchantId`: a
+   * visitor's sandbox business account standing in for a demo merchant.
+   */
+  payeeMerchantId?: string;
 };
 
 export interface MerchantDirectory {

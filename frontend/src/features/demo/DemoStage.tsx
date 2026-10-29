@@ -9,6 +9,7 @@ import { AgentAct } from "@/features/demo/AgentAct";
 import { AnalystAct } from "@/features/demo/AnalystAct";
 import { analystRecord } from "@/features/demo/analyst-view";
 import type { Act } from "@/features/demo/chapters";
+import { SandboxAccounts } from "@/features/demo/SandboxAccounts";
 import { StoryRail } from "@/features/demo/StoryRail";
 import { DemoSessionProvider, useDemoSession, type DemoCharge } from "@/features/demo/DemoSession";
 import { PayPalBusinessExperience } from "@/features/paypal-business/PayPalBusinessExperience";
@@ -218,6 +219,9 @@ export function DemoStage({
       </Activity>
       <Activity mode={act === 2 ? "visible" : "hidden"}>
         <div role="tabpanel" id="act-panel-2" aria-labelledby="act-tab-2">
+          <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-8">
+            <SandboxAccounts />
+          </div>
           <div className="mt-6 border-y border-ink/15 bg-shoal/45 pt-8">
             <DemoPhones />
           </div>

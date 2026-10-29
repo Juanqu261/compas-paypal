@@ -7,6 +7,8 @@ import type {
   AnalystJob,
   AuthorizeResponse,
   CreateMandateBody,
+  DemoAccountsBody,
+  DemoAccountsView,
   DemoMerchantsResponse,
   ErrandBody,
   ErrandSuggestion,
@@ -176,6 +178,22 @@ function sessionToken(partyId: string, fresh = false): Promise<string> {
   return started;
 }
 
+/** A call that names this browser's workspace directly: for screens with no demo person, such as the pharmacy's. */
+async function workspaceRequest(path: string, init: { method?: "GET" | "POST"; body?: unknown } = {}): Promise<Response> {
+  const attempt = (token: string) =>
+    send(path, {
+      method: init.method ?? "GET",
+      headers: {
+        "x-compas-workspace": token,
+        ...(init.body !== undefined ? { "content-type": "application/json" } : {}),
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const current = await workspaceToken();
+  const response = await attempt(current);
+  return response.status === 401 ? attempt(await workspaceToken(current)) : response;
+}
+
 async function request<T>(partyId: string, path: string, init: { method?: "GET" | "POST"; body?: unknown } = {}): Promise<T> {
   const attempt = async (fresh: boolean) => {
     const token = await sessionToken(partyId, fresh);
@@ -248,13 +266,21 @@ export const compasApi = {
   /** demo/test data: a merchant's analyst findings. The backend shows them without a merchant session in demo mode only. */
   /** The merchant's COMPAS orders, each read live from the PayPal sandbox. */
   merchantPayPalPayments: async (merchantId: string) => {
-    const read = (token: string) =>
-      send(`/demo/merchants/${encodeURIComponent(merchantId)}/payments`, { method: "GET", headers: { "x-compas-workspace": token } });
-    const current = await workspaceToken();
-    let response = await read(current);
-    if (response.status === 401) response = await read(await workspaceToken(current));
+    const response = await workspaceRequest(`/demo/merchants/${encodeURIComponent(merchantId)}/payments`);
     if (!response.ok) throw await readError(response);
     return (await response.json()) as MerchantPayPalPaymentsResponse;
+  },
+  /** demo/test data: the PayPal sandbox accounts this demo pays with. */
+  demoAccounts: async () => {
+    const response = await workspaceRequest("/demo/accounts");
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as DemoAccountsView;
+  },
+  /** Account IDs only. COMPAS never asks for a PayPal password. */
+  setDemoAccounts: async (body: DemoAccountsBody) => {
+    const response = await workspaceRequest("/demo/accounts", { method: "POST", body });
+    if (!response.ok) throw await readError(response);
+    return (await response.json()) as DemoAccountsView;
   },
   // ---- Act 3: agents over MCP ----
   /** The errand card, pre-filled from the analyst's verified CUM. Stores nothing. */

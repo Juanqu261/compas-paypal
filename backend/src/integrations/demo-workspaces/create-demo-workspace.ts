@@ -23,6 +23,7 @@ import { InMemoryMandateRepository } from "../mandates/in-memory-mandate-reposit
 import { createMerchantHistoryService } from "../merchant-history/create-merchant-history-service.ts";
 import { paypalAcceptsAsset } from "../paypal/amounts.ts";
 import { InMemorySpendingLog } from "../spending/in-memory-spending-log.ts";
+import { WorkspaceAccounts, WorkspaceMerchantDirectory, WorkspacePartyDirectory } from "./demo-accounts.ts";
 import { WorkspaceAgentRepository } from "./workspace-agent-repository.ts";
 
 /** What every visitor's workspace uses and none of them owns: merchants, their evidence, the analyst's output, PayPal. */
@@ -57,13 +58,19 @@ export type DemoWorkspaceHooks = {
  * grants and the demo merchant history they add to live here, in memory, and
  * nowhere else. Nothing a visitor does reaches the database or another
  * visitor's demo. Each workspace has its own Pedro, Andrea and Gladys.
+ *
+ * No PayPal order is created until the visitor picks the sandbox accounts
+ * the demo pays with: their own, or the presenter's (see demo-accounts.ts).
  */
 export async function createDemoWorkspace(
   shared: DemoWorkspaceShared,
-  parties: PartyDirectory,
+  baseParties: PartyDirectory,
   hooks: DemoWorkspaceHooks,
 ) {
   const logWarning = shared.logWarning ?? (() => {});
+  const accounts = new WorkspaceAccounts();
+  const parties = new WorkspacePartyDirectory(baseParties, accounts);
+  const merchants = new WorkspaceMerchantDirectory(shared.merchants, accounts);
   const mandateRepository = new InMemoryMandateRepository();
   const spending = new InMemorySpendingLog();
   const errands = new InMemoryErrandRepository();
@@ -104,7 +111,7 @@ export async function createDemoWorkspace(
 
   const purchases = new DelegatePurchaseService({
     mandates,
-    merchants: shared.merchants,
+    merchants,
     registry: shared.registry,
     history,
     payments,
@@ -112,7 +119,14 @@ export async function createDemoWorkspace(
     capacity: mandateRepository,
     catalog: { catalogs: shared.catalogs, mappings: shared.mappings },
     errands,
-    execution: shared.execution,
+    execution: () =>
+      !shared.execution.allowed || accounts.get()
+        ? shared.execution
+        : {
+            allowed: false,
+            code: "SANDBOX_ACCOUNTS_REQUIRED",
+            reason: "Choose the PayPal sandbox accounts this demo pays with first.",
+          },
     logWarning,
   });
 
@@ -135,7 +149,7 @@ export async function createDemoWorkspace(
   const agentShopping = new AgentShoppingService({
     errands,
     mandates,
-    merchants: shared.merchants,
+    merchants,
     registry: shared.registry,
     history,
     catalogs: shared.catalogs,
@@ -151,13 +165,13 @@ export async function createDemoWorkspace(
     fetch: shared.fetch ?? ((url, init) => fetch(url, init)),
     errands,
     mandates,
-    merchants: shared.merchants,
+    merchants,
     catalogs: shared.catalogs,
     mappings: shared.mappings,
     grantIdOf: async (accessToken) => (await agentAuth.authenticate(`Bearer ${accessToken}`))?.grant.id,
   });
 
-  return { parties, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents };
+  return { accounts, parties, merchants, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents };
 }
 
 export type DemoWorkspace = Awaited<ReturnType<typeof createDemoWorkspace>>;
