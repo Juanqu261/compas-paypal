@@ -103,4 +103,5 @@ test("the cooldown is six hours unless COMPAS_ANALYST_RERUN_HOURS says otherwise
   assert.equal(readRerunCooldownMs({ COMPAS_ANALYST_RERUN_HOURS: "0.5" }), 30 * 60 * 1000);
   assert.equal(readRerunCooldownMs({ COMPAS_ANALYST_RERUN_HOURS: "0" }), 0);
   assert.equal(readRerunCooldownMs({ COMPAS_ANALYST_RERUN_HOURS: "-1" }), 6 * 60 * 60 * 1000);
+  assert.equal(readRerunCooldownMs({ COMPAS_DEMO_LIMITS: "off", COMPAS_ANALYST_RERUN_HOURS: "6" }), 0);
 });

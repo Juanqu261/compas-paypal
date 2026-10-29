@@ -23,6 +23,7 @@ import {
 } from "./demo-identity.ts";
 import { DEMO_ACCOUNTS_PATH, handleDemoAccounts, MAX_ACCOUNTS_BODY_BYTES } from "./demo-accounts.ts";
 import { limitReached, readDemoLimits } from "./demo-limits.ts";
+import { demoLimitsOff } from "../lib/demo-limits-switch.ts";
 import {
   bearerSecretHash,
   DEMO_WORKSPACES_PATH,
@@ -164,6 +165,7 @@ const operatorToken = process.env.COMPAS_OPERATOR_TOKEN?.trim();
 
 // What one visitor's demo may create (api/demo-limits.ts), and whether errand drafts may call the model.
 const limits = readDemoLimits();
+if (demoLimitsOff()) log.warn("Demo limits are off (COMPAS_DEMO_LIMITS=off): no per-demo caps, no analyst cooldown. Never set it on a deploy.");
 const errandDrafts = readErrandDraftsMode();
 if (!errandDrafts.enabled) log.info(`Errand drafts: off. ${errandDrafts.reason}`);
 

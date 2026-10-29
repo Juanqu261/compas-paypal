@@ -6,6 +6,7 @@ import { InMemoryMerchantAccountVerifications, MerchantIdentityService } from ".
 import { verifyCatalogMapping } from "../../application/catalog-mappings.ts";
 import { runMerchantAnalysis } from "../../application/run-merchant-analysis.ts";
 import type { AnalystRunStore } from "../../ports/analyst-run-store.ts";
+import { demoLimitsOff } from "../../lib/demo-limits-switch.ts";
 import { notImplemented } from "../../lib/not-implemented.ts";
 import type { CamaraRecord, CamaraVerifier } from "../../ports/camara-verifier.ts";
 import type { CumRegistry } from "../../ports/cum-registry.ts";
@@ -42,8 +43,9 @@ export function createCumRegistry(env: NodeJS.ProcessEnv = process.env): CumRegi
   return new SocrataCumRegistry(appToken ? { appToken } : {});
 }
 
-/** COMPAS_ANALYST_RERUN_HOURS: how long a real run is shown before a new live run of that merchant may start. 0 turns it off. */
+/** COMPAS_ANALYST_RERUN_HOURS: how long a real run is shown before a new live run of that merchant may start. 0 turns it off, as COMPAS_DEMO_LIMITS=off does. */
 export function readRerunCooldownMs(env: NodeJS.ProcessEnv = process.env): number {
+  if (demoLimitsOff(env)) return 0;
   const raw = env.COMPAS_ANALYST_RERUN_HOURS?.trim();
   const hours = raw ? Number(raw) : NaN;
   return Number.isFinite(hours) && hours >= 0 ? hours * 60 * 60 * 1000 : DEFAULT_RERUN_COOLDOWN_MS;
@@ -124,6 +126,7 @@ export async function createAnalystLayer(options: {
     run: analyze,
     logWarning: warn,
     cooldownMs: readRerunCooldownMs(env),
+    ...(demoLimitsOff(env) ? { retryAfterFailureMs: 0 } : {}),
     onCompleted: async (job) => {
       const merchant = await options.merchants.getById(job.merchantId);
       if (!merchant) return;

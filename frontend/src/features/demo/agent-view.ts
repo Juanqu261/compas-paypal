@@ -253,6 +253,13 @@ export function orderWaiting(run: Pick<AgentRun, "steps"> | undefined): boolean 
   return Boolean(run?.steps.some((step) => step.kind === "rpc" && step.tool === "propose_purchase" && readTool(step).orderCreated));
 }
 
+/** The decision behind the order the agent's propose made, to find it in the budget's activity. */
+export function orderDecisionId(run: Pick<AgentRun, "steps"> | undefined): string | undefined {
+  const step = run?.steps.find((item): item is RpcStep => item.kind === "rpc" && item.tool === "propose_purchase" && readTool(item).orderCreated);
+  const id = step ? structured(step).decisionId : undefined;
+  return typeof id === "string" ? id : undefined;
+}
+
 export function tallies(events: readonly AgentEvent[]): { calls: number; held: number; orders: number } {
   return {
     calls: events.length,

@@ -15,7 +15,7 @@ Routes served by `server.ts`. Contracts are in `contracts/`. The browser never d
 | `GET /agents/requests/:id`, `POST …/approve`, `POST …/deny`, `GET /agents/grants`, `POST /agents/grants/:id/revoke` | `oauth.ts` | `agents/` |
 | `POST /mcp` (the four agent tools) | `mcp.ts` | `agents/` |
 | `GET /agents/grants/:id/events` | `oauth.ts` | `agents/` |
-| `GET /demo/agent-errand`, `POST /demo/agent-runs`, `GET …/:id`, `POST …/:id/consent` (Act 3's scripted agent) | `demo-agent.ts` | `agents/` |
+| `GET /demo/agent-errand`, `GET`/`POST /demo/agent-runs`, `GET …/:id`, `POST …/:id/consent` (Act 3's scripted agent) | `demo-agent.ts` | `agents/` |
 | `GET /paypal/identity/start`, `/return`, `POST /demo/merchant-sessions`, `POST /merchant-onboarding/certificate` | `merchant-onboarding.ts` | `merchant-onboarding/` |
 | `POST /analyst/jobs`, `GET /analyst/findings`, `POST /analyst/findings/:id/response`, `POST /operator/findings/:id/withdraw` | `merchant-onboarding.ts` | `merchant-onboarding/` |
 

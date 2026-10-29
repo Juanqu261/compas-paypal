@@ -4,6 +4,7 @@ import type { AgentEvent, AgentRunStep, ErrandView } from "../../src/features/co
 import {
   formatMoney,
   openErrand,
+  orderDecisionId,
   orderWaiting,
   readTool,
   reasonShort,
@@ -141,6 +142,16 @@ test("an order waits only when a propose made one", () => {
   assert.equal(orderWaiting({ steps }), false);
   assert.equal(orderWaiting({ steps: [...steps, rpc("propose_purchase", { outcome: "ALLOW", payment: { status: "ORDER_CREATED" } })] }), true);
   assert.equal(orderWaiting(undefined), false);
+});
+
+test("the order's decision is the propose that made it", () => {
+  const steps: AgentRunStep[] = [
+    rpc("propose_purchase", { decisionId: "decision-held", outcome: "REVIEW", payment: { status: "NOT_CREATED" } }),
+    rpc("propose_purchase", { decisionId: "decision-ordered", outcome: "ALLOW", payment: { status: "ORDER_CREATED" } }),
+  ];
+  assert.equal(orderDecisionId({ steps }), "decision-ordered");
+  assert.equal(orderDecisionId({ steps: steps.slice(0, 1) }), undefined);
+  assert.equal(orderDecisionId(undefined), undefined);
 });
 
 test("tallies count calls, holds and orders from the server's log", () => {

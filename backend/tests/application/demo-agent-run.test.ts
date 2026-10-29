@@ -343,7 +343,12 @@ test("the HTTP routes need the delegate and map failures to statuses", async () 
   assert.equal((await call(STRANGER, "GET", `/demo/agent-runs/${id}`)).status, 404);
   assert.equal((await call(ANDREA, "POST", `/demo/agent-runs/${id}/consent`, { redirectTo: `${ISSUER}/demo/agent-callback` })).status === 400 || true, true);
   assert.equal((await call(ANDREA, "POST", "/demo/agent-runs", { errandId: "errand-losartan", scenario: "arc" })).status, 409);
-  assert.equal((await call(ANDREA, "GET", "/demo/agent-runs")).status, 405);
+  // A reload (back from PayPal) finds the delegate's newest run; nobody else's.
+  const latest = await call(ANDREA, "GET", "/demo/agent-runs");
+  assert.equal(latest.status, 200);
+  assert.equal((latest.body?.run as DemoAgentRunView).id, id);
+  assert.equal((await call(STRANGER, "GET", "/demo/agent-runs")).body?.run, null);
+  assert.equal((await call(ANDREA, "PUT", "/demo/agent-runs")).status, 405);
   assert.equal((await call(ANDREA, "POST", "/demo/agent-runs", {})).status, 400);
 
   const card = await call(ANDREA, "GET", `/demo/agent-errand?mandateId=${kit.mandateId}`);

@@ -12,7 +12,7 @@ import {
   type MandateView,
   type PolicyOutcome,
 } from "@/features/compas/api/contracts";
-import { useMandateList, useResource } from "@/features/compas/api/hooks";
+import { useMandateList, useResource, useSpending } from "@/features/compas/api/hooks";
 import { DEMO_PARTY_IDS } from "@/features/compas/demo-identities";
 import { AgentConsentCard } from "./AgentConsentCard";
 import {
@@ -20,6 +20,7 @@ import {
   isActive,
   type Moment,
   openErrand,
+  orderDecisionId,
   orderWaiting,
   readTool,
   reasonShort,
@@ -359,6 +360,20 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
     () => compasApi.agentConsentRequest(ANDREA, run?.consentRequestId ?? ""),
   );
 
+  // The run is the server's: back from PayPal, the page reloads and picks up the last one.
+  useEffect(() => {
+    let cancelled = false;
+    compasApi.latestAgentRun(ANDREA).then(
+      (latest) => {
+        if (!cancelled && latest) setRun((current) => current ?? latest);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Follows the run until it ends. Each answer is a new object, so the next poll follows it.
   useEffect(() => {
     if (!run || !isActive(run)) return;
@@ -428,6 +443,11 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
 
   const moments = run ? storyOf(run) : [];
   const ordered = orderWaiting(run);
+  // Where the agent's order stands now, from the budget's own activity: Pedro may have approved it already.
+  const decisionId = orderDecisionId(run);
+  const spending = useSpending(ANDREA, ordered && mandate ? mandate.id : null, true);
+  const orderKind =
+    spending.resource.status === "ready" ? spending.resource.data.activity.entries.find((entry) => entry.id === decisionId)?.kind : undefined;
   const finished = run !== undefined && !active;
   const blockedReason = blocked ?? (needsAnalyst && suggested && !suggested.available ? suggested.reason : null);
 
@@ -508,7 +528,21 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
           ) : null}
         </div>
         <div className="flex flex-col gap-4">
-          {ordered ? (
+          {ordered && (orderKind === "COMPLETED" || orderKind === "PENDING") ? (
+            <div className="rounded-2xl border-2 border-route bg-paper p-4">
+              <p className="font-semibold text-ink">Pedro approved the order at PayPal</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                {orderKind === "COMPLETED" ? "The pharmacy was paid from Pedro’s PayPal. The agent never touched the money." : "PayPal is finishing the payment."}
+              </p>
+              <button type="button" onClick={onApproval} className={`${BUTTON} mt-3`}>
+                See it on Pedro’s phone (Act 2)
+              </button>
+            </div>
+          ) : ordered && (orderKind === "CANCELLED" || orderKind === "FAILED") ? (
+            <p className="rounded-2xl border border-ink/15 bg-paper p-4 text-sm text-ink">
+              {orderKind === "CANCELLED" ? "Pedro didn’t approve the order, so nothing was paid." : "The order wasn’t paid. Pedro’s phone in Act 2 says why."}
+            </p>
+          ) : ordered ? (
             <div className="rounded-2xl border-2 border-route bg-paper p-4">
               <p className="font-semibold text-ink">A PayPal order is waiting for Pedro</p>
               <p className="mt-1 text-sm text-ink-soft">The agent can’t approve it. Pedro approves it at PayPal, on the phone in Act 2.</p>

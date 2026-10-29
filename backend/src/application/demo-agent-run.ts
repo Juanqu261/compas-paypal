@@ -255,6 +255,13 @@ export class DemoAgentRuns {
     return { ok: true, run: structuredClone(run.view) };
   }
 
+  /** The delegate's newest run, so a screen that reloads (back from PayPal) picks it up again. */
+  latest(actor: Actor): DemoAgentRunView | undefined {
+    const mine = [...this.#runs.values()].filter((run) => run.delegateId === actor.partyId);
+    const run = mine[mine.length - 1];
+    return run ? structuredClone(run.view) : undefined;
+  }
+
   get(actor: Actor, id: unknown): DemoAgentResult<{ run: DemoAgentRunView }> {
     const run = typeof id === "string" ? this.#runs.get(id) : undefined;
     if (!run || run.delegateId !== actor.partyId) return failure("UNKNOWN_RUN", "There is no such run.");

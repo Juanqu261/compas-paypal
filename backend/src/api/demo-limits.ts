@@ -1,3 +1,4 @@
+import { demoLimitsOff } from "../lib/demo-limits-switch.ts";
 import type { JsonResponse } from "./merchant-categories.ts";
 
 /**
@@ -26,8 +27,9 @@ const ENV: Record<keyof DemoLimits, string> = {
   errandsPerDemo: "COMPAS_LIMIT_ERRANDS_PER_DEMO",
 };
 
-/** Each limit from its COMPAS_LIMIT_* variable when that is a whole number, else the default. */
+/** Each limit from its COMPAS_LIMIT_* variable when that is a whole number, else the default. None with COMPAS_DEMO_LIMITS=off. */
 export function readDemoLimits(env: NodeJS.ProcessEnv = process.env): DemoLimits {
+  if (demoLimitsOff(env)) return { ordersPerDemo: Infinity, budgetsPerDemo: Infinity, errandsPerDemo: Infinity };
   const limits = { ...DEFAULT_DEMO_LIMITS };
   for (const key of Object.keys(ENV) as (keyof DemoLimits)[]) {
     const raw = env[ENV[key]]?.trim();

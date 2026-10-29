@@ -54,6 +54,7 @@ export async function handleDemoAgentRequest(
   }
 
   if (pathname === DEMO_AGENT_RUNS_PATH) {
+    if (request.method === "GET") return { status: 200, headers: { "cache-control": "no-store" }, body: { run: deps.runs.latest(actor) ?? null } };
     if (request.method !== "POST") return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } };
     const result = await deps.runs.start(actor, request.body);
     return result.ok ? { status: 202, body: { run: result.run } } : fail(result);

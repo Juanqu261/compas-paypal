@@ -15,6 +15,12 @@ test("each limit can be changed by its variable; anything but a whole number kee
   assert.equal(changed.budgetsPerDemo, DEFAULT_DEMO_LIMITS.budgetsPerDemo);
 });
 
+test("COMPAS_DEMO_LIMITS=off lifts every cap, whatever the other variables say", () => {
+  const off = readDemoLimits({ COMPAS_DEMO_LIMITS: "off", COMPAS_LIMIT_ORDERS_PER_DEMO: "3" });
+  assert.deepEqual(off, { ordersPerDemo: Infinity, budgetsPerDemo: Infinity, errandsPerDemo: Infinity });
+  assert.deepEqual(readDemoLimits({ COMPAS_DEMO_LIMITS: "on" }), DEFAULT_DEMO_LIMITS);
+});
+
 test("a demo stops creating PayPal orders at its limit, and says so before PayPal is asked", async () => {
   const unused = new Proxy({}, { get: () => () => { throw new Error("not used in this test"); } });
   let n = 0;

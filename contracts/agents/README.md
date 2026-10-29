@@ -55,6 +55,7 @@ A script, not a model, that is a plain HTTP client of this server's own `/mcp`. 
 | --- | --- |
 | `GET /demo/agent-errand?mandateId=…` | The errand card, pre-filled with the CUM the analyst verified for the demo pharmacy's losartán. `{ available: true, errand, dataLabel }`, or `{ available: false, reason }` when the analyst hasn't mapped it. Stores nothing: the delegate confirms with `POST /errands` |
 | `POST /demo/agent-runs` | `{ errandId, scenario }`, scenario `arc`, `lookalike`, `extra-product`, `extra-boxes` or `other-errand`. `202 { run }`. One active run per delegate (`409 RUN_ACTIVE`) |
+| `GET /demo/agent-runs` | `{ run }`: the delegate's newest run, or `null`. The screen reads it after a reload, such as the return from PayPal |
 | `GET /demo/agent-runs/:id` | `{ run }`: `status` (`STARTING`, `AWAITING_CONSENT`, `RUNNING`, `COMPLETED`, `REFUSED`, `FAILED`), `steps[]`, `consentRequestId` while waiting, `grantId` once authorized |
 | `POST /demo/agent-runs/:id/consent` | `{ redirectTo }`: the URL the approve or deny call returned. The screen hands it over, as a browser would deliver an OAuth redirect to a client. It must be this run's own (`400 INVALID_CONSENT`) |
 

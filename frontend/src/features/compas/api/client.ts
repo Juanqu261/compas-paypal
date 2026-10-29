@@ -320,6 +320,9 @@ export const compasApi = {
     request<{ errands: ErrandView[] }>(partyId, `/errands?mandateId=${encodeURIComponent(mandateId)}`).then((result) => result.errands),
   startAgentRun: (partyId: string, body: { errandId: string; scenario: AgentScenario }) =>
     request<{ run: AgentRun }>(partyId, "/demo/agent-runs", { method: "POST", body }).then((result) => result.run),
+  /** The delegate's newest run, or undefined. A reload (back from PayPal) picks it up again. */
+  latestAgentRun: (partyId: string) =>
+    request<{ run: AgentRun | null }>(partyId, "/demo/agent-runs").then((result) => result.run ?? undefined),
   agentRun: (partyId: string, id: string) =>
     request<{ run: AgentRun }>(partyId, `/demo/agent-runs/${encodeURIComponent(id)}`).then((result) => result.run),
   /** The browser's part of the OAuth redirect: hands the run the URL the consent answer produced. */
