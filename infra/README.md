@@ -29,7 +29,7 @@ Why the demo can be public, and what limits it: [ADR 0012](../docs/adr/0012-publ
    | frontend | `NEXT_PUBLIC_DEMO_KIBANA_URL`, `NEXT_PUBLIC_DEMO_SUPABASE_PROJECT_REF` | Optional: Act 1's evidence links |
 
 3. The frontend needs `COMPAS_BACKEND_URL` and the `NEXT_PUBLIC_*` values at build time. If you set them after the first build, redeploy the frontend.
-4. **Never set `NODE_ENV=production` on the backend**: it turns off demo sessions and demo purchases.
+4. **The backend sets `NODE_ENV=demo`** (in `render.yaml`). Render sets `NODE_ENV=production` at runtime when a service doesn't set it, without showing it in the dashboard, and production turns off demo sessions, demo purchases and analyst jobs: `POST /demo/workspaces` answers 503 and `/health` says `"identity":"disabled"`. Any value but `production` keeps them on.
 
 ## After the deploy
 

@@ -14,7 +14,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "24"
-      # Do not set NODE_ENV=production here: it turns off demo sessions and demo purchases.
+      # Render sets NODE_ENV=production at runtime unless the service sets it, and
+      # production turns off demo sessions, demo purchases and analyst jobs (POST
+      # /demo/workspaces answers 503). Only "production" does: "demo" keeps them on.
+      - key: NODE_ENV
+        value: demo
       - key: PAYPAL_ENVIRONMENT
         value: sandbox
       - key: COMPAS_DEMO_PURCHASES
