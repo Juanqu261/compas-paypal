@@ -18,9 +18,9 @@ export type PayerRoute =
 
 export const PAYER_ROUTE_TITLE: Record<PayerRoute["name"], string> = {
   home: "COMPAS",
-  create: "Crear presupuesto",
-  detail: "Presupuesto",
-  history: "Movimientos",
+  create: "Create budget",
+  detail: "Budget",
+  history: "Activity",
 };
 
 /**
@@ -104,7 +104,7 @@ export function PayerCompas({
       return <ErrorState error={participants.resource.error} onRetry={participants.reload} />;
     }
     if (participants.resource.status !== "ready") {
-      return <LoadingState label="Preparando el formulario" />;
+      return <LoadingState label="Getting the form ready" />;
     }
     return (
       <CreateBudgetWizard

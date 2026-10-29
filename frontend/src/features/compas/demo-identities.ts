@@ -16,7 +16,7 @@ export const DEMO_PARTY_IDS = {
  */
 export const DEMO_MERCHANTS = {
   drogueria: { id: "demo-merchant-drogueria-central", displayName: "Droguería Central" },
-  liquor: { id: "demo-merchant-liquor", displayName: "Licorera de ejemplo" },
+  liquor: { id: "demo-merchant-liquor", displayName: "Example liquor store" },
   /** The lookalike pharmacy. Its catalog is mostly gift cards; the analyst's demo shows it. */
   lookalike: { id: "demo-merchant-lookalike", displayName: "Droguería Centrall" },
 } as const;

@@ -59,28 +59,28 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
 
   return (
     <div className="space-y-4">
-      {resource.status === "loading" ? <p className="text-[13px] text-(--pp-muted)">Consultando COMPAS…</p> : null}
+      {resource.status === "loading" ? <p className="text-[13px] text-(--pp-muted)">Checking with COMPAS…</p> : null}
       {resource.status === "error" ? (
         <div className="space-y-2">
           <p role="alert" className="rounded-xl bg-(--pp-sand) p-3 text-[13px]">
             {errorText(errorCode(resource.error))}
           </p>
           <button type="button" onClick={reload} className={`text-[13px] font-semibold underline ${focusRing}`}>
-            Reintentar
+            Try again
           </button>
         </div>
       ) : null}
-      {refreshError ? <p className="text-[12px] text-(--pp-muted)">Sin conexión. Mostrando la última consulta.</p> : null}
+      {refreshError ? <p className="text-[12px] text-(--pp-muted)">No connection. Showing the last result.</p> : null}
 
       {data ? (
         <>
           {data.categorySources === "NONE_REGISTERED" ? (
             <p className="rounded-xl bg-(--pp-sand) p-3 text-[13px] leading-snug">
-              COMPAS no tiene fuentes de verificación activas en este entorno. Aún no reconoce categorías de tu negocio.
+              COMPAS has no active verification sources in this environment. It does not recognize any categories for your business yet.
             </p>
           ) : null}
           <div>
-            <p className="text-[13px] font-semibold">Declaradas ante COMPAS</p>
+            <p className="text-[13px] font-semibold">Declared to COMPAS</p>
             {merchant && merchant.declarations.length > 0 ? (
               <ul className="mt-2 space-y-1.5">
                 {merchant.declarations.map((item) => (
@@ -93,11 +93,11 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-[13px] text-(--pp-muted)">Ninguna.</p>
+              <p className="mt-1 text-[13px] text-(--pp-muted)">None.</p>
             )}
           </div>
           <div>
-            <p className="text-[13px] font-semibold">Reconocidas por COMPAS</p>
+            <p className="text-[13px] font-semibold">Recognized by COMPAS</p>
             {merchant && merchant.categories.length > 0 ? (
               <ul className="mt-2 space-y-1.5">
                 {merchant.categories.map((item) => (
@@ -105,20 +105,20 @@ export function MerchantCompasEvidence({ selected }: { selected: readonly Mercha
                     <span>{CATEGORY_LABEL[item.category]}</span>
                     <span className="flex flex-wrap justify-end gap-1">
                       <Chip tone="ok">{TRUST_LEVEL_LABEL[item.trustLevel]}</Chip>
-                      {item.simulated ? <Chip tone="sim">Verificación simulada</Chip> : null}
+                      {item.simulated ? <Chip tone="sim">Simulated verification</Chip> : null}
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-[13px] text-(--pp-muted)">Ninguna.</p>
+              <p className="mt-1 text-[13px] text-(--pp-muted)">None.</p>
             )}
           </div>
           {notSent.length > 0 ? (
             <p className="flex gap-2 rounded-xl bg-(--pp-info) p-3 text-[13px] leading-snug">
               <InfoIcon className="size-5 shrink-0" />
-              Marcaste {notSent.map((category) => CATEGORY_LABEL[category].toLowerCase()).join(", ")} en este teléfono.
-              COMPAS no la tiene registrada.
+              You ticked {notSent.map((category) => CATEGORY_LABEL[category].toLowerCase()).join(", ")} on this phone.
+              COMPAS has no record of it.
             </p>
           ) : null}
         </>
@@ -146,8 +146,8 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
   const done = Boolean(charge.result && (charge.result.kind === "PURCHASE" || status.tone === "stop"));
 
   return (
-    <section aria-label="Cobro actual" className="rounded-2xl border border-(--pp-line) bg-white p-4 shadow-[0_1px_3px_rgba(0,20,53,0.08)]">
-      <p className="text-[13px] text-(--pp-muted)">Cobro del pedido</p>
+    <section aria-label="Current charge" className="rounded-2xl border border-(--pp-line) bg-white p-4 shadow-[0_1px_3px_rgba(0,20,53,0.08)]">
+      <p className="text-[13px] text-(--pp-muted)">Order charge</p>
       <p className="mt-0.5 text-[30px] leading-tight font-bold tracking-tight tabular-nums">{formatMoneyAmount(charge.amount)}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {categories.map((category) => (
@@ -158,11 +158,11 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
         {status.title}
       </p>
       {!charge.result ? (
-        <p className="mt-2 text-[13px] text-(--pp-muted)">El cliente debe abrir COMPAS en su PayPal y revisar el cobro.</p>
+        <p className="mt-2 text-[13px] text-(--pp-muted)">The customer needs to open COMPAS in their PayPal and review the charge.</p>
       ) : reasons.length > 0 && status.tone !== "ok" ? (
         <p className="mt-2 text-[13px] text-(--pp-muted)">{reasonText(reasons[0])}.</p>
       ) : null}
-      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulación: el cobro viaja al PayPal del cliente dentro de este navegador.</p>
+      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulation: the charge travels to the customer's PayPal inside this browser.</p>
       <div className="mt-3 flex gap-2">
         {done ? (
           <button
@@ -170,7 +170,7 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
             onClick={onNew}
             className={`h-11 flex-1 rounded-full bg-(--pp-ink) text-[15px] font-bold text-white ${focusRing}`}
           >
-            Nuevo cobro
+            New charge
           </button>
         ) : null}
         <button
@@ -178,7 +178,7 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
           onClick={clearCharge}
           className={`h-11 flex-1 rounded-full border border-(--pp-line) text-[15px] font-bold ${focusRing}`}
         >
-          {done ? "Cerrar" : "Cancelar cobro"}
+          {done ? "Close" : "Cancel charge"}
         </button>
       </div>
     </section>
@@ -187,11 +187,11 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
 
 type DraftLine = { category: CompasCategory | null; amount: string };
 
-/** "1500" at scale 2 becomes "15,00", without floating point. */
+/** "1500" at scale 2 becomes "15.00", without floating point. */
 function minorToInput(value: string, scale: number): string {
   if (scale === 0) return value;
   const padded = value.padStart(scale + 1, "0");
-  return `${padded.slice(0, -scale)},${padded.slice(-scale)}`;
+  return `${padded.slice(0, -scale)}.${padded.slice(-scale)}`;
 }
 
 /**
@@ -236,8 +236,8 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[19px] font-extrabold tracking-[-0.01em]">Cobrar pedido con COMPAS</h3>
-        <button type="button" onClick={onCancel} aria-label="Cancelar" className={`grid size-10 place-items-center rounded-full hover:bg-black/5 ${focusRing}`}>
+        <h3 className="text-[19px] font-extrabold tracking-[-0.01em]">Charge order with COMPAS</h3>
+        <button type="button" onClick={onCancel} aria-label="Cancel" className={`grid size-10 place-items-center rounded-full hover:bg-black/5 ${focusRing}`}>
           <CloseIcon className="size-6" />
         </button>
       </div>
@@ -250,7 +250,7 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
             <li key={index} className="space-y-3 rounded-lg border border-(--pp-line) p-3.5">
               <div className="flex items-center justify-between">
                 <p className="text-[14px] font-semibold">
-                  {lines.length > 1 ? `Producto ${index + 1}` : "¿Qué incluye el pedido?"}
+                  {lines.length > 1 ? `Item ${index + 1}` : "What does the order include?"}
                 </p>
                 {lines.length > 1 ? (
                   <button
@@ -258,12 +258,12 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
                     onClick={() => setLines((current) => current.filter((_, at) => at !== index))}
                     className={`text-[13px] text-(--pp-muted) underline ${focusRing}`}
                   >
-                    Quitar
+                    Remove
                   </button>
                 ) : null}
               </div>
               <fieldset>
-                <legend className="sr-only">Categoría</legend>
+                <legend className="sr-only">Category</legend>
                 <div className="grid grid-cols-3 gap-2">
                   {COMPAS_CATEGORIES.map((category) => (
                     <label
@@ -282,11 +282,11 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
                     </label>
                   ))}
                 </div>
-                {categoryIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--pp-alert)">Elige una categoría.</p> : null}
+                {categoryIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--pp-alert)">Choose a category.</p> : null}
               </fieldset>
               <div>
                 <label htmlFor={`${baseId}-amount-${index}`} className="text-[13px] font-medium">
-                  Monto
+                  Amount
                 </label>
                 <div className="mt-1 flex items-center rounded-xl border border-(--pp-line) focus-within:outline-2 focus-within:outline-(--pp-blue)">
                   <input
@@ -300,7 +300,7 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
                   />
                   <span className="pr-3 text-[13px] font-semibold text-(--pp-muted)">{CHARGE_ASSET.assetCode}</span>
                 </div>
-                {amountIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--pp-alert)">Escribe un monto mayor que cero.</p> : null}
+                {amountIssue ? <p className="mt-1.5 text-[13px] font-medium text-(--pp-alert)">Enter an amount greater than zero.</p> : null}
               </div>
             </li>
           );
@@ -314,16 +314,16 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
             onClick={() => setLines((current) => [...current, { category: null, amount: "" }])}
             className={`text-[14px] font-semibold text-(--pp-blue) ${focusRing}`}
           >
-            Agregar producto
+            Add item
           </button>
         ) : null}
         <button type="button" onClick={fillFromScenario} className={`text-[14px] font-semibold text-(--pp-blue) ${focusRing}`}>
-          Usar ejemplo de la demo
+          Use the demo example
         </button>
       </div>
 
       <div className="flex items-baseline justify-between border-t border-(--pp-line) pt-3">
-        <span className="text-[14px] text-(--pp-muted)">Total del cobro</span>
+        <span className="text-[14px] text-(--pp-muted)">Charge total</span>
         <span className="text-[24px] font-bold tabular-nums">
           {formatMoneyAmount({ ...CHARGE_ASSET, value: total.toString() })}
         </span>
@@ -334,7 +334,7 @@ export function MerchantChargeForm({ onDone, onCancel }: { onDone: () => void; o
         onClick={generate}
         className={`flex h-13 w-full items-center justify-center rounded-full bg-(--pp-ink) text-[16px] font-bold text-white transition-colors hover:bg-black ${focusRing}`}
       >
-        Enviar cobro al cliente
+        Send charge to customer
       </button>
     </div>
   );

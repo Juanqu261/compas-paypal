@@ -20,26 +20,26 @@ export function MandateHistory({
   const { resource, reload } = useSpending(partyId, id, active);
   return (
     <div className="space-y-5">
-      <ScreenHeading focusOnMount={focusOnMount}>Movimientos</ScreenHeading>
-      {resource.status === "loading" ? <LoadingState label="Cargando movimientos" /> : null}
+      <ScreenHeading focusOnMount={focusOnMount}>Activity</ScreenHeading>
+      {resource.status === "loading" ? <LoadingState label="Loading activity" /> : null}
       {resource.status === "error" ? <ErrorState error={resource.error} onRetry={reload} /> : null}
       {resource.status === "ready" ? (
         <>
           <Facts
             rows={[
-              { label: "Pagado y confirmado", value: formatMoneyAmount(resource.data.activity.totals.completed) },
-              { label: "En proceso", value: formatMoneyAmount(resource.data.activity.totals.inProgress) },
-              { label: "Intentos de compra", value: String(resource.data.activity.totals.attempts) },
-              { label: "Rechazadas o retenidas", value: String(resource.data.activity.totals.deniedCount + resource.data.activity.totals.reviewCount) },
-              { label: "Pagadas bajo supervisión", value: String(resource.data.activity.totals.monitoredExceptions) },
+              { label: "Paid and confirmed", value: formatMoneyAmount(resource.data.activity.totals.completed) },
+              { label: "In progress", value: formatMoneyAmount(resource.data.activity.totals.inProgress) },
+              { label: "Purchase attempts", value: String(resource.data.activity.totals.attempts) },
+              { label: "Denied or held", value: String(resource.data.activity.totals.deniedCount + resource.data.activity.totals.reviewCount) },
+              { label: "Paid with a notice", value: String(resource.data.activity.totals.monitoredExceptions) },
             ]}
           />
           <p className="text-[12px] leading-snug text-(--cx-muted)">
-            Un pago por aprobar o en proceso aún no está cobrado. Un intento rechazado, cancelado o fallido no cobró nada. Por privacidad, no
-            mostramos los productos de cada compra.
+            A payment awaiting approval or in progress hasn&apos;t been charged yet. A denied, cancelled, or failed attempt charged nothing.
+            For privacy, we don&apos;t show the products in each purchase.
           </p>
           {resource.data.activity.entries.length === 0 ? (
-            <EmptyState title="Sin movimientos">Cuando alguien use este presupuesto, verás aquí cada intento.</EmptyState>
+            <EmptyState title="No activity">When someone uses this budget, every attempt will show up here.</EmptyState>
           ) : (
             <ActivityList entries={resource.data.activity.entries} />
           )}

@@ -49,7 +49,7 @@ export function PayPalTopBar({ profile }: { profile: PayPalDemoProfile }) {
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            aria-label="Notificaciones"
+            aria-label="Notifications"
             className="grid size-10 place-items-center rounded-full bg-(--pp-chip) text-(--pp-ink) transition-colors hover:bg-(--pp-chip-strong) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)"
           >
             <BellIcon className="size-5" />

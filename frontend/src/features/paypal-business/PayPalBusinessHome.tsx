@@ -17,9 +17,9 @@ import { paypalBusinessDemo } from "./paypal-business-demo-content";
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)";
 
 const businessNavItems: readonly PayPalNavItem[] = [
-  { label: "Inicio", Icon: HomeIcon },
-  { label: "Pedidos", Icon: OrdersIcon },
-  { label: "Herramientas", Icon: ToolsIcon },
+  { label: "Home", Icon: HomeIcon },
+  { label: "Orders", Icon: OrdersIcon },
+  { label: "Tools", Icon: ToolsIcon },
 ];
 
 const MERCHANT = DEMO_MERCHANTS.drogueria;
@@ -46,28 +46,28 @@ const TONE_LOOK: Record<Tone, string> = {
 /** What PayPal says about the order now, in the merchant's words. */
 function paymentStatus(payment: MerchantPayPalPayment): { label: string; tone: Tone } {
   const paypal = payment.paypal;
-  if (paypal.read === "UNAVAILABLE") return { label: "PayPal no respondió", tone: "muted" };
+  if (paypal.read === "UNAVAILABLE") return { label: "PayPal did not respond", tone: "muted" };
   switch (paypal.capture?.status) {
     case "COMPLETED":
-      return { label: "Pago recibido", tone: "ok" };
+      return { label: "Payment received", tone: "ok" };
     case "PENDING":
-      return { label: "Captura pendiente en PayPal", tone: "wait" };
+      return { label: "Capture pending at PayPal", tone: "wait" };
     case "DECLINED":
     case "FAILED":
-      return { label: "Pago rechazado", tone: "stop" };
+      return { label: "Payment declined", tone: "stop" };
     case "REFUNDED":
     case "PARTIALLY_REFUNDED":
-      return { label: "Reembolsado", tone: "muted" };
+      return { label: "Refunded", tone: "muted" };
   }
   switch (paypal.orderStatus) {
     case "APPROVED":
-      return { label: "Aprobado, por capturar", tone: "wait" };
+      return { label: "Approved, ready to capture", tone: "wait" };
     case "VOIDED":
-      return { label: "Orden anulada", tone: "muted" };
+      return { label: "Order voided", tone: "muted" };
     case "COMPLETED":
-      return { label: "Completada", tone: "ok" };
+      return { label: "Completed", tone: "ok" };
     default:
-      return { label: "Esperando que quien paga apruebe", tone: "wait" };
+      return { label: "Waiting for the payer to approve", tone: "wait" };
   }
 }
 
@@ -85,7 +85,7 @@ function receivedTotal(payments: readonly MerchantPayPalPayment[]): Money {
   return { value: total.toString(), assetCode: "USD", assetScale: 2 };
 }
 
-const dateFormat = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const dateFormat = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   const headingId = useId();
@@ -117,7 +117,7 @@ function BusinessTopBar() {
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            aria-label="Notificaciones"
+            aria-label="Notifications"
             className={`grid size-10 place-items-center rounded-full bg-(--pp-chip) transition-colors hover:bg-(--pp-chip-strong) ${focusRing}`}
           >
             <BellIcon className="size-5" />
@@ -148,16 +148,16 @@ function SandboxAccountCard({
   activityUrl?: string;
 }) {
   return (
-    <section aria-label="Cuenta de PayPal sandbox" className="space-y-3">
+    <section aria-label="PayPal sandbox account" className="space-y-3">
       <div className="relative overflow-hidden rounded-3xl bg-(--pp-navy) px-5 pt-5 pb-6 text-white">
         <span aria-hidden="true" className="absolute -top-10 -right-8 size-36 rounded-full bg-(--pp-blue)/45" />
         <span aria-hidden="true" className="absolute -right-2 -bottom-14 size-28 rounded-full bg-(--pp-sky)/25" />
-        <p className="relative text-[14px] font-semibold text-white/80">Recibido con COMPAS</p>
+        <p className="relative text-[14px] font-semibold text-white/80">Received with COMPAS</p>
         <p className="relative mt-2 text-[2.4rem] leading-none font-extrabold tracking-[-0.03em] tabular-nums">
           {total ? formatMoneyAmount(total) : "—"}
         </p>
         <p className="relative mt-3 text-[12px] text-white/80">
-          Capturado por PayPal sandbox{account ? ` en la cuenta ${account}` : ""}.
+          Captured by PayPal sandbox{account ? ` in account ${account}` : ""}.
         </p>
       </div>
       {activityUrl ? (
@@ -167,12 +167,12 @@ function SandboxAccountCard({
           rel="noopener noreferrer"
           className={`flex h-12 w-full items-center justify-center gap-2 rounded-full bg-(--pp-ink) text-[15px] font-bold text-white transition-colors hover:bg-black ${focusRing}`}
         >
-          Abrir PayPal sandbox
-          <span className="sr-only">(se abre en una pestaña nueva)</span>
+          Open PayPal sandbox
+          <span className="sr-only">(opens in a new tab)</span>
         </a>
       ) : null}
       <p className="text-center text-[12px] leading-snug text-(--pp-muted)">
-        Inicia sesión con la cuenta de prueba business del comercio para ver el pago llegar.
+        Log in with the shop's business test account to see the payment arrive.
       </p>
     </section>
   );
@@ -189,7 +189,7 @@ function PaymentRow({ payment }: { payment: MerchantPayPalPayment }) {
           <CompasMark className="size-6" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold">Pedido con COMPAS</span>
+          <span className="block truncate text-[15px] font-semibold">Order with COMPAS</span>
           <span className="block truncate text-[12px] text-(--pp-muted)">{dateFormat.format(new Date(payment.recordedAt))}</span>
         </span>
         <span className={`text-[15px] font-semibold tabular-nums ${status.tone === "ok" ? "text-(--pp-green)" : ""}`}>
@@ -198,8 +198,8 @@ function PaymentRow({ payment }: { payment: MerchantPayPalPayment }) {
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-13 text-[11px] text-(--pp-muted)">
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONE_LOOK[status.tone]}`}>{status.label}</span>
-        <span className="font-mono">Orden {payment.orderId}</span>
-        {captureId ? <span className="font-mono">Transacción {captureId}</span> : null}
+        <span className="font-mono">Order {payment.orderId}</span>
+        {captureId ? <span className="font-mono">Transaction {captureId}</span> : null}
       </div>
     </li>
   );
@@ -208,19 +208,19 @@ function PaymentRow({ payment }: { payment: MerchantPayPalPayment }) {
 function PaymentsSection({ resource }: { resource: ReturnType<typeof useMerchantPayPalPayments> }) {
   const { resource: state, reload, refreshError } = resource;
   return (
-    <Section title="Pagos con COMPAS" aside={<span className="text-[11px] text-(--pp-muted)">Leídos de PayPal sandbox</span>}>
-      {state.status === "loading" ? <p className="py-3 text-[13px] text-(--pp-muted)">Consultando PayPal…</p> : null}
+    <Section title="Payments with COMPAS" aside={<span className="text-[11px] text-(--pp-muted)">Read from PayPal sandbox</span>}>
+      {state.status === "loading" ? <p className="py-3 text-[13px] text-(--pp-muted)">Checking with PayPal…</p> : null}
       {state.status === "error" ? (
         <div className="space-y-2 py-2">
           <p role="alert" className="rounded-xl bg-(--pp-sand) p-3 text-[13px]">
             {errorText(errorCode(state.error))}
           </p>
           <button type="button" onClick={reload} className={`text-[13px] font-semibold underline ${focusRing}`}>
-            Reintentar
+            Try again
           </button>
         </div>
       ) : null}
-      {refreshError ? <p className="text-[12px] text-(--pp-muted)">Sin conexión. Mostrando la última consulta.</p> : null}
+      {refreshError ? <p className="text-[12px] text-(--pp-muted)">No connection. Showing the last result.</p> : null}
       {state.status === "ready" ? (
         state.data.payments.length > 0 ? (
           <ul className="divide-y divide-(--pp-line)">
@@ -230,8 +230,8 @@ function PaymentsSection({ resource }: { resource: ReturnType<typeof useMerchant
           </ul>
         ) : (
           <p className="rounded-2xl bg-(--pp-chip) p-4 text-[13px] leading-snug text-(--pp-muted)">
-            Aún no hay pagos COMPAS para esta cuenta. Cobra un pedido con COMPAS y, cuando quien paga lo apruebe, aparecerá
-            aquí.
+            There are no COMPAS payments for this account yet. Charge an order with COMPAS and, once the payer approves it, it will appear
+            here.
           </p>
         )
       ) : null}
@@ -268,13 +268,13 @@ function CompasCallout({
               config.enabled ? "bg-(--pp-mint) text-(--pp-green)" : "bg-white text-(--pp-muted)"
             }`}
           >
-            {config.enabled ? "Activo" : "Inactivo"}
+            {config.enabled ? "Active" : "Inactive"}
           </span>
         </span>
         <span className="block text-[13px] leading-snug text-(--pp-muted)">
           {config.enabled && accepted
-            ? `Cobra con propósito: ${accepted.toLowerCase()}.`
-            : "Cobra con propósito."}
+            ? `Charge by purpose: ${accepted.toLowerCase()}.`
+            : "Charge by purpose."}
         </span>
       </span>
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white">
@@ -321,13 +321,13 @@ export function PayPalBusinessHome({
           <PaymentsSection resource={payments} />
           <footer className="pt-4 text-center">
             <p className="text-[11px] leading-relaxed text-(--pp-muted)">
-              Pantalla de la demo de COMPAS con el aspecto de PayPal Business. No es la app oficial. La cuenta y los pagos
-              son reales del sandbox de PayPal: cuentas de prueba, sin dinero real.
+              A COMPAS demo screen styled like PayPal Business. It is not the official app. The account and payments
+              are real PayPal sandbox data: test accounts, no real money.
             </p>
           </footer>
         </div>
       </div>
-      <PayPalBottomNav items={businessNavItems} qrLabel="Cobrar con código QR" />
+      <PayPalBottomNav items={businessNavItems} qrLabel="Charge with QR code" />
     </div>
   );
 }

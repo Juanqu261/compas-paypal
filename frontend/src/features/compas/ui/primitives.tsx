@@ -116,7 +116,7 @@ export function Facts({ rows }: { rows: readonly { label: string; value: ReactNo
   );
 }
 
-export function LoadingState({ label = "Cargando" }: { label?: string }) {
+export function LoadingState({ label = "Loading" }: { label?: string }) {
   return (
     <div role="status" className="flex items-center gap-3 py-8 text-[14px] text-(--cx-muted)">
       <CompasMark className="size-6 animate-spin [animation-duration:2.4s] motion-reduce:animate-none" />
@@ -131,7 +131,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
       <Notice tone="danger">{errorText(errorCode(error))}</Notice>
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
-          Reintentar
+          Try again
         </Button>
       ) : null}
     </div>
@@ -141,8 +141,8 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 /** The last good data is still on screen, but refreshing it failed. Says so instead of pretending it is current. */
 export function StaleDataNotice({ error }: { error: unknown }) {
   return (
-    <Notice tone="warn" title="Mostrando los últimos datos conocidos">
-      {errorText(errorCode(error))} Esta pantalla vuelve a intentarlo sola.
+    <Notice tone="warn" title="Showing the latest known data">
+      {errorText(errorCode(error))} This screen will keep retrying on its own.
     </Notice>
   );
 }
@@ -164,9 +164,9 @@ export function DemoModeNote({ persistence }: { persistence?: string }) {
     <p className="flex items-start gap-1.5 pt-2 text-[11px] leading-snug text-(--cx-muted)">
       <InfoIcon className="mt-px size-3.5 shrink-0" />
       <span>
-        Modo demostración: personas de prueba
-        {persistence === "IN_MEMORY_DEMO" ? " y datos guardados en la memoria del servidor, que se borran al reiniciarlo" : ""}
-        {persistence === "POSTGRES" ? " y datos de prueba guardados en la base de datos de COMPAS" : ""}.
+        Demo mode: test people
+        {persistence === "IN_MEMORY_DEMO" ? " and data kept in the server's memory, which is wiped on restart" : ""}
+        {persistence === "POSTGRES" ? " and test data stored in COMPAS's database" : ""}.
       </span>
     </p>
   );
@@ -229,10 +229,10 @@ export function ConfirmDialog({
         <div className="mt-2 text-[14px] leading-snug text-(--cx-muted)">{children}</div>
         <div className="mt-5 space-y-2">
           <Button variant="danger" onClick={onConfirm} disabled={busy}>
-            {busy ? "Procesando…" : confirmLabel}
+            {busy ? "Processing…" : confirmLabel}
           </Button>
           <Button ref={cancelRef} variant="secondary" onClick={onCancel} disabled={busy}>
-            Cancelar
+            Cancel
           </Button>
         </div>
       </section>

@@ -21,7 +21,7 @@ import { CategoryBadge, CategoryStack, StepBar } from "../ui/visuals";
 
 type ChargeResult = NonNullable<DemoCharge["result"]>;
 
-export const PAY_STEPS = ["Presupuesto", "Cobro", "Revisión", "Pago"] as const;
+export const PAY_STEPS = ["Budget", "Charge", "Review", "Payment"] as const;
 
 /**
  * The connection dropped mid-request, so the backend may have recorded the
@@ -90,35 +90,35 @@ function PreviewChecks({ preview, payer }: { preview: PurchasePreview; payer: st
     <ul className="divide-y divide-(--cx-line)">
       <Check
         state={preview.mandateRules.passed ? "pass" : "fail"}
-        title="Presupuesto activo y vigente"
+        title="Budget is active and valid"
         detail={ruleCode ? reasonText(ruleCode) : undefined}
       />
       {preview.purposeCheck ? (
         <>
           <Check
             state={merchantCode ? failed : "pass"}
-            title="Comercio permitido"
+            title="Merchant allowed"
             detail={merchantCode ? reasonText(merchantCode) : undefined}
           />
           <Check
             state={lineCode ? failed : "pass"}
-            title="Productos permitidos"
+            title="Products allowed"
             detail={lineCode ? reasonText(lineCode) : undefined}
           />
           {!enforced && (merchantCode || lineCode) ? (
-            <Check state="warn" title={`Se pagaría con aviso a ${payer}`} detail="Eligió permitir y avisarle." />
+            <Check state="warn" title={`Would be paid, with a notice to ${payer}`} detail={`${payer} chose to allow it and be notified.`} />
           ) : null}
         </>
       ) : null}
       {preview.budget ? (
         <Check
           state={preview.budget.passed ? "pass" : "fail"}
-          title="Monto dentro del presupuesto"
+          title="Amount within the budget"
           detail={budgetCode ? reasonText(budgetCode) : undefined}
         />
       ) : null}
       {preview.next === "ORDER" ? (
-        <Check state="later" title={`Aprobación de ${payer} en PayPal`} detail="Se cobra solo cuando la apruebe." />
+        <Check state="later" title={`${payer}'s approval on PayPal`} detail="Nothing is charged until it's approved." />
       ) : null}
     </ul>
   );
@@ -130,7 +130,7 @@ const TONE_LOOK: Record<PurchaseTone, { Icon: typeof CheckIcon; tile: string }> 
   stop: { Icon: StopIcon, tile: "bg-(--cx-danger)/12 text-(--cx-danger)" },
 };
 
-/** The one result that matters, large. Only a payment PayPal captured says "Pago realizado". */
+/** The one result that matters, large. Only a payment PayPal captured says "Payment completed". */
 function ResultCard({ tone, title, children }: { tone: PurchaseTone; title: string; children?: ReactNode }) {
   const look = TONE_LOOK[tone];
   return (
@@ -151,22 +151,22 @@ function PurchaseResult({ purchase, payer }: { purchase: PurchaseView; payer: st
       {purchase.outcome !== "ALLOW" ? (
         <>
           <p>{purchase.reasonCodes[0] ? reasonText(purchase.reasonCodes[0]) : null}</p>
-          <p className="mt-1">El dinero sigue en el PayPal de {payer}.</p>
+          <p className="mt-1">{`The money stays in ${payer}'s PayPal.`}</p>
         </>
       ) : purchase.payment.status === "CREATED" ? (
         <p className="tabular-nums">
           {purchase.payment.state === "AWAITING_PAYER_APPROVAL"
-            ? `${payer} debe aprobar ${formatMoneyAmount(purchase.requestedAmount)} en PayPal. No se cobra nada antes.`
+            ? `${payer} needs to approve ${formatMoneyAmount(purchase.requestedAmount)} on PayPal. Nothing is charged before then.`
             : purchase.payment.state === "COMPLETED"
-              ? `${formatMoneyAmount(purchase.requestedAmount)} desde el PayPal de ${payer}.`
+              ? `${formatMoneyAmount(purchase.requestedAmount)} from ${payer}'s PayPal.`
               : purchase.payment.state === "PENDING"
-                ? `${formatMoneyAmount(purchase.requestedAmount)} desde el PayPal de ${payer}. PayPal aún no lo confirma.`
+                ? `${formatMoneyAmount(purchase.requestedAmount)} from ${payer}'s PayPal. PayPal hasn't confirmed it yet.`
                 : purchase.payment.state === "CANCELLED"
-                  ? `${payer} lo canceló en PayPal. No se cobró nada.`
-                  : "No se cobró nada."}
+                  ? `${payer} cancelled it on PayPal. Nothing was charged.`
+                  : "Nothing was charged."}
         </p>
       ) : (
-        <p>No se cobró nada.</p>
+        <p>Nothing was charged.</p>
       )}
     </ResultCard>
   );
@@ -240,12 +240,12 @@ export function DelegateCheckout({
     <div className="flex items-center gap-3 rounded-(--cx-radius) bg-(--cx-card) px-3 py-2.5">
       <CategoryStack categories={mandate.purposePolicy.eligibleCategories} />
       <span className="min-w-0 flex-1 text-[13px] leading-tight text-(--cx-ink)">
-        <span className="block truncate">De {mandate.payer.displayName}</span>
+        <span className="block truncate">From {mandate.payer.displayName}</span>
         <span className="sr-only">{categoryList(mandate.purposePolicy.eligibleCategories)}</span>
       </span>
       <span className="text-right text-[13px] leading-tight font-semibold text-(--cx-ink) tabular-nums">
         {formatMoneyAmount(mandate.remainingAuthorizedAmount)}
-        <span className="block text-[11px] font-normal text-(--cx-muted)">disponible</span>
+        <span className="block text-[11px] font-normal text-(--cx-muted)">available</span>
       </span>
     </div>
   );
@@ -259,10 +259,10 @@ export function DelegateCheckout({
           <span className="grid size-14 place-items-center rounded-full bg-(--cx-route)/10 text-(--cx-route)">
             <ReceiptIcon className="size-7" />
           </span>
-          <p className="mt-3 text-[16px] font-semibold text-(--cx-ink)">Pídele al comercio que genere un cobro con COMPAS</p>
+          <p className="mt-3 text-[16px] font-semibold text-(--cx-ink)">Ask the merchant to create a charge with COMPAS</p>
           <p role="status" className="mt-2 flex items-center gap-2 text-[13px] text-(--cx-muted)">
             <span className="size-2 animate-pulse rounded-full bg-(--cx-route) motion-reduce:animate-none" />
-            Esperando cobro
+            Waiting for a charge
           </p>
         </div>
       </div>
@@ -338,7 +338,7 @@ export function DelegateCheckout({
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold text-(--cx-ink)">{activeCharge.merchantDisplayName}</p>
-            <p className="text-[12px] text-(--cx-muted)">Cobro de demostración</p>
+            <p className="text-[12px] text-(--cx-muted)">Demo charge</p>
           </div>
         </div>
         <p className="mt-3 text-[28px] leading-tight font-semibold tracking-tight text-(--cx-ink) tabular-nums">
@@ -353,7 +353,7 @@ export function DelegateCheckout({
               </li>
             ))
           ) : (
-            <li className="text-[13px] text-(--cx-muted)">Productos sin categoría</li>
+            <li className="text-[13px] text-(--cx-muted)">Products without a category</li>
           )}
         </ul>
         <div className="mt-3">{budgetRow}</div>
@@ -364,15 +364,15 @@ export function DelegateCheckout({
       {!purchase && preview ? (
         <div className="space-y-3">
           {preview.next === "ORDER" ? (
-            <ResultCard tone="ok" title="Cumple las reglas">
-              Aún no es un pago: {mandate.payer.displayName} lo aprueba en PayPal.
+            <ResultCard tone="ok" title="Meets the rules">
+              Not a payment yet: {mandate.payer.displayName} approves it on PayPal.
             </ResultCard>
           ) : (
             <ResultCard
               tone={preview.next === "STOP_DENY" ? "stop" : "wait"}
-              title={preview.next === "STOP_DENY" ? "Compra no permitida" : "Compra retenida para revisión"}
+              title={preview.next === "STOP_DENY" ? "Purchase not allowed" : "Purchase held for review"}
             >
-              No se creó ningún pago en el PayPal de {mandate.payer.displayName}.
+              {`No payment was created in ${mandate.payer.displayName}'s PayPal.`}
             </ResultCard>
           )}
           <PreviewChecks preview={preview} payer={mandate.payer.displayName} />
@@ -380,9 +380,9 @@ export function DelegateCheckout({
       ) : null}
 
       {error ? (
-        <Notice tone={shown?.uncertain ? "warn" : "danger"} title={shown?.uncertain ? "No sabemos si se registró" : "No se pudo completar"}>
+        <Notice tone={shown?.uncertain ? "warn" : "danger"} title={shown?.uncertain ? "We don't know if it was recorded" : "Couldn't complete"}>
           {shown?.uncertain
-            ? "Se perdió la conexión mientras se procesaba. Consulta de nuevo: no se creará un segundo pago."
+            ? "The connection dropped while this was processing. Check again: a second payment won't be created."
             : errorText(error.code)}
         </Notice>
       ) : null}
@@ -391,26 +391,26 @@ export function DelegateCheckout({
         <div className="space-y-2">
           {!preview && !canAskAgain ? (
             <Button onClick={review} disabled={busy !== null}>
-              {busy === "preview" ? "Revisando…" : "Revisar compra"}
+              {busy === "preview" ? "Reviewing…" : "Review purchase"}
             </Button>
           ) : null}
           {canPay || canAskAgain ? (
             <Button onClick={pay} disabled={busy !== null}>
               {busy === "pay"
-                ? "Procesando…"
+                ? "Processing…"
                 : canAskAgain
-                  ? "Consultar de nuevo"
-                  : `Pedir pago de ${formatMoneyAmount(activeCharge.amount)}`}
+                  ? "Check again"
+                  : `Request payment of ${formatMoneyAmount(activeCharge.amount)}`}
             </Button>
           ) : null}
           {preview && preview.next === "ORDER" && preview.execution !== "ENABLED" ? (
-            <Notice tone="warn" title="Pago desactivado en esta demostración">
+            <Notice tone="warn" title="Payments are turned off in this demo">
               {errorText(preview.execution)}
             </Notice>
           ) : null}
           {preview ? (
             <Button variant="secondary" onClick={review} disabled={busy !== null}>
-              Revisar de nuevo
+              Review again
             </Button>
           ) : null}
         </div>

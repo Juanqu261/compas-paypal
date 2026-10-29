@@ -87,15 +87,15 @@ export function PayerHome({
   return (
     <div className="space-y-6">
       <div>
-        <ScreenHeading focusOnMount={focusOnMount}>Presupuestos</ScreenHeading>
-        <p className="mt-1 text-[14px] text-(--cx-muted)">Autoriza pagos sin enviar tu dinero.</p>
+        <ScreenHeading focusOnMount={focusOnMount}>Budgets</ScreenHeading>
+        <p className="mt-1 text-[14px] text-(--cx-muted)">Authorize payments without sending your money.</p>
       </div>
 
       {activeCount > 0 ? (
         <div className="rounded-(--cx-radius) bg-(--cx-accent) p-4 text-(--cx-on-accent)">
           <p className="flex items-center gap-2 text-[13px] opacity-80">
             <WalletIcon className="size-4" />
-            Disponible para pagar
+            Available to spend
           </p>
           {capacity.map((amount) => (
             <p key={amount.assetCode} className="mt-1 text-[28px] leading-tight font-semibold tracking-tight tabular-nums">
@@ -103,24 +103,24 @@ export function PayerHome({
             </p>
           ))}
           <p className="mt-1 text-[12px] opacity-80">
-            {activeCount === 1 ? "En 1 presupuesto activo" : `En ${activeCount} presupuestos activos`}. Sigue en tu PayPal.
+            {activeCount === 1 ? "In 1 active budget" : `In ${activeCount} active budgets`}. It stays in your PayPal.
           </p>
         </div>
       ) : null}
 
       <Button onClick={onCreate}>
         <PlusIcon className="size-5" />
-        Crear presupuesto
+        Create budget
       </Button>
 
       <section aria-labelledby="payer-budgets" className="space-y-3">
-        <SectionTitle id="payer-budgets">Tus presupuestos</SectionTitle>
+        <SectionTitle id="payer-budgets">Your budgets</SectionTitle>
         {refreshError ? <StaleDataNotice error={refreshError} /> : null}
-        {resource.status === "loading" ? <LoadingState label="Cargando tus presupuestos" /> : null}
+        {resource.status === "loading" ? <LoadingState label="Loading your budgets" /> : null}
         {resource.status === "error" ? <ErrorState error={resource.error} onRetry={reload} /> : null}
         {mandates && mandates.length === 0 ? (
-          <EmptyState title="Aún no tienes presupuestos">
-            Crea uno para que alguien de confianza pague compras como medicamentos, sin recibir tu dinero.
+          <EmptyState title="You don't have any budgets yet">
+            Create one so someone you trust can pay for things like medication, without ever receiving your money.
           </EmptyState>
         ) : null}
         {mandates?.map((mandate) => (
@@ -130,7 +130,7 @@ export function PayerHome({
 
       {recent.resource.status === "ready" && recent.resource.data.length > 0 ? (
         <section aria-labelledby="payer-recent" className="space-y-1">
-          <SectionTitle id="payer-recent">Movimientos recientes</SectionTitle>
+          <SectionTitle id="payer-recent">Recent activity</SectionTitle>
           <ActivityList entries={recent.resource.data.map((item) => item.entry)} />
         </section>
       ) : null}

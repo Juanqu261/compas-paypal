@@ -82,24 +82,24 @@ export type MerchantChargeTone = "wait" | "ok" | "stop";
  */
 export function merchantChargeStatus(charge: Pick<DemoCharge, "result">): { title: string; tone: MerchantChargeTone } {
   const result = charge.result;
-  if (!result) return { title: "Esperando al cliente", tone: "wait" };
+  if (!result) return { title: "Waiting for the customer", tone: "wait" };
   if (result.kind === "PREVIEW") {
-    if (result.preview.next === "STOP_DENY") return { title: "Compra no permitida", tone: "stop" };
-    if (result.preview.next === "STOP_REVIEW") return { title: "Retenida para revisión", tone: "wait" };
+    if (result.preview.next === "STOP_DENY") return { title: "Purchase not allowed", tone: "stop" };
+    if (result.preview.next === "STOP_REVIEW") return { title: "Held for review", tone: "wait" };
     return result.preview.execution === "ENABLED"
-      ? { title: "Pendiente de confirmación", tone: "wait" }
-      : { title: "Cumple las reglas. Pago desactivado en la demo", tone: "wait" };
+      ? { title: "Waiting for confirmation", tone: "wait" }
+      : { title: "Fits the rules. Payments off in this demo", tone: "wait" };
   }
   if (result.kind === "ERROR") {
-    if (result.code === "PURCHASES_DISABLED_FOR_DEMO") return { title: "Pago desactivado en la demo", tone: "wait" };
-    return { title: "No se pudo completar", tone: "stop" };
+    if (result.code === "PURCHASES_DISABLED_FOR_DEMO") return { title: "Payments off in this demo", tone: "wait" };
+    return { title: "Could not complete", tone: "stop" };
   }
   const payment = result.purchase.payment;
   if (payment.status === "CREATED" && payment.state === "AWAITING_PAYER_APPROVAL") {
-    return { title: "Esperando que quien paga lo apruebe", tone: "wait" };
+    return { title: "Waiting for the payer to approve", tone: "wait" };
   }
   const status = purchaseStatus(result.purchase);
-  if (status.tone === "stop" && result.purchase.outcome === "ALLOW") return { title: "No se pudo completar", tone: "stop" };
+  if (status.tone === "stop" && result.purchase.outcome === "ALLOW") return { title: "Could not complete", tone: "stop" };
   return { title: status.title, tone: status.tone };
 }
 

@@ -25,9 +25,9 @@ import { Button, Notice, ScreenHeading } from "../ui/primitives";
 import { Avatar, CategoryStack, CategoryTiles, StepBar } from "../ui/visuals";
 
 const STEP_TITLE: Record<WizardStep, string> = {
-  contact: "¿Quién recibe el presupuesto?",
-  budget: "¿Cuánto y para qué?",
-  confirm: "Revisa y autoriza",
+  contact: "Who gets the budget?",
+  budget: "How much, and for what?",
+  confirm: "Review and authorize",
 };
 
 /**
@@ -138,7 +138,7 @@ export function CreateBudgetWizard({
       </div>
 
       {serverIssues.length > 0 ? (
-        <Notice tone="danger" title="COMPAS no aceptó el presupuesto">
+        <Notice tone="danger" title="COMPAS didn't accept the budget">
           <ul className="list-disc pl-4">
             {serverIssues.map((issue) => (
               <li key={`${issue.field}-${issue.message}`}>{issue.message}</li>
@@ -160,7 +160,7 @@ export function CreateBudgetWizard({
         <div className="space-y-6">
           <div>
             <label htmlFor="budget-amount" className="text-[14px] font-semibold text-(--cx-ink)">
-              Monto máximo
+              Maximum amount
             </label>
             <div className="mt-1.5 flex items-baseline gap-2 border-b-2 border-(--cx-line-strong) pb-1 focus-within:border-(--cx-route)">
               <input
@@ -179,9 +179,9 @@ export function CreateBudgetWizard({
           </div>
 
           <div>
-            <p className="mb-2 text-[14px] font-semibold text-(--cx-ink)">¿En qué puede usarlo?</p>
+            <p className="mb-2 text-[14px] font-semibold text-(--cx-ink)">What can it be used for?</p>
             <CategoryTiles
-              legend="¿En qué puede usarlo?"
+              legend="What can it be used for?"
               value={draft.categories}
               onChange={(categories) => update({ categories })}
             />
@@ -189,8 +189,8 @@ export function CreateBudgetWizard({
           </div>
 
           <div>
-            <p className="mb-2 text-[14px] font-semibold text-(--cx-ink)">¿Hasta cuándo?</p>
-            <div role="group" aria-label="Duración" className="flex flex-wrap gap-2">
+            <p className="mb-2 text-[14px] font-semibold text-(--cx-ink)">Until when?</p>
+            <div role="group" aria-label="Duration" className="flex flex-wrap gap-2">
               {DURATIONS.map((option) => (
                 <button
                   key={option.days}
@@ -208,7 +208,7 @@ export function CreateBudgetWizard({
             <div className="mt-3 flex items-center gap-2 text-[14px] text-(--cx-ink)">
               <CalendarIcon className="size-5 text-(--cx-muted)" />
               <label htmlFor="budget-end" className="text-(--cx-muted)">
-                Hasta el
+                Ends on
               </label>
               <input
                 id="budget-end"
@@ -225,9 +225,9 @@ export function CreateBudgetWizard({
           <details className="rounded-(--cx-radius) border border-(--cx-line) [&_summary::-webkit-details-marker]:hidden" open={advancedChanged || Boolean(issueFor("monitoredAcknowledged") ?? issueFor("capAmount"))}>
             <summary className="flex cursor-pointer items-center gap-2 p-3.5 text-[14px] font-semibold text-(--cx-ink)">
               <SlidersIcon className="size-5 text-(--cx-muted)" />
-              Opciones avanzadas
+              Advanced options
               <span className="ml-auto text-[12px] font-normal text-(--cx-muted)">
-                {advancedChanged ? "Modificadas" : "Recomendadas"}
+                {advancedChanged ? "Changed" : "Recommended"}
               </span>
             </summary>
             <div className="space-y-6 border-t border-(--cx-line) p-3.5">
@@ -241,8 +241,8 @@ export function CreateBudgetWizard({
               <ConfidencePicker value={draft.confidence} onChange={(confidence) => update({ confidence })} />
               {draft.confidence !== "HIGH" ? (
                 <TextField
-                  label="Límite por compra en comercios con menos confianza"
-                  hint="Opcional. Una compra mayor queda retenida para revisión."
+                  label="Per-purchase limit at lower-confidence merchants"
+                  hint="Optional. A larger purchase is held for review."
                   value={draft.capAmount}
                   onChange={(capAmount) => update({ capAmount })}
                   inputMode="decimal"
@@ -251,7 +251,7 @@ export function CreateBudgetWizard({
                 />
               ) : null}
               <TextField
-                label="Empieza el"
+                label="Starts on"
                 type="date"
                 value={draft.startDate}
                 min={toDateInput(today)}
@@ -269,7 +269,7 @@ export function CreateBudgetWizard({
             <div className="flex items-center gap-3">
               <Avatar name={contact.displayName} seed={contact.id} size="lg" />
               <p className="text-[18px] leading-tight font-semibold text-(--cx-ink)">
-                Presupuesto para {contact.displayName}
+                Budget for {contact.displayName}
               </p>
             </div>
             <ul className="mt-3 divide-y divide-(--cx-line)">
@@ -280,24 +280,24 @@ export function CreateBudgetWizard({
                 </span>
               </SummaryRow>
               <SummaryRow icon={<CalendarIcon className="size-5" />}>
-                Hasta el {formatDate(endOfDayIso(draft.endDate) ?? draft.endDate)}
-                {draft.startDate !== toDateInput(today) ? `, desde el ${formatDate(startOfDayIso(draft.startDate) ?? draft.startDate)}` : ""}
+                Until {formatDate(endOfDayIso(draft.endDate) ?? draft.endDate)}
+                {draft.startDate !== toDateInput(today) ? `, starting ${formatDate(startOfDayIso(draft.startDate) ?? draft.startDate)}` : ""}
               </SummaryRow>
               <SummaryRow icon={<ShieldIcon className="size-5" />}>
                 {ENFORCEMENT_LABEL[draft.enforcement]}
-                {draft.confidence !== "HIGH" ? `. Confianza ${CONFIDENCE_LABEL[draft.confidence].toLowerCase()}` : ""}
-                {parsedCap?.ok ? `, hasta ${formatMoneyAmount({ ...asset, value: parsedCap.minorUnits })} por compra` : ""}
+                {draft.confidence !== "HIGH" ? `. ${CONFIDENCE_LABEL[draft.confidence]} confidence` : ""}
+                {parsedCap?.ok ? `, up to ${formatMoneyAmount({ ...asset, value: parsedCap.minorUnits })} per purchase` : ""}
               </SummaryRow>
             </ul>
           </div>
 
           <p className="flex gap-2 text-[13px] leading-snug text-(--cx-ink)">
             <WalletIcon className="mt-px size-[18px] shrink-0 text-(--cx-route)" />
-            El dinero sigue en tu PayPal. {contact.displayName} podrá pedir compras permitidas con esta
-            autorización, y tú apruebas cada pago en PayPal.
+            Your money stays in your PayPal. {contact.displayName} will be able to request allowed purchases with this
+            authorization, and you approve each payment at PayPal.
           </p>
           <p className="text-[13px] text-(--cx-muted)">
-            Cada compra permitida te llegará como un pago de PayPal por ese monto exacto, para el comercio.
+            Each allowed purchase will reach you as a PayPal payment for that exact amount, payable to the merchant.
           </p>
           {submitError ? <Notice tone="danger">{submitError}</Notice> : null}
         </div>
@@ -306,11 +306,11 @@ export function CreateBudgetWizard({
       <div className="space-y-2 pt-1">
         {step === "confirm" ? (
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Creando…" : "Crear y autorizar"}
+            {busy ? "Creating…" : "Create and authorize"}
           </Button>
         ) : (
           <Button onClick={next} disabled={step === "contact" && !draft.contactId}>
-            Continuar
+            Continue
           </Button>
         )}
         {index > 0 ? (
@@ -322,7 +322,7 @@ export function CreateBudgetWizard({
               onStepChange(WIZARD_STEPS[index - 1]);
             }}
           >
-            Atrás
+            Back
           </Button>
         ) : null}
       </div>

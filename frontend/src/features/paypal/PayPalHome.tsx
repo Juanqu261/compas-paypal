@@ -25,8 +25,8 @@ export function PayPalHome({
           />
           <footer className="pt-4 text-center">
             <p className="text-[11px] leading-relaxed text-(--pp-muted)">
-              Simulación de la app de PayPal para la demo de COMPAS. No es la app oficial. Cada
-              pago se aprueba en el sandbox de PayPal.
+              A simulation of the PayPal app for the COMPAS demo. It is not the official app. Every
+              payment is approved in the PayPal sandbox.
             </p>
           </footer>
         </div>

@@ -17,20 +17,20 @@ const KIND_LOOK: Record<ActivityKind, { Icon: typeof CheckIcon; tone: string }> 
   REVIEW: { Icon: PauseIcon, tone: "bg-(--cx-warn-soft) text-(--cx-warn)" },
 };
 
-/** What the amount next to an attempt is. Only a payment PayPal captured says "cobrado". */
+/** What the amount next to an attempt is. Only a payment PayPal captured says "charged". */
 function amountNote(kind: ActivityKind): string {
   switch (kind) {
     case "COMPLETED":
-      return "cobrado";
+      return "charged";
     case "PENDING":
-      return "por confirmar";
+      return "to be confirmed";
     case "AWAITING_APPROVAL":
-      return "por aprobar";
+      return "awaiting approval";
     case "CANCELLED":
     case "FAILED":
-      return "no cobrado";
+      return "not charged";
     default:
-      return "solicitado";
+      return "requested";
   }
 }
 
@@ -52,11 +52,11 @@ function ApproveAtPayPal({ href }: { href: string }) {
         className="inline-flex h-9 items-center gap-1.5 rounded-full bg-(--cx-route) px-3.5 text-[13px] font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--cx-focus)"
       >
         <ShieldIcon className="size-4" />
-        {opened ? "Abrir PayPal de nuevo" : "Aprobar en PayPal"}
+        {opened ? "Open PayPal again" : "Approve at PayPal"}
       </button>
       {opened ? (
         <p role="status" className="text-[12px] text-(--cx-muted)">
-          PayPal se abrió en otra pestaña. Esta pantalla se actualiza sola.
+          PayPal opened in another tab. This screen updates on its own.
         </p>
       ) : null}
     </div>
@@ -91,7 +91,7 @@ export function ActivityList({
               <Glyph className="size-[18px]" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-medium text-(--cx-ink)">{entry.merchantDisplayName ?? "Comercio"}</p>
+              <p className="truncate text-[14px] font-medium text-(--cx-ink)">{entry.merchantDisplayName ?? "Merchant"}</p>
               <p className="text-[13px] text-(--cx-ink)">{activityLabel(entry.kind, entry.monitoredException)}</p>
               {reason ? <p className="text-[12px] leading-snug text-(--cx-muted)">{reason}</p> : null}
               <p className="text-[12px] text-(--cx-muted)">{formatDateTime(entry.recordedAt)}</p>

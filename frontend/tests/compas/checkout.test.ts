@@ -73,34 +73,34 @@ test("the merchant phone never says paid before PayPal captured it", () => {
       recordedAt: "2026-10-17T10:00:00Z",
     },
   });
-  assert.equal(merchantChargeStatus({}).title, "Esperando al cliente");
-  assert.equal(merchantChargeStatus({ result: preview("STOP_DENY") }).title, "Compra no permitida");
-  assert.equal(merchantChargeStatus({ result: preview("ORDER") }).title, "Pendiente de confirmación");
-  assert.match(merchantChargeStatus({ result: preview("ORDER", "PURCHASES_DISABLED_FOR_DEMO") }).title, /desactivado/);
+  assert.equal(merchantChargeStatus({}).title, "Waiting for the customer");
+  assert.equal(merchantChargeStatus({ result: preview("STOP_DENY") }).title, "Purchase not allowed");
+  assert.equal(merchantChargeStatus({ result: preview("ORDER") }).title, "Waiting for confirmation");
+  assert.match(merchantChargeStatus({ result: preview("ORDER", "PURCHASES_DISABLED_FOR_DEMO") }).title, /off in this demo/);
   assert.equal(
     merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "AWAITING_PAYER_APPROVAL" }) }).title,
-    "Esperando que quien paga lo apruebe",
+    "Waiting for the payer to approve",
   );
-  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "CANCELLED" }) }).title, "No se pudo completar");
-  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "PENDING" }) }).title, "Pago en proceso");
-  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "COMPLETED" }) }).title, "Pago realizado");
-  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "NOT_CREATED" }) }).title, "No se pudo completar");
-  assert.equal(merchantChargeStatus({ result: purchase("DENY", { status: "NOT_CREATED" }) }).title, "Compra no permitida");
-  assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "PAYMENT_NOT_STARTED" } }).title, "No se pudo completar");
+  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "CANCELLED" }) }).title, "Could not complete");
+  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "PENDING" }) }).title, "Payment in progress");
+  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "CREATED", state: "COMPLETED" }) }).title, "Paid");
+  assert.equal(merchantChargeStatus({ result: purchase("ALLOW", { status: "NOT_CREATED" }) }).title, "Could not complete");
+  assert.equal(merchantChargeStatus({ result: purchase("DENY", { status: "NOT_CREATED" }) }).title, "Purchase not allowed");
+  assert.equal(merchantChargeStatus({ result: { kind: "ERROR", code: "PAYMENT_NOT_STARTED" } }).title, "Could not complete");
 });
 
 test("a decision is never shown as a completed payment", () => {
-  assert.equal(purchaseStatusLabel({ outcome: "DENY", payment: { status: "NOT_CREATED" } }), "Compra no permitida");
-  assert.match(purchaseStatusLabel({ outcome: "REVIEW", payment: { status: "NOT_CREATED" } }), /retenida/);
-  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "NOT_CREATED" } }), "No se pudo crear el pago");
-  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "PENDING" } }), "Pago en proceso");
-  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "COMPLETED" } }), "Pago realizado");
-  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "FAILED" } }), "Pago no realizado");
+  assert.equal(purchaseStatusLabel({ outcome: "DENY", payment: { status: "NOT_CREATED" } }), "Purchase not allowed");
+  assert.match(purchaseStatusLabel({ outcome: "REVIEW", payment: { status: "NOT_CREATED" } }), /held for review/);
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "NOT_CREATED" } }), "Payment could not be created");
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "PENDING" } }), "Payment in progress");
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "COMPLETED" } }), "Paid");
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "FAILED" } }), "Not paid");
   assert.equal(
     purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "AWAITING_PAYER_APPROVAL" } }),
-    "Esperando aprobación en PayPal",
+    "Waiting for PayPal approval",
   );
-  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "CANCELLED" } }), "Pago cancelado en PayPal");
+  assert.equal(purchaseStatusLabel({ outcome: "ALLOW", payment: { status: "CREATED", state: "CANCELLED" } }), "Payment cancelled at PayPal");
 });
 
 test("every purchase error code has its own plain explanation", () => {
@@ -117,7 +117,7 @@ test("every purchase error code has its own plain explanation", () => {
   ]) {
     assert.notEqual(errorText(code), fallback, code);
   }
-  assert.match(errorText("PAYMENT_NOT_STARTED"), /No se cobró nada/);
+  assert.match(errorText("PAYMENT_NOT_STARTED"), /Nothing was charged/);
 });
 
 test("the merchant's category options are COMPAS categories", () => {

@@ -59,14 +59,14 @@ function BalanceSection({ balance }: { balance: PayPalDemoProfile["balance"] }) 
           </span>
           <span className="text-[15px] font-semibold text-white/80">{balance.currency}</span>
         </p>
-        <p className="relative mt-3 text-[12px] text-white/70">Valor de demostración. No es tu saldo.</p>
+        <p className="relative mt-3 text-[12px] text-white/70">Demo value. Not your balance.</p>
       </div>
       <div className="flex gap-3">
         <button type="button" className={pillButton}>
-          Enviar
+          Send
         </button>
         <button type="button" className={pillButton}>
-          Solicitar
+          Request
         </button>
       </div>
     </section>
@@ -107,9 +107,9 @@ function CompasCallout({
 function WalletSection({ accounts }: { accounts: PayPalDemoProfile["accounts"] }) {
   return (
     <PayPalSection
-      title="Billetera"
+      title="Wallet"
       actions={
-        <button type="button" aria-label="Vincular tarjeta o banco" className={roundButton}>
+        <button type="button" aria-label="Link a card or bank" className={roundButton}>
           <PlusIcon className="size-4" />
         </button>
       }
@@ -144,13 +144,13 @@ const avatarTone: Record<PayPalDemoTransaction["tone"], string> = {
 function ActivitySection({ transactions }: { transactions: PayPalDemoProfile["transactions"] }) {
   return (
     <PayPalSection
-      title="Actividad"
+      title="Activity"
       actions={
         <>
-          <button type="button" aria-label="Filtrar actividad" className={roundButton}>
+          <button type="button" aria-label="Filter activity" className={roundButton}>
             <FilterIcon className="size-4" />
           </button>
-          <button type="button" aria-label="Buscar en la actividad" className={roundButton}>
+          <button type="button" aria-label="Search activity" className={roundButton}>
             <SearchIcon className="size-4" />
           </button>
         </>

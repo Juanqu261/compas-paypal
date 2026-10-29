@@ -12,7 +12,7 @@ import type { CompasCategory } from "@/features/compas/api/contracts";
  * The options are COMPAS categories, so a selection always names one the
  * backend knows. A pharmacy sells medication, personal care and some food.
  * Vitamins, supplements and first aid have no COMPAS category yet: they used
- * to appear here as "Salud y bienestar", which no budget could ever match.
+ * to appear here as "Health & wellness", which no budget could ever match.
  */
 export type MerchantCompasCategory = Extract<CompasCategory, "MEDICATION" | "PERSONAL_CARE" | "FOOD">;
 
@@ -28,18 +28,18 @@ export const merchantCompasCategories: readonly {
 }[] = [
   {
     id: "MEDICATION",
-    label: "Medicamentos",
-    description: "Medicamentos con y sin fórmula",
+    label: "Medication",
+    description: "Prescription and over-the-counter medicine",
   },
   {
     id: "PERSONAL_CARE",
-    label: "Cuidado personal",
-    description: "Higiene y aseo personal",
+    label: "Personal care",
+    description: "Hygiene and toiletries",
   },
   {
     id: "FOOD",
-    label: "Alimentos",
-    description: "Alimentos y productos de mercado",
+    label: "Groceries",
+    description: "Food and grocery items",
   },
 ];
 

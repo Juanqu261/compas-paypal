@@ -82,7 +82,7 @@ export function Avatar({ name, seed, size = "md" }: { name: string; seed?: strin
  */
 export function StepBar({ steps, current }: { steps: readonly string[]; current: number }) {
   return (
-    <ol className="flex gap-1.5" aria-label="Progreso">
+    <ol className="flex gap-1.5" aria-label="Progress">
       {steps.map((step, index) => {
         const state = index < current ? "done" : index === current ? "current" : "next";
         return (
@@ -99,7 +99,7 @@ export function StepBar({ steps, current }: { steps: readonly string[]; current:
               }`}
             >
               {step}
-              {state === "done" ? <span className="sr-only"> (hecho)</span> : null}
+              {state === "done" ? <span className="sr-only"> (done)</span> : null}
             </span>
           </li>
         );

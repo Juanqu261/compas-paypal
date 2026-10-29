@@ -20,9 +20,9 @@ import {
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)";
 
 const steps = [
-  { title: "Creas el cobro del pedido", body: "Monto y qué incluye el pedido." },
-  { title: "El cliente lo revisa en su PayPal", body: "Con el presupuesto que le autorizaron." },
-  { title: "COMPAS decide y PayPal paga", body: "Solo si cumple las reglas y quien paga lo aprueba. El pago llega a tu cuenta PayPal." },
+  { title: "You create the order charge", body: "The amount and what the order includes." },
+  { title: "The customer reviews it in their PayPal", body: "Against the budget they were given." },
+  { title: "COMPAS decides and PayPal pays", body: "Only if it meets the rules and the payer approves it. The payment arrives in your PayPal account." },
 ];
 
 /** A section that starts closed, so it never competes with charging. */
@@ -109,7 +109,7 @@ export function PayPalBusinessCompas({
           ref={backButtonRef}
           type="button"
           onClick={onBack}
-          aria-label="Volver al inicio"
+          aria-label="Back to home"
           className={`grid size-10 place-items-center rounded-full bg-(--pp-chip) transition-colors hover:bg-(--pp-chip-strong) ${focusRing}`}
         >
           <ArrowLeftIcon className="size-5" />
@@ -130,7 +130,7 @@ export function PayPalBusinessCompas({
                 <CompasMark className="size-7" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-bold">Pagos con propósito</p>
+                <p className="text-[15px] font-bold">Purpose-bound payments</p>
                 <p className="flex items-center gap-1 truncate text-[13px] text-(--pp-muted)">
                   <StoreIcon className="size-4 shrink-0" />
                   {DEMO_MERCHANTS.drogueria.displayName} · {paypalBusinessDemo.businessKind}
@@ -141,11 +141,11 @@ export function PayPalBusinessCompas({
                   config.enabled ? "bg-(--pp-mint) text-(--pp-green)" : "bg-white text-(--pp-muted)"
                 }`}
               >
-                {config.enabled ? "Activo" : "Inactivo"}
+                {config.enabled ? "Active" : "Inactive"}
               </span>
             </div>
             {config.enabled && config.categories.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Categorías que aceptas">
+              <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Categories you accept">
                 {config.categories.map((category) => (
                   <span key={category} className="rounded-full bg-white">
                     <MerchantCategoryChip category={category} />
@@ -169,18 +169,18 @@ export function PayPalBusinessCompas({
                   className={`flex h-14 w-full items-center justify-center gap-2 rounded-full bg-(--pp-ink) text-[17px] font-bold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40 ${focusRing}`}
                 >
                   <CompasMark className="size-7" />
-                  Cobrar pedido con COMPAS
+                  Charge order with COMPAS
                 </button>
               )}
               {!config.enabled ? (
-                <p className="text-center text-[13px] text-(--pp-muted)">Activa COMPAS en Configuración para cobrar.</p>
+                <p className="text-center text-[13px] text-(--pp-muted)">Turn on COMPAS in Settings to charge.</p>
               ) : null}
 
-              <Fold title="Configuración" hint="Guardada solo en este teléfono">
+              <Fold title="Settings" hint="Saved on this phone only">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
                     <span id={switchId} className="text-[14px]">
-                      Aceptar pagos con COMPAS
+                      Accept payments with COMPAS
                     </span>
                     <button
                       type="button"
@@ -201,7 +201,7 @@ export function PayPalBusinessCompas({
                     </button>
                   </div>
                   <fieldset disabled={!draft.enabled} className="min-w-0 disabled:opacity-60">
-                    <legend className="text-[14px] font-semibold">Categorías que aceptas</legend>
+                    <legend className="text-[14px] font-semibold">Categories you accept</legend>
                     <ul className="mt-2 space-y-2">
                       {merchantCompasCategories.map((category) => (
                         <li key={category.id}>
@@ -222,11 +222,11 @@ export function PayPalBusinessCompas({
                     </ul>
                     <p className="mt-2 flex gap-2 text-[12px] leading-snug text-(--pp-muted)">
                       <InfoIcon className="size-4 shrink-0" />
-                      Marcar una categoría no la verifica. COMPAS la acepta cuando una fuente independiente la corrobora.
+                      Ticking a category does not verify it. COMPAS accepts it once an independent source corroborates it.
                     </p>
                   </fieldset>
                   <p role="status" className="min-h-5 text-center text-[13px]">
-                    {missingCategory ? "Elige al menos una categoría." : saved ? "Guardado en este teléfono." : ""}
+                    {missingCategory ? "Choose at least one category." : saved ? "Saved on this phone." : ""}
                   </p>
                   <button
                     type="button"
@@ -237,16 +237,16 @@ export function PayPalBusinessCompas({
                     }}
                     className={`flex h-12 w-full items-center justify-center rounded-full border border-(--pp-ink) text-[15px] font-bold transition-colors hover:bg-(--pp-chip) disabled:cursor-not-allowed disabled:opacity-40 ${focusRing}`}
                   >
-                    Guardar configuración
+                    Save settings
                   </button>
                 </div>
               </Fold>
 
-              <Fold title="Verificación en COMPAS" hint="Lo que COMPAS sabe de tu negocio">
+              <Fold title="Verification in COMPAS" hint="What COMPAS knows about your business">
                 <MerchantCompasEvidence selected={draft.categories} />
               </Fold>
 
-              <Fold title="¿Cómo funciona?">
+              <Fold title="How does it work?">
                 <ol className="space-y-3">
                   {steps.map((step, index) => (
                     <li key={step.title} className="flex gap-3">

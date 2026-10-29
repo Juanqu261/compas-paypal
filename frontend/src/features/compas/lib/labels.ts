@@ -13,16 +13,16 @@ import type {
 } from "../api/contracts";
 
 /**
- * Plain Spanish for everything the backend says in codes. The codes stay the
+ * Plain English for everything the backend says in codes. The codes stay the
  * backend's. Nothing here decides a payment.
  */
 
 export const STATUS_LABEL: Record<MandateStatus, string> = {
-  DRAFT: "Borrador",
-  ACTIVE: "Activo",
-  EXHAUSTED: "Agotado",
-  EXPIRED: "Vencido",
-  REVOKED: "Revocado",
+  DRAFT: "Draft",
+  ACTIVE: "Active",
+  EXHAUSTED: "Used up",
+  EXPIRED: "Expired",
+  REVOKED: "Revoked",
 };
 
 /** A tone for the badge. The label always carries the meaning too. */
@@ -34,7 +34,7 @@ export function statusTone(status: MandateStatus): "ok" | "wait" | "off" | "draf
 
 /**
  * Whether the payer ever confirmed this permission. A draft authorizes
- * nothing yet, so its amount is "por autorizar", never "autorizado". A
+ * nothing yet, so its amount is "to authorize", never "authorized". A
  * delegate only ever sees confirmed ones.
  */
 export function isAuthorized(mandate: Pick<MandateView, "status" | "viewerRole" | "authorization">): boolean {
@@ -47,15 +47,15 @@ export function isAuthorized(mandate: Pick<MandateView, "status" | "viewerRole" 
 export function capacityLabel(mandate: Pick<MandateView, "status" | "viewerRole" | "authorization">): string {
   switch (mandate.status) {
     case "ACTIVE":
-      return "Disponible para pagar";
+      return "Available to spend";
     case "DRAFT":
-      return "Monto por autorizar";
+      return "Amount to authorize";
     case "EXHAUSTED":
-      return "Capacidad agotada";
+      return "Budget used up";
     case "EXPIRED":
-      return isAuthorized(mandate) ? "Venció sin usar" : "Venció sin autorizarse";
+      return isAuthorized(mandate) ? "Expired unused" : "Expired without authorization";
     case "REVOKED":
-      return isAuthorized(mandate) ? "Revocado sin usar" : "Descartado sin autorizarse";
+      return isAuthorized(mandate) ? "Revoked unused" : "Discarded without authorization";
   }
 }
 
@@ -65,106 +65,107 @@ export function payerStatusLabel(mandate: Pick<MandateView, "status">): string {
 }
 
 export const CATEGORY_LABEL: Record<CompasCategory, string> = {
-  MEDICATION: "Medicamentos",
-  FOOD: "Alimentación",
-  PERSONAL_CARE: "Cuidado personal",
-  ALCOHOL: "Bebidas alcohólicas",
-  TOBACCO: "Tabaco",
+  MEDICATION: "Medication",
+  FOOD: "Groceries",
+  PERSONAL_CARE: "Personal care",
+  ALCOHOL: "Alcohol",
+  TOBACCO: "Tobacco",
 };
 
 export const CATEGORY_DESCRIPTION: Record<CompasCategory, string> = {
-  MEDICATION: "Con o sin fórmula, en droguerías.",
-  FOOD: "Mercado en tiendas y supermercados.",
-  PERSONAL_CARE: "Aseo e higiene personal.",
-  ALCOHOL: "Bebidas alcohólicas.",
-  TOBACCO: "Cigarrillos y tabaco.",
+  MEDICATION: "Prescription or over-the-counter, at pharmacies.",
+  FOOD: "Groceries at stores and supermarkets.",
+  PERSONAL_CARE: "Personal hygiene and toiletries.",
+  ALCOHOL: "Alcoholic drinks.",
+  TOBACCO: "Cigarettes and tobacco.",
 };
 
-/** "Medicamentos", "Medicamentos y alimentos", "Medicamentos, alimentos y tabaco". */
+/** "Medication", "Medication and groceries", "Medication, groceries, and tobacco". */
 export function categoryList(categories: readonly CompasCategory[]): string {
   const labels = categories.map((category, index) =>
     index === 0 ? CATEGORY_LABEL[category] : CATEGORY_LABEL[category].toLowerCase(),
   );
   if (labels.length <= 1) return labels.join("");
-  return `${labels.slice(0, -1).join(", ")} y ${labels[labels.length - 1]}`;
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
 /** The budget's name in lists: what it is for and for whom. */
 export function purposeTitle(mandate: Pick<MandateView, "purposePolicy" | "beneficiary">): string {
-  return `${categoryList(mandate.purposePolicy.eligibleCategories)} para ${mandate.beneficiary.displayName}`;
+  return `${categoryList(mandate.purposePolicy.eligibleCategories)} for ${mandate.beneficiary.displayName}`;
 }
 
 export const ENFORCEMENT_LABEL: Record<Enforcement, string> = {
-  ENFORCED: "Solo compras permitidas",
-  MONITORED: "Permitir y avisarme",
+  ENFORCED: "Allowed purchases only",
+  MONITORED: "Allow and notify me",
 };
 
 export const ENFORCEMENT_DESCRIPTION: Record<Enforcement, string> = {
-  ENFORCED: "Si una compra no cumple tus reglas, no se paga.",
-  MONITORED: "Se paga aunque no cumpla el propósito, y queda marcada para que la revises.",
+  ENFORCED: "If a purchase breaks your rules, it does not get paid.",
+  MONITORED: "It still gets paid even when it misses the purpose, and it is flagged for you to review.",
 };
 
 export const MONITORED_WARNING =
-  "Una compra fuera del propósito se pagará igual, hasta el monto del presupuesto. La vigencia, la persona y el monto máximo siempre aplican.";
+  "A purchase outside the purpose will still be paid, up to the budget amount. The window, the person, and the maximum always apply.";
 
 export const CONFIDENCE_LABEL: Record<ConfidenceMinimum, string> = {
-  HIGH: "Alta",
-  MEDIUM: "Media",
-  LOW: "Básica",
+  HIGH: "High",
+  MEDIUM: "Medium",
+  LOW: "Basic",
 };
 
 export const CONFIDENCE_DESCRIPTION: Record<ConfidenceMinimum, string> = {
-  HIGH: "Comercios verificados por su billetera o un registro oficial.",
-  MEDIUM: "También comercios con verificación parcial.",
-  LOW: "También comercios que solo declaran su actividad. Ponle un límite por compra.",
+  HIGH: "Merchants verified by their wallet or an official registry.",
+  MEDIUM: "Also merchants with partial verification.",
+  LOW: "Also merchants that only self-declare. Set a per-purchase cap.",
 };
 
 export const REASON_TEXT: Record<PolicyReasonCode, string> = {
-  MANDATE_INACTIVE: "La autorización no estaba activa",
-  MANDATE_EXPIRED: "La autorización estaba vencida",
-  BUDGET_EXCEEDED: "La compra supera el presupuesto autorizado",
-  PURPOSE_MISMATCH: "Los productos no corresponden al propósito",
-  MERCHANT_NOT_ELIGIBLE: "El comercio no cumple las categorías permitidas",
-  CLASSIFICATION_UNCERTAIN: "Falta información para comprobar la compra",
-  MERCHANT_EVIDENCE_INSUFFICIENT: "El comercio no alcanza la confianza que exigiste",
-  MERCHANT_EVIDENCE_CONFLICT: "Encontramos información contradictoria sobre el comercio",
-  MERCHANT_HISTORY_CONTRADICTS: "Compras anteriores contradicen lo que declara el comercio",
-  MERCHANT_CONFIDENCE_LIMIT_EXCEEDED: "La compra supera tu límite para comercios con menos confianza",
-  DELEGATE_NOT_AUTHORIZED: "Esta autorización pertenece a otra persona",
-  PAYER_MONITORED_EXCEPTION: "Compra realizada bajo supervisión",
-  ERRAND_MISMATCH: "La compra no coincide con el encargo confirmado",
+  MANDATE_INACTIVE: "The authorization was not active",
+  MANDATE_EXPIRED: "The authorization had expired",
+  BUDGET_EXCEEDED: "The purchase exceeds the authorized budget",
+  PURPOSE_MISMATCH: "The items do not match the purpose",
+  MERCHANT_NOT_ELIGIBLE: "The merchant does not match the allowed categories",
+  CLASSIFICATION_UNCERTAIN: "Not enough information to check the purchase",
+  MERCHANT_EVIDENCE_INSUFFICIENT: "The merchant does not meet the confidence you require",
+  MERCHANT_EVIDENCE_CONFLICT: "We found conflicting information about the merchant",
+  MERCHANT_HISTORY_CONTRADICTS: "Earlier purchases contradict what the merchant declares",
+  MERCHANT_CONFIDENCE_LIMIT_EXCEEDED: "The purchase exceeds your limit for lower-confidence merchants",
+  DELEGATE_NOT_AUTHORIZED: "This authorization belongs to someone else",
+  PAYER_MONITORED_EXCEPTION: "Purchase made under supervision",
+  ERRAND_MISMATCH: "The purchase does not match the confirmed errand",
 };
 
 export function reasonText(code: string): string {
-  return (REASON_TEXT as Record<string, string>)[code] ?? "Motivo no reconocido";
+  return (REASON_TEXT as Record<string, string>)[code] ?? "Unrecognized reason";
 }
 
 export function activityLabel(kind: ActivityKind, monitoredException: boolean): string {
   switch (kind) {
     case "COMPLETED":
-      return monitoredException ? "Pago realizado, con aviso" : "Pago realizado";
+      return monitoredException ? "Paid, with a notice" : "Paid";
     case "PENDING":
-      return "Pago en proceso";
+      return "Payment in progress";
     case "AWAITING_APPROVAL":
-      return "Por aprobar en PayPal";
+      return "Awaiting PayPal approval";
     case "CANCELLED":
-      return "Cancelado en PayPal";
+      return "Cancelled at PayPal";
     case "FAILED":
-      return "Pago no realizado";
+      return "Not paid";
     case "DENIED":
-      return "Compra no permitida";
+      return "Purchase not allowed";
     case "REVIEW":
-      return "Retenida para revisión";
+      return "Held for review";
   }
 }
 
 /** Why COMPAS did not, or PayPal could not, capture an allowed purchase. Nothing was charged in any of them. */
 export const FAILURE_TEXT: Record<PaymentFailureCode, string> = {
-  MANDATE_NOT_USABLE: "El presupuesto ya no estaba activo cuando se aprobó. No se cobró nada.",
-  ORDER_MISMATCH: "El pedido de PayPal no coincidía con la compra. No se cobró nada.",
-  PAYER_ACCOUNT_MISMATCH: "Lo aprobó otra cuenta de PayPal. No se cobró nada.",
-  CAPTURE_DECLINED: "PayPal rechazó el cobro. No se cobró nada.",
-  ORDER_EXPIRED: "El pedido venció sin aprobarse. No se cobró nada.",
+  MANDATE_NOT_USABLE: "The budget was no longer active when it was approved. Nothing was charged.",
+  ORDER_MISMATCH: "The PayPal order did not match the purchase. Nothing was charged.",
+  PAYER_ACCOUNT_MISMATCH: "A different PayPal account approved it. Nothing was charged.",
+  CAPTURE_DECLINED: "PayPal declined the charge. Nothing was charged.",
+  ORDER_EXPIRED: "The order expired without approval. Nothing was charged.",
 };
 
 /** The one reason worth showing next to an attempt that did not pay normally. */
@@ -172,10 +173,10 @@ export function activityReason(kind: ActivityKind, codes: readonly string[], fai
   if (kind === "COMPLETED" || kind === "PENDING" || kind === "AWAITING_APPROVAL") {
     const purposeCode = codes.find((code) => code !== "PAYER_MONITORED_EXCEPTION");
     if (codes.includes("PAYER_MONITORED_EXCEPTION") && purposeCode) return reasonText(purposeCode);
-    return kind === "AWAITING_APPROVAL" ? "No se cobra nada hasta que se apruebe en PayPal." : undefined;
+    return kind === "AWAITING_APPROVAL" ? "Nothing is charged until it is approved at PayPal." : undefined;
   }
-  if (kind === "CANCELLED") return "Se canceló en PayPal. No se cobró nada.";
-  if (kind === "FAILED") return failureCode ? FAILURE_TEXT[failureCode] : "PayPal no completó el pago. No se cobró nada.";
+  if (kind === "CANCELLED") return "Cancelled at PayPal. Nothing was charged.";
+  if (kind === "FAILED") return failureCode ? FAILURE_TEXT[failureCode] : "PayPal did not complete the payment. Nothing was charged.";
   return codes.length > 0 ? reasonText(codes[0]) : undefined;
 }
 
@@ -199,76 +200,76 @@ export function errorText(code: string): string {
   switch (code) {
     case "PAYPAL_NOT_CONFIGURED":
     case "NOT_CONFIGURED":
-      return "Este entorno no tiene PayPal configurado, así que no se pueden crear pagos.";
+      return "This environment has no PayPal configured, so payments cannot be created.";
     case "UPSTREAM":
-      return "PayPal no respondió. Intenta de nuevo en unos minutos.";
+      return "PayPal did not respond. Try again in a few minutes.";
     case "INVALID_STATE":
-      return "Este presupuesto ya no admite esa acción.";
+      return "This budget no longer allows that action.";
     case "NOT_THE_PAYER":
-      return "Solo quien creó el presupuesto puede hacer esto.";
+      return "Only the person who created the budget can do this.";
     case "NOT_FOUND":
-      return "No encontramos este presupuesto.";
+      return "We could not find this budget.";
     case "INVALID_MANDATE":
-      return "Revisa los datos del presupuesto.";
+      return "Check the budget details.";
     case "UNAUTHENTICATED":
     case "IDENTITY_NOT_CONFIGURED":
-      return "La sesión de demostración no está disponible en el backend.";
+      return "The demo session is not available on the backend.";
     case "BACKEND_UNAVAILABLE":
-      return "No pudimos conectar con COMPAS. Revisa que el backend esté en ejecución.";
+      return "We could not reach COMPAS. Check that the backend is running.";
     case "TIMEOUT":
-      return "COMPAS tardó demasiado en responder. Intenta de nuevo.";
+      return "COMPAS took too long to respond. Try again.";
     case "NOT_THE_DELEGATE":
-      return "Solo la persona autorizada puede pagar con este presupuesto.";
+      return "Only the authorized person can pay with this budget.";
     case "PURCHASES_DISABLED_FOR_DEMO":
-      return "Los pagos están desactivados en esta demostración. No se cobró nada.";
+      return "Payments are turned off in this demo. Nothing was charged.";
     case "UNKNOWN_MERCHANT":
-      return "Este comercio no recibe pagos con COMPAS en este entorno.";
+      return "This merchant does not take COMPAS payments in this environment.";
     case "INVALID_PURCHASE":
-      return "El cobro no es válido. Pide al comercio que lo genere de nuevo.";
+      return "The charge is not valid. Ask the merchant to create it again.";
     case "IDEMPOTENCY_KEY_REUSED":
-      return "Este intento ya se usó para otra compra. Genera el cobro de nuevo.";
+      return "This attempt was already used for another purchase. Create the charge again.";
     case "PAYMENT_NOT_STARTED":
-      return "La compra se detuvo antes de crear el pago en PayPal. No se cobró nada. Genera el cobro de nuevo.";
+      return "The purchase stopped before a PayPal payment was created. Nothing was charged. Create the charge again.";
     default:
-      return "Algo salió mal. Intenta de nuevo.";
+      return "Something went wrong. Try again.";
   }
 }
 
 export const TRUST_LEVEL_LABEL: Record<TrustLevel, string> = {
-  SELF_DECLARED: "Declarada por el comercio",
-  PROVIDER_VERIFIED: "Verificada por la billetera",
-  EXTERNAL_VERIFIED: "Verificada en un registro oficial",
+  SELF_DECLARED: "Declared by the merchant",
+  PROVIDER_VERIFIED: "Verified by the wallet",
+  EXTERNAL_VERIFIED: "Verified in an official registry",
 };
 
 export const CORROBORATION_LABEL: Record<Corroboration, string> = {
-  CONTRADICTED: "Contradicha por otra fuente",
-  UNCORROBORATED: "Sin corroborar",
-  REGISTRY_UNBOUND: "Coincide con un registro, sin vínculo verificado",
-  PROVIDER_VERIFIED: "Corroborada por la billetera",
-  EXTERNAL_VERIFIED: "Corroborada en un registro oficial",
+  CONTRADICTED: "Contradicted by another source",
+  UNCORROBORATED: "Not corroborated",
+  REGISTRY_UNBOUND: "Matches a registry, without a verified link",
+  PROVIDER_VERIFIED: "Corroborated by the wallet",
+  EXTERNAL_VERIFIED: "Corroborated in an official registry",
 };
 
 export type PurchaseTone = "ok" | "wait" | "stop";
 
 /**
  * Where a purchase stands, without ever calling a decision a payment: only a
- * payment PayPal captured is "realizado".
+ * payment PayPal captured is "paid".
  */
 export function purchaseStatus(purchase: Pick<PurchaseView, "outcome" | "payment">): { title: string; tone: PurchaseTone } {
-  if (purchase.outcome === "DENY") return { title: "Compra no permitida", tone: "stop" };
-  if (purchase.outcome === "REVIEW") return { title: "Compra retenida para revisión", tone: "wait" };
-  if (purchase.payment.status === "NOT_CREATED") return { title: "No se pudo crear el pago", tone: "stop" };
+  if (purchase.outcome === "DENY") return { title: "Purchase not allowed", tone: "stop" };
+  if (purchase.outcome === "REVIEW") return { title: "Purchase held for review", tone: "wait" };
+  if (purchase.payment.status === "NOT_CREATED") return { title: "Payment could not be created", tone: "stop" };
   switch (purchase.payment.state) {
     case "COMPLETED":
-      return { title: "Pago realizado", tone: "ok" };
+      return { title: "Paid", tone: "ok" };
     case "AWAITING_PAYER_APPROVAL":
-      return { title: "Esperando aprobación en PayPal", tone: "wait" };
+      return { title: "Waiting for PayPal approval", tone: "wait" };
     case "CANCELLED":
-      return { title: "Pago cancelado en PayPal", tone: "stop" };
+      return { title: "Payment cancelled at PayPal", tone: "stop" };
     case "FAILED":
-      return { title: "Pago no realizado", tone: "stop" };
+      return { title: "Not paid", tone: "stop" };
     case "PENDING":
-      return { title: "Pago en proceso", tone: "wait" };
+      return { title: "Payment in progress", tone: "wait" };
   }
 }
 

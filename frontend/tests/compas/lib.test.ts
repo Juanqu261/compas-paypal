@@ -149,35 +149,35 @@ test("backend field errors send the person to the right step", () => {
   assert.equal(stepForField(""), "confirm");
 });
 
-test("every policy reason code has plain Spanish, and unknown codes don't crash", () => {
-  assert.equal(REASON_TEXT.BUDGET_EXCEEDED, "La compra supera el presupuesto autorizado");
-  assert.equal(REASON_TEXT.MERCHANT_NOT_ELIGIBLE, "El comercio no cumple las categorías permitidas");
-  assert.equal(REASON_TEXT.CLASSIFICATION_UNCERTAIN, "Falta información para comprobar la compra");
-  assert.equal(REASON_TEXT.MERCHANT_EVIDENCE_CONFLICT, "Encontramos información contradictoria sobre el comercio");
-  assert.equal(REASON_TEXT.DELEGATE_NOT_AUTHORIZED, "Esta autorización pertenece a otra persona");
-  assert.equal(REASON_TEXT.PAYER_MONITORED_EXCEPTION, "Compra realizada bajo supervisión");
-  assert.equal(reasonText("SOMETHING_NEW"), "Motivo no reconocido");
+test("every policy reason code has plain English, and unknown codes don't crash", () => {
+  assert.equal(REASON_TEXT.BUDGET_EXCEEDED, "The purchase exceeds the authorized budget");
+  assert.equal(REASON_TEXT.MERCHANT_NOT_ELIGIBLE, "The merchant does not match the allowed categories");
+  assert.equal(REASON_TEXT.CLASSIFICATION_UNCERTAIN, "Not enough information to check the purchase");
+  assert.equal(REASON_TEXT.MERCHANT_EVIDENCE_CONFLICT, "We found conflicting information about the merchant");
+  assert.equal(REASON_TEXT.DELEGATE_NOT_AUTHORIZED, "This authorization belongs to someone else");
+  assert.equal(REASON_TEXT.PAYER_MONITORED_EXCEPTION, "Purchase made under supervision");
+  assert.equal(reasonText("SOMETHING_NEW"), "Unrecognized reason");
 });
 
 test("activity labels never call a pending payment paid", () => {
-  assert.equal(activityLabel("PENDING", false), "Pago en proceso");
-  assert.equal(activityLabel("COMPLETED", false), "Pago realizado");
-  assert.equal(activityLabel("COMPLETED", true), "Pago realizado, con aviso");
-  assert.equal(activityLabel("DENIED", false), "Compra no permitida");
-  assert.equal(activityLabel("FAILED", false), "Pago no realizado");
-  assert.equal(activityLabel("AWAITING_APPROVAL", false), "Por aprobar en PayPal");
-  assert.equal(activityLabel("CANCELLED", false), "Cancelado en PayPal");
-  assert.equal(activityLabel("REVIEW", false), "Retenida para revisión");
+  assert.equal(activityLabel("PENDING", false), "Payment in progress");
+  assert.equal(activityLabel("COMPLETED", false), "Paid");
+  assert.equal(activityLabel("COMPLETED", true), "Paid, with a notice");
+  assert.equal(activityLabel("DENIED", false), "Purchase not allowed");
+  assert.equal(activityLabel("FAILED", false), "Not paid");
+  assert.equal(activityLabel("AWAITING_APPROVAL", false), "Awaiting PayPal approval");
+  assert.equal(activityLabel("CANCELLED", false), "Cancelled at PayPal");
+  assert.equal(activityLabel("REVIEW", false), "Held for review");
   assert.equal(
     activityReason("COMPLETED", ["MERCHANT_NOT_ELIGIBLE", "PAYER_MONITORED_EXCEPTION"]),
-    "El comercio no cumple las categorías permitidas",
+    "The merchant does not match the allowed categories",
   );
   assert.equal(activityReason("COMPLETED", []), undefined);
-  assert.equal(activityReason("DENIED", ["PURPOSE_MISMATCH"]), "Los productos no corresponden al propósito");
-  assert.match(activityReason("AWAITING_APPROVAL", []) ?? "", /hasta que se apruebe/);
-  assert.match(activityReason("FAILED", [], "PAYER_ACCOUNT_MISMATCH") ?? "", /otra cuenta de PayPal/);
-  assert.match(activityReason("FAILED", []) ?? "", /No se cobró nada/);
-  assert.match(activityReason("CANCELLED", []) ?? "", /No se cobró nada/);
+  assert.equal(activityReason("DENIED", ["PURPOSE_MISMATCH"]), "The items do not match the purpose");
+  assert.match(activityReason("AWAITING_APPROVAL", []) ?? "", /until it is approved/);
+  assert.match(activityReason("FAILED", [], "PAYER_ACCOUNT_MISMATCH") ?? "", /different PayPal account/);
+  assert.match(activityReason("FAILED", []) ?? "", /Nothing was charged/);
+  assert.match(activityReason("CANCELLED", []) ?? "", /Nothing was charged/);
 });
 
 test("only a PayPal page is opened for the payer", () => {
@@ -199,8 +199,8 @@ test("only a PayPal page is opened for the payer", () => {
 });
 
 test("statuses and environment errors are said plainly", () => {
-  assert.equal(payerStatusLabel({ status: "REVOKED" }), "Revocado");
-  assert.equal(categoryList(["MEDICATION", "FOOD", "TOBACCO"]), "Medicamentos, alimentación y tabaco");
+  assert.equal(payerStatusLabel({ status: "REVOKED" }), "Revoked");
+  assert.equal(categoryList(["MEDICATION", "FOOD", "TOBACCO"]), "Medication, groceries, and tobacco");
   assert.match(errorText("PAYPAL_NOT_CONFIGURED"), /PayPal/);
 });
 
@@ -215,9 +215,9 @@ test("a budget authorizes nothing until the payer confirmed it", () => {
   assert.equal(isAuthorized(payer("REVOKED", "NOT_STARTED")), false, "a discarded draft never authorized anything");
   assert.equal(isAuthorized(payer("REVOKED", "GRANTED")), true);
   assert.equal(isAuthorized({ status: "EXPIRED", viewerRole: "DELEGATE" }), true, "a delegate only sees consented budgets");
-  assert.equal(capacityLabel(payer("DRAFT", "NOT_STARTED")), "Monto por autorizar");
-  assert.equal(capacityLabel(payer("ACTIVE", "GRANTED")), "Disponible para pagar");
-  assert.equal(capacityLabel(payer("REVOKED", "NOT_STARTED")), "Descartado sin autorizarse");
+  assert.equal(capacityLabel(payer("DRAFT", "NOT_STARTED")), "Amount to authorize");
+  assert.equal(capacityLabel(payer("ACTIVE", "GRANTED")), "Available to spend");
+  assert.equal(capacityLabel(payer("REVOKED", "NOT_STARTED")), "Discarded without authorization");
 });
 
 test("the PayPal return hint is read strictly", () => {

@@ -6,6 +6,6 @@
  * this file.
  */
 export const paypalBusinessDemo = {
-  businessKind: "Farmacia en línea",
+  businessKind: "Online pharmacy",
   initials: "DC",
 } as const;

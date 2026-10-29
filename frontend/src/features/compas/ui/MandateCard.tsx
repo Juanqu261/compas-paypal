@@ -24,7 +24,7 @@ export function CapacityBar({ mandate }: { mandate: Pick<MandateView, "status" |
 
 /**
  * One budget in a list, as the viewer sees it. The whole card opens the
- * detail; `action` adds a button below it (Andrea's "Pagar con COMPAS").
+ * detail; `action` adds a button below it (Andrea's "Pay with COMPAS").
  */
 export function MandateCard({ mandate, onOpen, action }: { mandate: MandateView; onOpen: () => void; action?: ReactNode }) {
   const asPayer = mandate.viewerRole === "PAYER";
@@ -42,7 +42,7 @@ export function MandateCard({ mandate, onOpen, action }: { mandate: MandateView;
           <Avatar name={person.displayName} seed={person.id} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-semibold text-(--cx-ink)">
-              {asPayer ? person.displayName : `De ${person.displayName}`}
+              {asPayer ? person.displayName : `From ${person.displayName}`}
             </span>
             <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-(--cx-muted)">
               <CategoryStack categories={mandate.purposePolicy.eligibleCategories} />
@@ -55,13 +55,13 @@ export function MandateCard({ mandate, onOpen, action }: { mandate: MandateView;
           <span className={`text-[22px] font-semibold tracking-tight whitespace-nowrap tabular-nums ${mandate.status === "ACTIVE" ? "text-(--cx-ink)" : "text-(--cx-muted)"}`}>
             {formatMoneyAmount(amount)}
           </span>
-          <span className="ml-1.5 text-[12px] text-(--cx-muted)">{authorized ? "disponible" : "por autorizar"}</span>
+          <span className="ml-1.5 text-[12px] text-(--cx-muted)">{authorized ? "available" : "to authorize"}</span>
         </span>
         <span className="mt-2 block">
           <CapacityBar mandate={mandate} />
         </span>
         <span className="mt-2 flex items-center justify-between text-[12px] text-(--cx-muted)">
-          Hasta el {formatDate(mandate.expiresAt)}
+          Until {formatDate(mandate.expiresAt)}
           <ChevronRightIcon className="size-4" />
         </span>
       </button>

@@ -32,23 +32,23 @@ export function ContactPicker({
       <div className="flex items-center gap-2 rounded-full border border-(--cx-line-strong) bg-(--cx-surface) px-3.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-(--cx-focus)">
         <SearchIcon className="size-5 shrink-0 text-(--cx-muted)" />
         <label htmlFor={searchId} className="sr-only">
-          Buscar contacto
+          Search contacts
         </label>
         <input
           id={searchId}
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar por nombre"
+          placeholder="Search by name"
           autoComplete="off"
           className="h-11 min-w-0 flex-1 bg-transparent text-[16px] text-(--cx-ink) outline-none placeholder:text-(--cx-muted)"
         />
       </div>
 
       <fieldset>
-        <legend className="sr-only">Contactos</legend>
+        <legend className="sr-only">Contacts</legend>
         {shown.length === 0 ? (
-          <p className="py-6 text-center text-[14px] text-(--cx-muted)">Ningún contacto se llama así.</p>
+          <p className="py-6 text-center text-[14px] text-(--cx-muted)">No contact has that name.</p>
         ) : (
           <ul className="divide-y divide-(--cx-line) rounded-(--cx-radius) border border-(--cx-line) bg-(--cx-surface)">
             {shown.map((person) => (
@@ -65,7 +65,7 @@ export function ContactPicker({
                   <Avatar name={person.displayName} seed={person.id} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-medium text-(--cx-ink)">{person.displayName}</span>
-                    <span className="block text-[12px] text-(--cx-muted)">Contacto de prueba</span>
+                    <span className="block text-[12px] text-(--cx-muted)">Test contact</span>
                   </span>
                   <span
                     aria-hidden="true"

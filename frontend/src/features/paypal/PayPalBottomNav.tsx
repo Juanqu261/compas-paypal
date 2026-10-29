@@ -4,9 +4,9 @@ import { HomeIcon, ProfileIcon, QrIcon, TransferIcon } from "./PayPalIcons";
 export type PayPalNavItem = { label: string; Icon: ComponentType<{ className?: string }> };
 
 const payerNavItems: readonly PayPalNavItem[] = [
-  { label: "Inicio", Icon: HomeIcon },
-  { label: "Enviar", Icon: TransferIcon },
-  { label: "Yo", Icon: ProfileIcon },
+  { label: "Home", Icon: HomeIcon },
+  { label: "Send", Icon: TransferIcon },
+  { label: "Me", Icon: ProfileIcon },
 ];
 
 const floating = "bg-white shadow-[0_6px_24px_rgba(0,20,53,0.14),0_1px_3px_rgba(0,20,53,0.08)]";
@@ -18,14 +18,14 @@ const floating = "bg-white shadow-[0_6px_24px_rgba(0,20,53,0.14),0_1px_3px_rgba(
  */
 export function PayPalBottomNav({
   items = payerNavItems,
-  qrLabel = "Pagar o cobrar con código QR",
+  qrLabel = "Pay or request with QR code",
 }: {
   items?: readonly PayPalNavItem[];
   qrLabel?: string;
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2.5 bg-linear-to-t from-white via-white/85 to-transparent px-5 pt-8 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
-      <nav aria-label="Navegación principal" className={`pointer-events-auto rounded-full p-1.5 ${floating}`}>
+      <nav aria-label="Main navigation" className={`pointer-events-auto rounded-full p-1.5 ${floating}`}>
         <ul className="flex">
           {items.map(({ label, Icon }, index) => {
             const active = index === 0;

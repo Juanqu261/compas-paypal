@@ -130,7 +130,7 @@ export function CategoryPicker({
     );
   return (
     <fieldset>
-      <legend className="sr-only">Categorías permitidas</legend>
+      <legend className="sr-only">Allowed categories</legend>
       <div className="space-y-2">
         {COMPAS_CATEGORIES.map((category) => (
           <Option
@@ -166,7 +166,7 @@ export function EnforcementPicker({
   const name = useId();
   return (
     <fieldset>
-      <legend className="text-[15px] font-semibold text-(--cx-ink)">Modo de control</legend>
+      <legend className="text-[15px] font-semibold text-(--cx-ink)">Enforcement mode</legend>
       <div className="mt-2.5 space-y-2">
         {(["ENFORCED", "MONITORED"] as const).map((mode) => (
           <Option
@@ -175,7 +175,7 @@ export function EnforcementPicker({
             name={name}
             checked={value === mode}
             onChange={() => onChange(mode)}
-            title={mode === "ENFORCED" ? `${ENFORCEMENT_LABEL[mode]} (recomendado)` : ENFORCEMENT_LABEL[mode]}
+            title={mode === "ENFORCED" ? `${ENFORCEMENT_LABEL[mode]} (recommended)` : ENFORCEMENT_LABEL[mode]}
           >
             {ENFORCEMENT_DESCRIPTION[mode]}
           </Option>
@@ -183,7 +183,7 @@ export function EnforcementPicker({
       </div>
       {value === "MONITORED" ? (
         <div className="mt-3 space-y-2">
-          <Notice tone="warn" title="Antes de elegir el modo supervisado">
+          <Notice tone="warn" title="Before you choose Allow and notify me">
             {MONITORED_WARNING}
           </Notice>
           <label className="group flex cursor-pointer items-start gap-3 rounded-(--cx-radius) p-1 has-focus-visible:outline-2 has-focus-visible:outline-(--cx-focus)">
@@ -195,7 +195,7 @@ export function EnforcementPicker({
             />
             <Mark type="checkbox" />
             <span className="text-[14px] text-(--cx-ink)">
-              Entiendo que se pagarán compras fuera del propósito y que COMPAS solo las registrará.
+              I understand that purchases outside the purpose will be paid, and COMPAS will only record them.
             </span>
           </label>
           <FieldIssue message={issue} />
@@ -215,9 +215,9 @@ export function ConfidencePicker({
   const name = useId();
   return (
     <fieldset>
-      <legend className="text-[15px] font-semibold text-(--cx-ink)">Confianza mínima del comercio</legend>
+      <legend className="text-[15px] font-semibold text-(--cx-ink)">Minimum merchant confidence</legend>
       <p className="mt-0.5 text-[13px] text-(--cx-muted)">
-        Una confianza más baja permite pagar en comercios con evidencia más limitada.
+        Lower confidence lets purchases go through at merchants with less evidence behind them.
       </p>
       <div className="mt-2.5 space-y-2">
         {CONFIDENCE_MINIMUMS.map((level) => (
@@ -227,7 +227,7 @@ export function ConfidencePicker({
             name={name}
             checked={value === level}
             onChange={() => onChange(level)}
-            title={level === "HIGH" ? `${CONFIDENCE_LABEL[level]} (recomendada)` : CONFIDENCE_LABEL[level]}
+            title={level === "HIGH" ? `${CONFIDENCE_LABEL[level]} (recommended)` : CONFIDENCE_LABEL[level]}
           >
             {CONFIDENCE_DESCRIPTION[level]}
           </Option>

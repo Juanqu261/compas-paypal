@@ -53,8 +53,8 @@ export function windowProblem(start: string, end: string, today: Date): WindowPr
   return undefined;
 }
 
-const DATE_FORMAT = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", year: "numeric" });
-const DATE_TIME_FORMAT = new Intl.DateTimeFormat("es-CO", {
+const DATE_FORMAT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric" });
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
   hour: "numeric",

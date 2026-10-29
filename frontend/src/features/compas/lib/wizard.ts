@@ -12,9 +12,9 @@ export const WIZARD_STEPS = ["contact", "budget", "confirm"] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
 
 export const WIZARD_STEP_LABEL: Record<WizardStep, string> = {
-  contact: "Contacto",
-  budget: "Presupuesto",
-  confirm: "Confirmar",
+  contact: "Contact",
+  budget: "Budget",
+  confirm: "Confirm",
 };
 
 /** Whole units. The backend enforces the same ceiling. */
@@ -22,9 +22,9 @@ export const MAX_BUDGET_WHOLE_UNITS = 10_000;
 
 /** Quick choices for how long a budget lasts, in days. A date input covers the rest. */
 export const DURATIONS = [
-  { days: 7, label: "1 semana" },
-  { days: 30, label: "1 mes" },
-  { days: 90, label: "3 meses" },
+  { days: 7, label: "1 week" },
+  { days: 30, label: "1 month" },
+  { days: 90, label: "3 months" },
 ] as const;
 
 export type WizardDraft = {
@@ -73,19 +73,19 @@ function amountIssue(raw: string, asset: Asset, field: keyof WizardDraft): StepI
   if (parsed.ok) return undefined;
   const message =
     parsed.reason === "EMPTY"
-      ? "Escribe un monto."
+      ? "Enter an amount."
       : parsed.reason === "TOO_MANY_DECIMALS"
-        ? `Usa como máximo ${asset.assetScale} decimales.`
+        ? `Use at most ${asset.assetScale} decimal places.`
         : parsed.reason === "NOT_POSITIVE"
-          ? "El monto debe ser mayor que cero."
-          : "Escribe solo números, por ejemplo 40 o 40,50.";
+          ? "The amount must be greater than zero."
+          : "Enter numbers only, for example 40 or 40.50.";
   return { field, message };
 }
 
 export function stepIssues(step: WizardStep, draft: WizardDraft, asset: Asset, today: Date): StepIssue[] {
   const issues: StepIssue[] = [];
   if (step === "contact" && !draft.contactId) {
-    issues.push({ field: "contactId", message: "Elige quién recibe el presupuesto." });
+    issues.push({ field: "contactId", message: "Choose who receives the budget." });
   }
   if (step === "budget") {
     const issue = amountIssue(draft.amount, asset, "amount");
@@ -94,18 +94,18 @@ export function stepIssues(step: WizardStep, draft: WizardDraft, asset: Asset, t
       const parsed = parseAmountInput(draft.amount, asset.assetScale);
       const max = `${MAX_BUDGET_WHOLE_UNITS}${"0".repeat(asset.assetScale)}`;
       if (parsed.ok && minorGreaterThan(parsed.minorUnits, max)) {
-        issues.push({ field: "amount", message: `El máximo es ${MAX_BUDGET_WHOLE_UNITS.toLocaleString("es-CO")} ${asset.assetCode}.` });
+        issues.push({ field: "amount", message: `The maximum is ${MAX_BUDGET_WHOLE_UNITS.toLocaleString("en-US")} ${asset.assetCode}.` });
       }
     }
-    if (draft.categories.length === 0) issues.push({ field: "categories", message: "Elige al menos una categoría." });
+    if (draft.categories.length === 0) issues.push({ field: "categories", message: "Choose at least one category." });
     const problem = windowProblem(draft.startDate, draft.endDate, today);
-    if (problem === "INVALID_DATE") issues.push({ field: "endDate", message: "Elige hasta cuándo." });
-    if (problem === "STARTS_IN_PAST") issues.push({ field: "startDate", message: "No puede empezar antes de hoy." });
-    if (problem === "ENDS_BEFORE_START") issues.push({ field: "endDate", message: "Debe terminar después de empezar." });
-    if (problem === "ENDS_IN_PAST") issues.push({ field: "endDate", message: "Esa fecha ya pasó." });
-    if (problem === "TOO_LONG") issues.push({ field: "endDate", message: "Puede durar hasta un año." });
+    if (problem === "INVALID_DATE") issues.push({ field: "endDate", message: "Choose an end date." });
+    if (problem === "STARTS_IN_PAST") issues.push({ field: "startDate", message: "It cannot start before today." });
+    if (problem === "ENDS_BEFORE_START") issues.push({ field: "endDate", message: "It must end after it starts." });
+    if (problem === "ENDS_IN_PAST") issues.push({ field: "endDate", message: "That date has already passed." });
+    if (problem === "TOO_LONG") issues.push({ field: "endDate", message: "It can last up to one year." });
     if (draft.enforcement === "MONITORED" && !draft.monitoredAcknowledged) {
-      issues.push({ field: "monitoredAcknowledged", message: "Confirma que entiendes el modo «Permitir y avisarme»." });
+      issues.push({ field: "monitoredAcknowledged", message: "Confirm that you understand “Allow and notify me”." });
     }
     if (draft.confidence !== "HIGH" && draft.capAmount.trim()) {
       const capIssue = amountIssue(draft.capAmount, asset, "capAmount");
@@ -114,7 +114,7 @@ export function stepIssues(step: WizardStep, draft: WizardDraft, asset: Asset, t
         const cap = parseAmountInput(draft.capAmount, asset.assetScale);
         const budget = parseAmountInput(draft.amount, asset.assetScale);
         if (cap.ok && budget.ok && minorGreaterThan(cap.minorUnits, budget.minorUnits)) {
-          issues.push({ field: "capAmount", message: "El límite por compra no puede superar el presupuesto." });
+          issues.push({ field: "capAmount", message: "The per-purchase limit cannot exceed the budget." });
         }
       }
     }

@@ -64,7 +64,7 @@ export function PayPalDelegateCompasShell({
           ref={backButtonRef}
           type="button"
           onClick={back}
-          aria-label={stack.length > 1 ? "Volver" : "Volver al inicio"}
+          aria-label={stack.length > 1 ? "Back" : "Back to home"}
           className="grid size-10 place-items-center rounded-full bg-(--pp-chip) text-(--pp-ink) transition-colors hover:bg-(--pp-chip-strong) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)"
         >
           <ArrowLeftIcon className="size-5" />

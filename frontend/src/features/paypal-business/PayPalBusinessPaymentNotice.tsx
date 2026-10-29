@@ -38,16 +38,16 @@ export function PayPalBusinessPaymentNotice() {
           <CompasMark className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-bold">Pago recibido</p>
+          <p className="text-[14px] font-bold">Payment received</p>
           <p className="text-[13px] leading-snug">
-            Recibiste {formatMoneyAmount(shown.amount)} en tu cuenta PayPal por un pedido de{" "}
-            {shown.merchantDisplayName} con COMPAS.
+            You received {formatMoneyAmount(shown.amount)} in your PayPal account for an order at{" "}
+            {shown.merchantDisplayName} with COMPAS.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setDismissedId(shown.id)}
-          aria-label="Cerrar aviso"
+          aria-label="Dismiss notice"
           className="grid size-8 shrink-0 place-items-center rounded-full hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--pp-blue)"
         >
           <CloseIcon className="size-5" />
