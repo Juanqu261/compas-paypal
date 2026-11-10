@@ -221,6 +221,17 @@ export function storyOf(run: Pick<AgentRun, "steps" | "status" | "error">): Mome
       case "page":
         moments.push({ n: step.n, actor: "Web page", text: "has a hidden instruction for the agent", quote: step.text });
         break;
+      case "model":
+        moments.push({ n: step.n, actor: "Agent", text: "reasons (Claude)", quote: step.text });
+        break;
+      case "decide":
+        moments.push({
+          n: step.n,
+          actor: "Agent",
+          text: `chooses MCP tool ${step.tool}`,
+          result: { tone: "info", text: step.text },
+        });
+        break;
       case "rpc": {
         const moment = step.tool ? toolMoment(step) : undefined;
         if (moment) moments.push(moment);
@@ -246,6 +257,41 @@ export function storyOf(run: Pick<AgentRun, "steps" | "status" | "error">): Mome
 
 export function isActive(run: Pick<AgentRun, "status"> | undefined): boolean {
   return run?.status === "STARTING" || run?.status === "AWAITING_CONSENT" || run?.status === "RUNNING";
+}
+
+/** Live-run evidence for judges: proposals vs executed MCP vs PayPal state. */
+export function liveEvidence(run: Pick<AgentRun, "steps" | "mode" | "stopReason" | "errandId"> | undefined): {
+  errandId?: string;
+  proposedTools: readonly string[];
+  executedTools: readonly { tool: string; outcome?: PolicyOutcome; error?: string; orderCreated: boolean }[];
+  paypal: "none" | "order_pending_approval" | "no_order";
+  stopReason?: string;
+} | undefined {
+  if (!run || run.mode !== "live") return undefined;
+  const proposedTools = run.steps.filter((step): step is Extract<AgentRunStep, { kind: "decide" }> => step.kind === "decide").map((step) => step.tool);
+  const executedTools = run.steps
+    .filter((step): step is RpcStep => step.kind === "rpc" && Boolean(step.tool))
+    .map((step) => {
+      const reading = readTool(step);
+      return {
+        tool: step.tool!,
+        ...(reading.outcome ? { outcome: reading.outcome } : {}),
+        ...(reading.error ? { error: reading.error } : {}),
+        orderCreated: reading.orderCreated,
+      };
+    });
+  const paypal = executedTools.some((item) => item.orderCreated)
+    ? "order_pending_approval"
+    : executedTools.some((item) => item.tool === "propose_purchase")
+      ? "no_order"
+      : "none";
+  return {
+    errandId: run.errandId,
+    proposedTools,
+    executedTools,
+    paypal,
+    ...(run.stopReason ? { stopReason: run.stopReason } : {}),
+  };
 }
 
 /** Whether the run made a PayPal order that waits for the payer. */

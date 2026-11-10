@@ -47,16 +47,23 @@ Errors: `404 unknown_request` (expired, answered or unknown), `400 invalid_erran
 
 `GET /agents/grants/:id/events` returns `{ events[] }`, oldest first, for the delegate and the payer. The server writes one event per tool call, whoever the agent is: `tool`, `errandId`, `merchantId`, `outcome` (`ALLOW`, `REVIEW`, `DENY`), `reasonCodes`, and `error` for a failure that isn't a decision. It never holds items, SKUs, amounts or the agent's own words. An unknown grant and someone else's both answer `404 unknown_grant`.
 
-## The demo's scripted agent (Act 3 of `/demo`)
+## The demo agents (Act 3 of `/demo`)
 
-A script, not a model, that is a plain HTTP client of this server's own `/mcp`. Its reasoning is written; the screen says so. Everything it sends is real: the 401, discovery, registration, PKCE, JSON-RPC. Needs a demo session. The delegate who starts a run is the one who answers its consent request.
+Both modes are plain HTTP clients of this server's own `/mcp`. Neither bypasses OAuth, consent, AgentGrant or the four tools. Neither can pay, capture or refund. Needs a demo session. The delegate who starts a run answers its consent request.
+
+| Mode | What |
+| --- | --- |
+| `scripted` (default) | Written narration; planted injection cases. Screen says so. |
+| `live` | Claude Messages API chooses tool names/arguments. Same MCP + PKCE path. Requires `ANTHROPIC_API_KEY` (`503 LIVE_UNAVAILABLE` otherwise). Hard caps on MCP calls, model turns and tokens. Stops on DENY/REVIEW, revoke, inactive mandate/errand, empty search, auth errors, or limits. |
 
 | Route | What |
 | --- | --- |
 | `GET /demo/agent-errand?mandateId=…` | The errand card, pre-filled with the CUM the analyst verified for the demo pharmacy's losartán. `{ available: true, errand, dataLabel }`, or `{ available: false, reason }` when the analyst hasn't mapped it. Stores nothing: the delegate confirms with `POST /errands` |
-| `POST /demo/agent-runs` | `{ errandId, scenario }`, scenario `arc`, `lookalike`, `extra-product`, `extra-boxes` or `other-errand`. `202 { run }`. One active run per delegate (`409 RUN_ACTIVE`) |
+| `POST /demo/agent-runs` | `{ errandId, mode?: "scripted" \| "live", scenario? }`. Scripted needs `scenario` (`arc`, `lookalike`, `extra-product`, `extra-boxes`, `other-errand`). Live shops the confirmed errand only. `202 { run }`. One active run per delegate (`409 RUN_ACTIVE`) |
 | `GET /demo/agent-runs` | `{ run }`: the delegate's newest run, or `null`. The screen reads it after a reload, such as the return from PayPal |
-| `GET /demo/agent-runs/:id` | `{ run }`: `status` (`STARTING`, `AWAITING_CONSENT`, `RUNNING`, `COMPLETED`, `REFUSED`, `FAILED`), `steps[]`, `consentRequestId` while waiting, `grantId` once authorized |
+| `GET /demo/agent-runs/:id` | `{ run }`: `mode`, `status`, `steps[]`, `consentRequestId` while waiting, `grantId` once authorized, optional `stopReason` for live |
 | `POST /demo/agent-runs/:id/consent` | `{ redirectTo }`: the URL the approve or deny call returned. The screen hands it over, as a browser would deliver an OAuth redirect to a client. It must be this run's own (`400 INVALID_CONSENT`) |
 
-Steps: `task` and `say` and `page` are the script's words (`page` is a planted prompt injection); `http`, `consent` and `rpc` are what crossed the wire. An `rpc` step carries the exact JSON-RPC request and response. Tokens, codes and verifiers are never recorded. The redirect URI the script registers, `<COMPAS_PUBLIC_URL>/demo/agent-callback`, is not a served route.
+Steps: `task` / `say` / `page` (scripted narration and planted injections); `model` / `decide` (live Claude text and chosen tool); `http`, `consent` and `rpc` are what crossed the wire. An `rpc` step carries the exact JSON-RPC request and response. Tokens, codes and verifiers are never recorded. The redirect URI registered is `<COMPAS_PUBLIC_URL>/demo/agent-callback` (not a served route).
+
+`GET /health` includes `liveAgent: "claude" | "unavailable"`.

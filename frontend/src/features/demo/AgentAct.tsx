@@ -5,6 +5,7 @@ import { compasApi, errorCode } from "@/features/compas/api/client";
 import {
   AGENT_SCENARIOS,
   type AgentEvent,
+  type AgentMode,
   type AgentRun,
   type AgentRunStep,
   type AgentScenario,
@@ -18,6 +19,7 @@ import { AgentConsentCard } from "./AgentConsentCard";
 import {
   formatMoney,
   isActive,
+  liveEvidence,
   type Moment,
   openErrand,
   orderDecisionId,
@@ -32,6 +34,7 @@ import {
   type RpcStep,
 } from "./agent-view";
 import { AgentReplaces } from "./AgentReplaces";
+import { readPresenterKey } from "./SandboxAccounts";
 
 const ANDREA = DEMO_PARTY_IDS.andrea;
 const PEDRO = DEMO_PARTY_IDS.pedro;
@@ -208,6 +211,20 @@ function StepLine({ step }: { step: AgentRunStep }) {
       );
     case "say":
       return <li className="text-sm leading-relaxed text-paper/90">{step.text}</li>;
+    case "model":
+      return (
+        <li className="rounded-lg border border-route/40 bg-route/10 px-3 py-2 text-sm text-paper/90">
+          <span className="block text-xs font-semibold tracking-wide text-buff uppercase">Claude</span>
+          {step.text}
+        </li>
+      );
+    case "decide":
+      return (
+        <li className="font-mono text-sm text-paper">
+          <span className="text-buff">decide ›</span> {step.tool}{" "}
+          <span className="text-paper/55">{JSON.stringify(step.arguments)}</span>
+        </li>
+      );
     case "page":
       return (
         <li className="rounded-lg border border-buff/60 bg-buff/10 px-3 py-2 text-sm text-paper/90">
@@ -234,10 +251,11 @@ function StepLine({ step }: { step: AgentRunStep }) {
   }
 }
 
-/** The agent's own log: every request it sent to the MCP server, with the exact JSON. The words are scripted, the calls are real. */
+/** The agent's own log: every request it sent to the MCP server, with the exact JSON. */
 function AgentTerminal({ run }: { run?: AgentRun }) {
   const box = useRef<HTMLDivElement>(null);
   const count = run?.steps.length ?? 0;
+  const live = run?.mode === "live";
   useEffect(() => {
     const element = box.current;
     if (element) element.scrollTop = element.scrollHeight;
@@ -245,7 +263,16 @@ function AgentTerminal({ run }: { run?: AgentRun }) {
   return (
     <div className="overflow-hidden rounded-xl bg-bezel text-paper">
       <p className="border-b border-paper/15 px-4 py-2 text-xs text-paper/65">
-        Mode: <span className="font-semibold text-buff">scripted</span> (written reasoning). MCP calls below are real. This demo does not claim an autonomous LLM agent.
+        {live ? (
+          <>
+            Mode: <span className="font-semibold text-buff">Live Claude agent</span>. Tool choice is Claude’s; every MCP call below is real. Claude cannot pay or capture.
+          </>
+        ) : (
+          <>
+            Mode: <span className="font-semibold text-buff">scripted</span> (written reasoning). MCP calls below are real. This demo does not claim an autonomous LLM agent.
+          </>
+        )}
+        {run?.stopReason ? <span className="mt-1 block text-paper/55">Stop: {run.stopReason}</span> : null}
       </p>
       <div ref={box} className="max-h-[28rem] overflow-y-auto px-4 py-4">
         {run ? (
@@ -320,6 +347,7 @@ class Blocked extends Error {}
  */
 export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; onAnalyst: () => void }) {
   const [setupVersion, setSetupVersion] = useState(0);
+  const [mode, setMode] = useState<AgentMode>("scripted");
   const [scenario, setScenario] = useState<AgentScenario>("arc");
   const [run, setRun] = useState<AgentRun | undefined>();
   const [starting, setStarting] = useState(false);
@@ -331,6 +359,11 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
   const health = useResource("health", () => compasApi.health());
   const facts = health.resource.status === "ready" ? health.resource.data : undefined;
   const mcpUrl = run?.mcpUrl ?? facts?.mcpUrl;
+  const [presenterKey] = useState(() => (typeof window === "undefined" ? undefined : readPresenterKey()));
+  const liveAvailable =
+    facts?.liveAgent === "open" || (facts?.liveAgent === "presenter_only" && Boolean(presenterKey));
+  const livePresenterOnly = facts?.liveAgent === "presenter_only";
+  const effectiveMode: AgentMode = mode === "live" && liveAvailable ? "live" : "scripted";
 
   const mandates = useMandateList(ANDREA, "delegate", true, setupVersion);
   const mandate: MandateView | undefined =
@@ -418,7 +451,14 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         errandId = (await compasApi.confirmErrand(ANDREA, card.errand)).id;
       }
       setSetupVersion((n) => n + 1);
-      setRun(await compasApi.startAgentRun(ANDREA, { errandId, scenario }));
+      setRun(
+        await compasApi.startAgentRun(ANDREA, {
+          errandId,
+          mode: effectiveMode,
+          ...(effectiveMode === "scripted" ? { scenario } : {}),
+          ...(effectiveMode === "live" && presenterKey ? { presenterKey } : {}),
+        }),
+      );
     } catch (error) {
       if (error instanceof Blocked) setBlocked(error.message);
       else setProblem(errorCode(error));
@@ -445,6 +485,7 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
   };
 
   const moments = run ? storyOf(run) : [];
+  const evidence = liveEvidence(run);
   const ordered = orderWaiting(run);
   // Where the agent's order stands now, from the budget's own activity: Pedro may have approved it already.
   const decisionId = orderDecisionId(run);
@@ -488,8 +529,50 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         </li>
         <li className={CTA_CARD}>
           <p className="text-sm font-semibold tracking-wide text-paper/85 uppercase">Then the agent shops</p>
+          <fieldset className="mt-2 flex flex-col gap-1.5 text-sm text-paper" disabled={active || busy !== null}>
+            <legend className="sr-only">Agent mode</legend>
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="radio"
+                name="agent-mode"
+                className="mt-1"
+                checked={effectiveMode === "scripted"}
+                onChange={() => setMode("scripted")}
+              />
+              <span>
+                <span className="font-semibold">Scripted demonstration</span>
+                <span className="block text-paper/75">Written reasoning, real MCP calls. Shows planted traps.</span>
+              </span>
+            </label>
+            <label className={`flex items-start gap-2 ${liveAvailable ? "cursor-pointer" : "opacity-60"}`}>
+              <input
+                type="radio"
+                name="agent-mode"
+                className="mt-1"
+                checked={mode === "live"}
+                disabled={!liveAvailable}
+                onChange={() => setMode("live")}
+              />
+              <span>
+                <span className="font-semibold">Live Claude agent</span>
+                <span className="block text-paper/75">
+                  {liveAvailable
+                    ? `Claude chooses tools over the same MCP + consent. Cannot pay or capture.${facts?.liveRunsPerDemo ? ` Cap: ${facts.liveRunsPerDemo} live runs per demo.` : ""}`
+                    : livePresenterOnly
+                      ? "Presenter-only on this deploy (open the private presenter link). Scripted mode stays public."
+                      : "Unavailable here (API needs ANTHROPIC_API_KEY). Scripted mode still works."}
+                </span>
+              </span>
+            </label>
+          </fieldset>
           <button type="button" onClick={runAgent} disabled={active || busy !== null || Boolean(blockedReason)} className={CTA_BUTTON}>
-            {active ? "Running…" : run ? "Run it again" : "Watch an agent do the errand"}
+            {active
+              ? "Running…"
+              : run
+                ? "Run it again"
+                : effectiveMode === "live"
+                  ? "Run the live Claude agent"
+                  : "Watch an agent do the errand"}
           </button>
           {blockedReason ? (
             <p className="mt-2 text-sm text-paper">
@@ -506,7 +589,15 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
       </ol>
       {problem ? (
         <p role="alert" className="mt-3 text-sm font-medium text-route-deep">
-          {problem === "RUN_ACTIVE" ? "A run is already in progress." : `Something went wrong (${problem}).`}
+          {problem === "RUN_ACTIVE"
+            ? "A run is already in progress."
+            : problem === "LIVE_UNAVAILABLE"
+              ? "Live Claude agent is unavailable on this API. Use Scripted demonstration."
+              : problem === "LIVE_FORBIDDEN"
+                ? "Live Claude agent is limited to the presenter on this deploy. Scripted demonstration stays available."
+                : problem === "LIVE_LIMIT_REACHED"
+                  ? "This demo used its live Claude budget. Reset the demo or switch to Scripted demonstration."
+                  : `Something went wrong (${problem}).`}
         </p>
       ) : null}
 
@@ -531,12 +622,71 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
           ) : null}
         </div>
         <div className="flex flex-col gap-4">
-          {ordered && (orderKind === "COMPLETED" || orderKind === "PENDING") ? (
+          {evidence ? (
+            <section aria-labelledby="live-evidence-title" className="rounded-2xl border border-ink/15 bg-paper p-4">
+              <h3 id="live-evidence-title" className="font-semibold text-ink">
+                Live evidence (not a payment receipt)
+              </h3>
+              <p className="mt-1 text-sm text-ink-soft">
+                Claude proposes tools; Compas executes them over MCP. An order is never “paid” until Pedro approves at PayPal.
+              </p>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div>
+                  <dt className="font-semibold text-ink">Errand</dt>
+                  <dd className="font-mono text-xs text-ink-soft">{evidence.errandId}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-ink">Claude proposed</dt>
+                  <dd className="text-ink-soft">{evidence.proposedTools.length ? evidence.proposedTools.join(" → ") : "—"}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-ink">Compas executed</dt>
+                  <dd className="mt-1 flex flex-col gap-1">
+                    {evidence.executedTools.length === 0 ? (
+                      <span className="text-ink-soft">—</span>
+                    ) : (
+                      evidence.executedTools.map((item, index) => (
+                        <span key={`${item.tool}-${index}`} className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs">{item.tool}</span>
+                          {item.outcome ? <OutcomeChip outcome={item.outcome} /> : null}
+                          {item.error ? <span className="text-xs text-ink-soft">{item.error}</span> : null}
+                          {item.orderCreated ? <span className="text-xs font-semibold text-route">order created (pending Pedro)</span> : null}
+                        </span>
+                      ))
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-ink">PayPal authorization</dt>
+                  <dd className="text-ink-soft">
+                    {evidence.paypal === "order_pending_approval"
+                      ? "Order created — awaiting Pedro’s approval (not completed)."
+                      : evidence.paypal === "no_order"
+                        ? "propose_purchase ran; no order was created."
+                        : "No propose yet / no order."}
+                  </dd>
+                </div>
+                {evidence.stopReason ? (
+                  <div>
+                    <dt className="font-semibold text-ink">Stop reason</dt>
+                    <dd className="font-mono text-xs text-ink-soft">{evidence.stopReason}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
+          ) : null}
+          {ordered && orderKind === "COMPLETED" ? (
             <div className="rounded-2xl border-2 border-route bg-paper p-4">
               <p className="font-semibold text-ink">Pedro approved the order at PayPal</p>
-              <p className="mt-1 text-sm text-ink-soft">
-                {orderKind === "COMPLETED" ? "The pharmacy was paid from Pedro’s PayPal. The agent never touched the money." : "PayPal is finishing the payment."}
-              </p>
+              <p className="mt-1 text-sm text-ink-soft">The pharmacy was paid from Pedro’s PayPal. The agent never touched the money.</p>
+              <button type="button" onClick={onApproval} className={`${BUTTON} mt-3`}>
+                See it on Pedro’s phone (Act 2)
+              </button>
+            </div>
+          ) : ordered && orderKind === "PENDING" ? (
+            <div className="rounded-2xl border-2 border-route bg-paper p-4">
+              <p className="font-semibold text-ink">PayPal is finishing the payment</p>
+              <p className="mt-1 text-sm text-ink-soft">Not completed yet. The agent still cannot capture.</p>
               <button type="button" onClick={onApproval} className={`${BUTTON} mt-3`}>
                 See it on Pedro’s phone (Act 2)
               </button>
@@ -548,7 +698,9 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
           ) : ordered ? (
             <div className="rounded-2xl border-2 border-route bg-paper p-4">
               <p className="font-semibold text-ink">A PayPal order is waiting for Pedro</p>
-              <p className="mt-1 text-sm text-ink-soft">The agent can’t approve it. Pedro approves it at PayPal, on the phone in Act 2.</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                This is authorization pending — not a completed purchase. The agent can’t approve or capture it.
+              </p>
               <button type="button" onClick={onApproval} className={`${BUTTON} mt-3`}>
                 Go to Pedro’s phone (Act 2)
               </button>
@@ -564,21 +716,27 @@ export function AgentAct({ onApproval, onAnalyst }: { onApproval: () => void; on
         <div className="flex flex-col gap-4 px-4 pb-4">
           <AgentTerminal {...(run ? { run } : {})} />
           <ServerLog events={eventList} loading={events.resource.status === "loading" && Boolean(run?.grantId)} />
-          <label className="text-sm text-ink">
-            <span className="font-semibold">Case for the next run</span>
-            <select
-              value={scenario}
-              disabled={active}
-              onChange={(event) => setScenario(event.target.value as AgentScenario)}
-              className="mt-1 block w-full max-w-md rounded-lg border border-ink/25 bg-white px-3 py-2"
-            >
-              {AGENT_SCENARIOS.map((item) => (
-                <option key={item} value={item}>
-                  {SCENARIO_INFO[item].title}: {SCENARIO_INFO[item].detail}
-                </option>
-              ))}
-            </select>
-          </label>
+          {effectiveMode === "scripted" ? (
+            <label className="text-sm text-ink">
+              <span className="font-semibold">Case for the next scripted run</span>
+              <select
+                value={scenario}
+                disabled={active}
+                onChange={(event) => setScenario(event.target.value as AgentScenario)}
+                className="mt-1 block w-full max-w-md rounded-lg border border-ink/25 bg-white px-3 py-2"
+              >
+                {AGENT_SCENARIOS.map((item) => (
+                  <option key={item} value={item}>
+                    {SCENARIO_INFO[item].title}: {SCENARIO_INFO[item].detail}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="text-sm text-ink-soft">
+              Live mode shops Andrea’s confirmed errand only: budget → eligible SKUs → dry run → propose. Planted injection cases stay in Scripted demonstration.
+            </p>
+          )}
           {mcpUrl ? (
             <p className="text-sm text-ink-soft">
               Any MCP client can use this server, not only this script:{" "}

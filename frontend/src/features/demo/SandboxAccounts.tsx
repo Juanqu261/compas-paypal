@@ -10,8 +10,9 @@ const PRESENTER_KEY = "compas.presenterKey";
 /**
  * The presenter link is `/demo?presenter=<key>`. The key is kept for this tab
  * and taken out of the address bar, so it doesn't show on a shared screen.
+ * Also unlocks Act 3 Live Claude when the API is presenter-gated.
  */
-function readPresenterKey(): string | undefined {
+export function readPresenterKey(): string | undefined {
   try {
     const url = new URL(window.location.href);
     const fromLink = url.searchParams.get("presenter");

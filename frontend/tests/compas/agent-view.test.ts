@@ -3,6 +3,7 @@ import test from "node:test";
 import type { AgentEvent, AgentRunStep, ErrandView } from "../../src/features/compas/api/contracts.ts";
 import {
   formatMoney,
+  liveEvidence,
   openErrand,
   orderDecisionId,
   orderWaiting,
@@ -40,6 +41,34 @@ const run = (steps: AgentRunStep[], status: "RUNNING" | "COMPLETED" | "FAILED" =
   steps,
   status,
   ...(error ? { error } : {}),
+});
+
+test("live evidence distinguishes Claude proposals from Compas execution and pending PayPal", () => {
+  const evidence = liveEvidence({
+    mode: "live",
+    errandId: "errand-1",
+    stopReason: "ORDER_PROPOSED",
+    steps: [
+      { n: 1, at, kind: "decide", tool: "propose_purchase", arguments: {}, text: "Claude proposes" },
+      rpc("propose_purchase", { outcome: "ALLOW", payment: { status: "ORDER_CREATED" } }, {}, 2),
+    ],
+  });
+  assert.deepEqual(evidence?.proposedTools, ["propose_purchase"]);
+  assert.equal(evidence?.executedTools[0]?.orderCreated, true);
+  assert.equal(evidence?.paypal, "order_pending_approval");
+});
+
+test("live Claude model and decide steps appear in the story", () => {
+  const moments = storyOf(
+    run([
+      { n: 1, at, kind: "task", text: "Buy Gladys's losartán" },
+      { n: 2, at, kind: "model", text: "I'll check the budget first." },
+      { n: 3, at, kind: "decide", tool: "get_mandate_status", arguments: { errandId: "errand-1" }, text: "Claude proposes MCP tool get_mandate_status." },
+      rpc("get_mandate_status", { errand: { status: "ACTIVE" }, mandate: { status: "ACTIVE" } }, { errandId: "errand-1" }, 4),
+    ]),
+  );
+  assert.ok(moments.some((moment) => moment.actor === "Agent" && moment.quote === "I'll check the budget first."));
+  assert.ok(moments.some((moment) => moment.text.includes("get_mandate_status")));
 });
 
 test("a tool answer is read from the JSON-RPC response", () => {

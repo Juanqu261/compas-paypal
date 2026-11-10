@@ -320,8 +320,10 @@ export const compasApi = {
     request<{ errand: ErrandView }>(partyId, "/errands", { method: "POST", body: { ...body, confirmed: true } }).then((result) => result.errand),
   listErrands: (partyId: string, mandateId: string) =>
     request<{ errands: ErrandView[] }>(partyId, `/errands?mandateId=${encodeURIComponent(mandateId)}`).then((result) => result.errands),
-  startAgentRun: (partyId: string, body: { errandId: string; scenario: AgentScenario }) =>
-    request<{ run: AgentRun }>(partyId, "/demo/agent-runs", { method: "POST", body }).then((result) => result.run),
+  startAgentRun: (
+    partyId: string,
+    body: { errandId: string; scenario?: AgentScenario; mode?: "scripted" | "live"; presenterKey?: string },
+  ) => request<{ run: AgentRun }>(partyId, "/demo/agent-runs", { method: "POST", body }).then((result) => result.run),
   /** The delegate's newest run, or undefined. A reload (back from PayPal) picks it up again. */
   latestAgentRun: (partyId: string) =>
     request<{ run: AgentRun | null }>(partyId, "/demo/agent-runs").then((result) => result.run ?? undefined),

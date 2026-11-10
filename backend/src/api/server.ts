@@ -71,6 +71,8 @@ import {
   readAnalystJobsMode,
 } from "./merchant-onboarding.ts";
 import { createAnalystLayer } from "../integrations/analyst/create-analyst-layer.ts";
+import { createShoppingAgentModel } from "../integrations/anthropic/claude-shopping-agent.ts";
+import { liveAgentHealth, readLiveAgentAccess, readLiveRunsPerDemo } from "../application/live-agent-access.ts";
 import {
   DEMO_MERCHANTS_PATH,
   handleListDemoMerchants,
@@ -154,6 +156,16 @@ if (analyst.elastic.missing.length > 0) {
   log.warn(`Elastic is not fully configured (missing ${analyst.elastic.missing.join(", ")}). Analyst and errand-draft calls will throw.`);
 }
 log.info(`Analyst model: ${analyst.modelVendor === "claude" ? "Claude (Claude API)" : "Elastic Inference API"}.`);
+const liveShoppingAgent = createShoppingAgentModel(process.env);
+const liveAgentAccess = readLiveAgentAccess();
+const liveRunsPerDemo = readLiveRunsPerDemo();
+const liveHealth = liveAgentHealth({ modelConfigured: Boolean(liveShoppingAgent), access: liveAgentAccess });
+if (liveHealth === "unavailable") log.info("Act 3 live Claude shopping agent: unavailable. Scripted mode still works.");
+else if (liveHealth === "presenter_only") {
+  log.info(`Act 3 live Claude shopping agent: presenter-only (max ${liveRunsPerDemo} live runs per demo workspace).`);
+} else {
+  log.info(`Act 3 live Claude shopping agent: open (max ${liveRunsPerDemo} live runs per demo workspace).`);
+}
 if (analyst.demoCatalogItems > 0) {
   log.info(`Merchant catalogs: seeded ${analyst.demoCatalogItems} demo SKUs (demo/test data). CUM mappings come from analyst runs.`);
 }
@@ -169,6 +181,21 @@ if (demoLimitsOff()) log.warn("Demo limits are off (COMPAS_DEMO_LIMITS=off): no 
 const errandDrafts = readErrandDraftsMode();
 if (!errandDrafts.enabled) log.info(`Errand drafts: off. ${errandDrafts.reason}`);
 
+// The sandbox accounts a demo pays with: each visitor's own, or the
+// presenter's configured ones, open to everyone unless COMPAS_PRESENTER_KEY
+// is set. Also gates Act 3 Live Claude when access is presenter-only.
+const presenter = readPresenterAccounts();
+if (presenter.access === "OPEN") {
+  log.warn("Presenter accounts are open to every visitor. Set COMPAS_PRESENTER_KEY before deploying.");
+} else if (presenter.access === "KEY") {
+  log.info("Presenter accounts: only with the presenter link (COMPAS_PRESENTER_KEY).");
+}
+if (presenter.access !== "UNAVAILABLE" && !presenter.payerPinned) {
+  log.warn(
+    "DEMO_PAYER_PAYPAL_ID is not set: with the presenter's accounts, COMPAS captures an order whichever PayPal account approved it.",
+  );
+}
+
 // What every visitor's demo workspace shares.
 const workspaceShared: DemoWorkspaceShared = {
   ordersPerDemo: limits.ordersPerDemo,
@@ -180,6 +207,10 @@ const workspaceShared: DemoWorkspaceShared = {
   cumRegistry: analyst.cumRegistry,
   model: analyst.model,
   search: analyst.elastic.search,
+  ...(liveShoppingAgent ? { liveShoppingAgent } : {}),
+  liveAgentAccess,
+  liveRunsPerDemo,
+  presenter,
   execution: !paypal.configured
     ? { allowed: false, code: "PAYPAL_NOT_CONFIGURED", reason: "PayPal is not configured in this environment." }
     : purchasesMode.enabled
@@ -202,21 +233,6 @@ const runtimeFacts: RuntimeFacts = {
 };
 if (paypal.configured && !purchasesMode.enabled) {
   log.warn(`Purchases are off for demo sessions: ${purchasesMode.reason}`);
-}
-
-// The sandbox accounts a demo pays with: each visitor's own, or the
-// presenter's configured ones, open to everyone unless COMPAS_PRESENTER_KEY
-// is set.
-const presenter = readPresenterAccounts();
-if (presenter.access === "OPEN") {
-  log.warn("Presenter accounts are open to every visitor. Set COMPAS_PRESENTER_KEY before deploying.");
-} else if (presenter.access === "KEY") {
-  log.info("Presenter accounts: only with the presenter link (COMPAS_PRESENTER_KEY).");
-}
-if (presenter.access !== "UNAVAILABLE" && !presenter.payerPinned) {
-  log.warn(
-    "DEMO_PAYER_PAYPAL_ID is not set: with the presenter's accounts, COMPAS captures an order whichever PayPal account approved it.",
-  );
 }
 
 /** A visitor's own accounts always pin the payer. The presenter's do when DEMO_PAYER_PAYPAL_ID is set. */
@@ -454,6 +470,8 @@ const server = createServer(async (request, response) => {
         analystJobs: analystJobsMode.enabled ? "enabled" : "disabled",
         demoWorkspaces: workspaces.size,
         mcpUrl: workspaceShared.mcpUrl,
+        liveAgent: liveHealth,
+        liveRunsPerDemo: Number.isFinite(liveRunsPerDemo) ? liveRunsPerDemo : undefined,
       }),
     );
     return;

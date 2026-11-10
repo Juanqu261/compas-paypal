@@ -65,7 +65,12 @@ COMPAS exposes an MCP server (`POST /mcp`) with four tools: `search_eligible_mer
 - Agents name SKUs/quantities only; COMPAS sets prices/categories.
 - **No PayPal tool**, no amounts to invent, no way to confirm payment — Pedro still approves.
 
-**Act 3 of `/demo`:** a **scripted** agent (written reasoning) making **real** MCP calls, with a clear “Mode: scripted” label. A live autonomous client can connect the same MCP endpoint separately.
+**Act 3 of `/demo`:** two labeled modes over the **same** MCP server (OAuth 2.1 + PKCE + Andrea’s consent + AgentGrant):
+
+1. **Scripted demonstration** — written reasoning, planted-injection cases, **real** MCP calls. Always public.
+2. **Live Claude agent** — Claude Haiku chooses tool names/arguments; Compas executes only the four MCP tools and decides ALLOW/DENY/REVIEW. Claude cannot pay, capture, or refund. On the public Free deploy, Live is **presenter-gated** (private `?presenter=` link; key never in Devpost) and capped per demo workspace so visitors cannot burn Anthropic credit. Scripted remains the default for judges.
+
+Any external MCP client can still connect to `/mcp` separately.
 
 ## 7. Challenges and how we solved them
 
@@ -77,12 +82,13 @@ COMPAS exposes an MCP server (`POST /mcp`) with four tools: `search_eligible_mer
 | Presenter sandbox accounts on a public demo | `COMPAS_PRESENTER_KEY` gate; visitors use their own account IDs by default |
 | Free tier sleep + in-memory demos | Honest UX: demos reset on sleep/restart; capture skipped if workspace `ended`; longer client read timeout for cold start |
 | AI vs authorization | Analyst/MCP never reach PayPal authorize path; fail closed |
+| Public Anthropic spend on Live Act 3 | Presenter gate + per-demo live-run cap + MCP/token/timeout limits; scripted stays free |
 
 ## 8. Impact and next steps
 
 **Impact:** purpose-bound spending without custody; auditable decisions; safer caregiver/remittance flows; merchant trust evidence without blockchain.
 
-**Next (when asked):** payer one-off exception for `REVIEW`; refunds/webhooks; Vault when PayPal enables it; live-model agent beside Act 3; Postgres adapters for errands/agents; real RUES.
+**Next (when asked):** payer one-off exception for `REVIEW`; refunds/webhooks; Vault when PayPal enables it; Postgres adapters for errands/agents; real RUES; optional proof-of-purpose errand drafting from fictional prescriptions.
 
 ## 9. Judge test instructions
 
@@ -90,7 +96,7 @@ COMPAS exposes an MCP server (`POST /mcp`) with four tools: `search_eligible_mer
 2. **Act 1:** Pick Central Pharmacy → Run the analyst (or view last real run). Confirm Claude/Elastic/INVIMA story; lookalike shop is the contrast.
 3. **Act 2:** Enter **your** PayPal Sandbox personal + business account IDs (never share passwords). Create Pedro’s medication mandate (~USD 40). As Andrea, try a pharmacy cart (expect path toward `ALLOW`) and a liquor cart (expect `DENY`, no order). Optional: open presenter link only if the team shared `?presenter=…` — otherwise presenter accounts stay locked.
 4. If `ALLOW` creates an order, Pedro approves **in PayPal Sandbox**; return to the demo — COMPAS captures only after re-check. Prefer not to burn captures unless judging payment end-to-end.
-5. **Act 3:** Run the scripted agent; confirm “Mode: scripted” and real MCP calls in the technical log.
+5. **Act 3:** Prefer **Scripted demonstration** (reproducible traps + real MCP). Confirm the mode badge. If the team offered a private presenter session, **Live Claude agent** shows Claude’s tool choices, Compas decisions, and “order pending Pedro” — never treat that as a completed purchase.
 6. Mobile: same `/demo` URL; three phone frames should remain usable.
 
 ## 10. Video script (≤ 3 minutes)
@@ -108,7 +114,7 @@ Central Pharmacy vs lookalike. Analyst: Elastic proposes CUM, Claude maps, INVIM
 Pharmacy cart → policy `ALLOW` → PayPal order to the merchant → Pedro approves at Sandbox → capture. Cut to liquor → `DENY`, no order. Point at timeline of real states.
 
 **2:10–2:40 — Agents**  
-Act 3: scripted agent, real MCP, Andrea’s consent, no PayPal tool. “Autonomous agents use the same MCP; this demo is scripted on purpose.”
+Act 3: show the Scripted / Live selector. Scripted = reproducible traps + real MCP. Live = Claude chooses tools; Compas still decides; no capture tool. “Same leash either way.”
 
 **2:40–3:00 — Close**  
 Architecture one-liner: deterministic policy + PayPal rail + evidence layer. Demo URL. “Purpose-restricted payments without custody.”
@@ -138,7 +144,7 @@ Sandbox does not need PayPal’s live app review for Login with PayPal. Do **not
 - [ ] Demo link: https://compas-paypal-web.onrender.com/demo (warm `/health` first if Free slept)
 - [ ] Repo: `Juanqu261/compas-paypal` on `main`
 - [ ] Built with: PayPal Sandbox Orders, Claude, Elasticsearch, INVIMA CUM — **not** PayPal Live
-- [ ] Act 3 described as **scripted** agent + real MCP (not autonomous LLM)
+- [ ] Act 3: **scripted** (public) + **Live Claude** (presenter-gated / capped); neither claims autonomous payment
 - [ ] Judge steps from §9 pasted or linked
 - [ ] ≤3‑minute video from §10
 - [ ] No presenter key, no Sandbox passwords, no Live claims

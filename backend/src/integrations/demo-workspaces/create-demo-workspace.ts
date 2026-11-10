@@ -2,6 +2,7 @@ import { AgentAuthService } from "../../application/agent-auth.ts";
 import { AgentShoppingService } from "../../application/agent-shopping.ts";
 import { DelegatePurchaseService, type PurchaseExecutionMode } from "../../application/delegate-purchases.ts";
 import { DemoAgentRuns } from "../../application/demo-agent-run.ts";
+import { authorizeLiveStart } from "../../application/live-agent-access.ts";
 import { ErrandService } from "../../application/errands.ts";
 import { MandateService } from "../../application/mandates.ts";
 import { PayPalOrderSettlement } from "../../application/settle-paypal-order.ts";
@@ -16,6 +17,9 @@ import type { MerchantDirectory } from "../../ports/merchant-directory.ts";
 import type { MerchantRegistry } from "../../ports/merchant-registry.ts";
 import type { PartyDirectory } from "../../ports/party-directory.ts";
 import type { PayPalGateway } from "../../ports/paypal-gateway.ts";
+import type { ShoppingAgentModel } from "../../ports/shopping-agent-model.ts";
+import type { LiveAgentAccess } from "../../application/live-agent-access.ts";
+import type { PresenterAccounts } from "./demo-accounts.ts";
 import { InMemoryAgentRepository } from "../agents/in-memory-agent-repository.ts";
 import { InMemoryAuditRepository } from "../audit/in-memory-audit-repository.ts";
 import { InMemoryErrandRepository } from "../errands/in-memory-errand-repository.ts";
@@ -37,6 +41,11 @@ export type DemoWorkspaceShared = {
   /** The errand drafter's model and CUM search. */
   model: AnalystModel;
   search: CumCandidateSearch;
+  /** Act 3 live Claude agent. Absent when ANTHROPIC_API_KEY is unset. */
+  liveShoppingAgent?: ShoppingAgentModel;
+  liveAgentAccess?: LiveAgentAccess;
+  liveRunsPerDemo?: number;
+  presenter?: PresenterAccounts;
   execution: PurchaseExecutionMode;
   /** PayPal orders one visitor's demo may create. */
   ordersPerDemo?: number;
@@ -165,7 +174,7 @@ export async function createDemoWorkspace(
     purchases,
   });
 
-  // The demo's scripted agent: a client of this same MCP endpoint, over HTTP. It is a script, not a model.
+  // Demo MCP clients (scripted + optional live Claude): HTTP only, same /mcp endpoint.
   const demoAgents = new DemoAgentRuns({
     origin: shared.publicUrl,
     mcpUrl: shared.mcpUrl,
@@ -176,6 +185,19 @@ export async function createDemoWorkspace(
     catalogs: shared.catalogs,
     mappings: shared.mappings,
     grantIdOf: async (accessToken) => (await agentAuth.authenticate(`Bearer ${accessToken}`))?.grant.id,
+    ...(shared.liveShoppingAgent ? { liveAgent: shared.liveShoppingAgent } : {}),
+    ...(shared.liveRunsPerDemo !== undefined ? { maxLiveRuns: shared.liveRunsPerDemo } : {}),
+    ...(shared.presenter && shared.liveAgentAccess
+      ? {
+          authorizeLive: (body: unknown) =>
+            authorizeLiveStart({
+              access: shared.liveAgentAccess!,
+              modelConfigured: Boolean(shared.liveShoppingAgent),
+              presenter: shared.presenter!,
+              body,
+            }),
+        }
+      : {}),
   });
 
   return { usage, accounts, parties, merchants, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents };

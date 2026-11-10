@@ -19,6 +19,9 @@ const STATUS_BY_ERROR: Record<DemoAgentErrorCode, number> = {
   RUN_ACTIVE: 409,
   NOT_AWAITING_CONSENT: 409,
   INVALID_STATE: 409,
+  LIVE_UNAVAILABLE: 503,
+  LIVE_FORBIDDEN: 403,
+  LIVE_LIMIT_REACHED: 429,
 };
 
 export function isDemoAgentPath(pathname: string): boolean {

@@ -370,6 +370,13 @@ export type HealthResponse = {
   purchases?: "enabled" | "disabled_for_demo" | "not_configured";
   /** Where an MCP client connects (`COMPAS_PUBLIC_URL` + `/mcp`). */
   mcpUrl?: string;
+  /**
+   * Act 3 live Claude agent availability.
+   * `open`: any visitor. `presenter_only`: needs presenter link. `unavailable`: no model / off.
+   */
+  liveAgent?: "open" | "presenter_only" | "unavailable";
+  /** Max live Claude runs per demo workspace (Anthropic spend cap). */
+  liveRunsPerDemo?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -379,13 +386,18 @@ export type HealthResponse = {
 export const AGENT_SCENARIOS = ["arc", "lookalike", "extra-product", "extra-boxes", "other-errand"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 
+export const AGENT_MODES = ["scripted", "live"] as const;
+export type AgentMode = (typeof AGENT_MODES)[number];
+
 /**
- * What the scripted demo agent did. `say` and `page` are the script's words;
- * `http`, `rpc` and `consent` are what crossed the wire to the MCP server.
+ * What the demo agent did. Scripted: `say`/`page` are written. Live: `model`/
+ * `decide` come from Claude. `http`/`rpc`/`consent` always crossed the wire.
  */
 export type AgentRunStep =
   | { n: number; at: string; kind: "task"; text: string }
   | { n: number; at: string; kind: "say"; text: string }
+  | { n: number; at: string; kind: "model"; text: string }
+  | { n: number; at: string; kind: "decide"; tool: string; arguments: Record<string, unknown>; text: string }
   | { n: number; at: string; kind: "page"; source: string; text: string }
   | { n: number; at: string; kind: "http"; method: string; url: string; status: number; note: string }
   | { n: number; at: string; kind: "consent"; state: "WAITING" | "APPROVED" | "REFUSED"; requestId?: string }
@@ -395,6 +407,7 @@ export type AgentRunStatus = "STARTING" | "AWAITING_CONSENT" | "RUNNING" | "COMP
 
 export type AgentRun = {
   id: string;
+  mode?: AgentMode;
   scenario: AgentScenario;
   errandId: string;
   status: AgentRunStatus;
@@ -405,6 +418,7 @@ export type AgentRun = {
   startedAt: string;
   finishedAt?: string;
   error?: string;
+  stopReason?: string;
 };
 
 /** What COMPAS recorded on the server about one tool call. No cart, no SKUs. */
