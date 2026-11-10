@@ -71,3 +71,7 @@ The backend suite covers the policy gate, PayPal, the trust matrix, the analyst,
 - [infra/README.md](infra/README.md): deploying to Render.
 
 Hackathon proof of concept. Not affiliated with or endorsed by PayPal or Elastic. No production integration is implied.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
