@@ -44,9 +44,9 @@ export function DemoNotices() {
   const notice = dismissed
     ? null
     : endedAtPayPal
-      ? "Your demo ended while you were at PayPal: the server restarted, or it sat idle for 2 hours. COMPAS never captured that order, so nothing was charged. This is a new, empty demo."
+      ? "Your demo ended while you were at PayPal: the Free host slept or restarted, or the demo sat idle for 2 hours. Visitor demos live only in memory, so that session is gone. COMPAS never captured that order — nothing was charged. This is a new, empty demo."
       : renewed
-        ? "Your previous demo ended: the server restarted, or it sat idle for 2 hours. This is a new, empty demo, so set up your budget and sandbox accounts again."
+        ? "Your previous demo ended: the Free host slept or restarted, or it sat idle for 2 hours. Visitor demos are in-memory only. This is a new, empty demo — set up your budget and sandbox accounts again."
         : null;
 
   return (
@@ -85,7 +85,7 @@ export function DemoNotices() {
           </>
         ) : (
           <>
-            <span>This demo is yours alone: no other visitor sees it.</span>
+            <span>This demo is yours alone: no other visitor sees it. On Free hosting it resets if the server sleeps.</span>
             <button type="button" onClick={() => setConfirming(true)} className="font-semibold text-route-deep hover:underline">
               Reset my demo
             </button>

@@ -88,8 +88,10 @@ export function workspaceWasRenewed(): boolean {
 /**
  * Reads give up after this long. Writes have no client timeout: giving up on
  * a write the backend may still finish would only make its outcome unknown.
+ * Free Render instances can take ~50s to wake; keep headroom so a cold start
+ * looks like waiting, not a hard failure, without inventing persistence.
  */
-const READ_TIMEOUT_MS = 15_000;
+const READ_TIMEOUT_MS = 60_000;
 
 async function send(path: string, init: RequestInit): Promise<Response> {
   const read = (init.method ?? "GET") === "GET";

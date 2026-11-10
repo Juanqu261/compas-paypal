@@ -215,9 +215,9 @@ export function errorText(code: string): string {
     case "IDENTITY_NOT_CONFIGURED":
       return "The demo session is not available on the backend.";
     case "BACKEND_UNAVAILABLE":
-      return "We could not reach COMPAS. Check that the backend is running.";
+      return "We could not reach COMPAS. On the public Free host the API may be waking from sleep — wait a moment and try again.";
     case "TIMEOUT":
-      return "COMPAS took too long to respond. Try again.";
+      return "COMPAS took too long to respond. On Free hosting the first request after idle can wake the server; try again in a few seconds.";
     case "NOT_THE_DELEGATE":
       return "Only the authorized person can pay with this budget.";
     case "PURCHASES_DISABLED_FOR_DEMO":

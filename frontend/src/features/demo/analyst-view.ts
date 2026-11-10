@@ -61,7 +61,7 @@ export function runFailureText(code: string): string {
       return "Analyst runs are turned off on this backend (COMPAS_ANALYST_JOBS).";
     case "BACKEND_UNAVAILABLE":
     case "TIMEOUT":
-      return "The COMPAS backend isn’t answering.";
+      return "The COMPAS backend isn’t answering yet. On Free hosting it may be waking from sleep — wait and try again.";
     case "NotImplementedError":
       return "Elastic or the analyst’s model isn’t configured on the backend.";
     case "AnalystOutputError":
