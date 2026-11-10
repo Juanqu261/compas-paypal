@@ -59,9 +59,37 @@ claude mcp add --transport http compas http://localhost:4000/mcp
 
 What the agent did is in Act 3's server log and in Pedro's and Andrea's activity. The routes and tools are in [contracts/agents/](contracts/agents/README.md).
 
+## What is simulated vs real
+
+| Simulated | Real (PayPal Sandbox / live services) |
+| --- | --- |
+| PayPal app screens for Pedro, Andrea, and the pharmacy (`/paypal`, `/paypal-delegate`, `/paypal-business`) | PayPal Orders API: create, payer approval, capture |
+| Wallet KYB / Cámara fixtures for trust evidence | Elastic CUM search + Claude (or Elastic Inference) for the analyst |
+| Act 3 agent *reasoning* (scripted narration) | Act 3 MCP tool calls, OAuth consent, COMPAS policy |
+| Visitor demo workspaces (in memory) | Shared analyst run cache when `DATABASE_URL` is set |
+
+COMPAS never holds money. `remainingAuthorizedAmount` is authorization capacity, not a PayPal balance.
+
+## Proven Sandbox payment chain
+
+Local automated E2E (2026-11-09), one capture only:
+
+1. Mandate USD 40 · `ACTIVE`
+2. Medication purchase USD 1.00 → `ALLOW`
+3. PayPal order created → payer `KUHH9HTUKXYMN` · payee `FYFGX237GSG2U`
+4. Pedro approved at Sandbox
+5. Capture `COMPLETED`
+6. Central Pharmacy received USD 1.00 (Business activity + payments API)
+7. Mandate remaining USD 39.00
+8. Alcohol attempt → `DENY` · no new order · budget unchanged
+
+Harness (gitignored): `.personal-docs/paypal-e2e-audit/`. Do not re-run captures on deploy.
+
 ## Test
 
 The backend suite covers the policy gate, PayPal, the trust matrix, the analyst, CUM mapping, the Cámara binding and errands. The live checks run against the sandbox and Elastic: `paypal:smoke`, `compas:smoke`, `cum:index` and `analyst:smoke`. Details are in [backend/README.md](backend/README.md#tests).
+
+CI (GitHub Actions): backend typecheck + tests; frontend lint, typecheck, tests, build. No sandbox secrets in CI.
 
 ## Docs
 
@@ -70,8 +98,17 @@ The backend suite covers the policy gate, PayPal, the trust matrix, the analyst,
 - [docs/adr/](docs/adr/): decisions. 0008 is the PayPal rail, 0009 the AI analyst, 0010 errands, 0011 agents over MCP, 0012 the public demo.
 - [infra/README.md](infra/README.md): deploying to Render.
 
+## Known limitations
+
+- Public Render URLs may sleep or return 503 until warmed; set `COMPAS_PRESENTER_KEY` before sharing presenter accounts.
+- Visitors should use their own sandbox account IDs for payments; team presenter accounts are gated.
+- Act 3’s in-demo agent is **scripted** (real MCP calls, written reasoning). Connect a real MCP client for autonomous shopping.
+- Settlement is demo-hardened (capture then history failure no longer undoes COMPLETED; incomplete ALLOW can resume the same PayPal-Request-Id). Not a claim of production-grade multi-region settlement.
+- No Vault / payer-absent charges. No Live PayPal. No refunds/webhooks yet.
+
 Hackathon proof of concept. Not affiliated with or endorsed by PayPal or Elastic. No production integration is implied.
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+

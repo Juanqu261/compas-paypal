@@ -41,3 +41,20 @@ Why the demo can be public, and what limits it: [ADR 0012](../docs/adr/0012-publ
 ## Plans and cost
 
 Both services are on Render's Starter plan in `render.yaml`. On the free plan an idle service sleeps, the first visit waits for it to wake, and every restart empties all visitors' demos. The frontend could run on the free plan if a slow first visit is acceptable; keep the backend on Starter.
+
+## Troubleshooting public URLs
+
+Checked 2026-11-10 against the names in this doc:
+
+| URL | Observed | Meaning |
+| --- | --- | --- |
+| `GET https://compas-backend.onrender.com/health` | HTTP **404** body `{"message":"Cannot GET /health","error":"Not Found","statusCode":404}` | DNS resolves to Render, but the process answering is **not** COMPAS (COMPAS would return JSON with `"status":"ok"` / `"identity":"demo"`). Wrong service, wrong `rootDir`/`startCommand`, or an old app still bound to that hostname. |
+| `GET https://compas-frontend.onrender.com/` and `/demo` | HTTP **503** empty HTML | The frontend service exists in Render's edge but is unavailable (failed deploy, crash loop, or not ready). |
+
+Dashboard checks (names only — no secret values):
+
+1. Service **compas-backend**: status, last successful deploy, deployed commit SHA, Build & Deploy logs, Runtime logs.
+2. Confirm Blueprint/`render.yaml` fields: `rootDir: backend`, `buildCommand: npm ci`, `startCommand: npm start`, `healthCheckPath: /health`.
+3. Env: `NODE_ENV` must be `demo` (not `production`), plus every `sync: false` key listed above.
+4. Service **compas-frontend**: same deploy/commit/log checks; `COMPAS_BACKEND_URL` must be the live backend HTTPS URL (needed at **build** time).
+5. After a correct redeploy, `/health` must include `"status":"ok"` and `"identity":"demo"`. If you still see `Cannot GET /health`, the hostname is still not this repo's backend.
