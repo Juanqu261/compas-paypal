@@ -36,7 +36,7 @@ async function visitorKit() {
   const accounts = new WorkspaceAccounts();
   const merchants = new WorkspaceMerchantDirectory(
     new StaticMerchantDirectory([
-      { id: PHARMACY, displayName: "Droguería Central", paypalMerchantId: PHARMACY_PAYPAL_ID },
+      { id: PHARMACY, displayName: "Central Pharmacy", paypalMerchantId: PHARMACY_PAYPAL_ID },
       { id: LIQUOR, displayName: "Licorera de ejemplo", paypalMerchantId: LIQUOR_PAYPAL_ID },
     ]),
     accounts,
@@ -97,7 +97,7 @@ test("with a visitor's accounts, the order pays their business account, and the 
 
   const purchase = await service.purchase(ANDREA, charge(mandateId, PHARMACY, "MEDICATION"));
   assert.ok(purchase.ok);
-  assert.equal(purchase.purchase.outcome, "ALLOW", "decided on Droguería Central's evidence");
+  assert.equal(purchase.purchase.outcome, "ALLOW", "decided on Central Pharmacy's evidence");
   assert.equal(paypal.calls.create[0].payeeMerchantId, VISITOR_BUSINESS);
   const [record] = await kit.spending.listByMandate(mandateId);
   assert.equal(record.paypalMerchantId, PHARMACY_PAYPAL_ID, "the record names the merchant whose evidence was read");

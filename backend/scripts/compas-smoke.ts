@@ -166,7 +166,7 @@ async function main(): Promise<void> {
   if (args.scenario !== "liquor") {
     scenarios.push({
       name: "pharmacy",
-      merchantDisplayName: "Droguería Central",
+      merchantDisplayName: "Central Pharmacy",
       lineDescription: "Acetaminophen",
       lineCategory: "MEDICATION",
       registry: pharmacyCategories.registry,

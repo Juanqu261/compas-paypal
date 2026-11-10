@@ -30,7 +30,7 @@ export function createDemoMerchantDirectory(env: NodeJS.ProcessEnv = process.env
   return new StaticMerchantDirectory([
     {
       id: DEMO_MERCHANT_IDS.drogueria,
-      displayName: "Droguería Central",
+      displayName: "Central Pharmacy",
       paypalMerchantId: account("DEMO_MERCHANT_PAYPAL_ID", DEMO_DROGUERIA_PAYPAL_ID),
     },
     {

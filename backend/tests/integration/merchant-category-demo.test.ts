@@ -93,7 +93,7 @@ test("the demo tienda: self-declared FOOD plus confirmed history is MEDIUM, neve
   assert.equal(strict.result === "REVIEW" && strict.reason.code, "MERCHANT_EVIDENCE_INSUFFICIENT");
 });
 
-test("the configured PayPal sandbox merchant gets Droguería Central's evidence", async () => {
+test("the configured PayPal sandbox merchant gets Central Pharmacy's evidence", async () => {
   const service = await createMerchantCategoryService({
     env: { DEMO_MERCHANT_PAYPAL_ID: "SANDBXPHARMA2" },
     ...quiet,

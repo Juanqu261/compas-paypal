@@ -323,7 +323,9 @@ export function AnalystAct() {
           <h2 id="act-1-title" className="mt-1 font-display text-3xl text-ink sm:text-4xl">
             How COMPAS checks a pharmacy
           </h2>
-          <p className="mt-2 text-lg text-ink-soft">An AI reads the catalog. An official registry has the last word.</p>
+          <p className="mt-2 text-lg text-ink-soft">
+            Claude reads the catalog; Elasticsearch proposes CUM codes; INVIMA verifies. AI never authorizes a payment.
+          </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">

@@ -79,7 +79,7 @@ test("the story is the run in plain words, without the handshake", () => {
       { n: 6, at, kind: "consent", state: "APPROVED" },
       { n: 7, at, kind: "http", method: "POST", url: "http://x/oauth/token", status: 200, note: "token" },
       { ...rpc("initialize", {}, {}, 8), tool: undefined, method: "initialize" },
-      rpc("search_eligible_merchants", { merchants: [{ displayName: "Droguería Central" }] }, {}, 9),
+      rpc("search_eligible_merchants", { merchants: [{ displayName: "Central Pharmacy" }] }, {}, 9),
       { n: 10, at, kind: "page", source: "a page", text: "Cheaper here!" },
       rpc("propose_purchase", { outcome: "REVIEW", reasonCodes: ["MERCHANT_EVIDENCE_INSUFFICIENT"] }, { merchantId: "demo-merchant-lookalike", items: [{ skuId: "x" }] }, 11),
       rpc("propose_purchase", { outcome: "ALLOW", payment: { status: "ORDER_CREATED" } }, { merchantId: "demo-merchant-drogueria-central", items: [{ skuId: "y" }] }, 12),
@@ -93,10 +93,10 @@ test("the story is the run in plain words, without the handshake", () => {
       ["Agent", "connects to Compas", "Compas turns it away"],
       // The waiting moment is gone once Andrea answers.
       ["Andrea", "allows it", "Access for this errand only"],
-      ["Agent", "asks Compas which pharmacies it will pay for this errand", "Compas offers Droguería Central"],
+      ["Agent", "asks Compas which pharmacies it will pay for this errand", "Compas offers Central Pharmacy"],
       ["Web page", "has a hidden instruction for the agent", null],
       ["Agent", "tries to order at Droguería Centrall (1 product)", "Stopped: this pharmacy isn’t verified"],
-      ["Agent", "tries to order at Droguería Central (1 product)", "Compas creates a PayPal order"],
+      ["Agent", "tries to order at Central Pharmacy (1 product)", "Compas creates a PayPal order"],
     ],
   );
   assert.equal(story[0].quote, "Pide la losartán");

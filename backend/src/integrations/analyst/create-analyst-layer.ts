@@ -105,7 +105,7 @@ export async function createAnalystLayer(options: {
       catalogs,
     });
     if (!env.DEMO_MERCHANT_PAYPAL_EMAIL?.trim()) {
-      warn("DEMO_MERCHANT_PAYPAL_EMAIL is not set: Droguería Central's demo certificate has no email, so it can never bind.");
+      warn("DEMO_MERCHANT_PAYPAL_EMAIL is not set: Central Pharmacy's demo certificate has no email, so it can never bind.");
     }
   }
 

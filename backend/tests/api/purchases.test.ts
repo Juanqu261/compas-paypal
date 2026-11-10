@@ -32,7 +32,7 @@ async function activeMandate(execution: ConstructorParameters<typeof DelegatePur
   const service = new DelegatePurchaseService({
     mandates: kit.service,
     merchants: new StaticMerchantDirectory([
-      { id: DEMO_MERCHANT_IDS.drogueria, displayName: "Droguería Central", paypalMerchantId: PHARMACY_PAYPAL_ID },
+      { id: DEMO_MERCHANT_IDS.drogueria, displayName: "Central Pharmacy", paypalMerchantId: PHARMACY_PAYPAL_ID },
       { id: DEMO_MERCHANT_IDS.liquor, displayName: "Licorera de ejemplo", paypalMerchantId: LIQUOR_PAYPAL_ID },
     ]),
     registry: stubRegistry(),

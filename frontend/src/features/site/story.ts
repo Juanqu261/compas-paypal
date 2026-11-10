@@ -46,7 +46,7 @@ export const surfaces: readonly Surface[] = [
     id: "paypal-business",
     href: "/paypal-business",
     step: 3,
-    person: "Droguería Central",
+    person: "Central Pharmacy",
     role: "Merchant",
     app: "PayPal Business",
     summary:

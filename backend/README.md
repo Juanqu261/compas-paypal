@@ -57,7 +57,7 @@ scripts/           smoke tests and data loaders
 3. `cum-verifier.2` re-reads each CUM from INVIMA and checks: active, vigente, not a free sample, ingredients, strengths, form and box size. The mapping is `VERIFIED` or `REJECTED`.
 4. A mostly off-purpose catalog or a lookalike signal adds a `FLAG`: that shop's purchases become `REVIEW`. Only an operator withdraws it.
 
-On the demo data: Droguería Central verifies 6 of 6 medicines with no flags; the lookalike Droguería Centrall gets two flags.
+On the demo data: Central Pharmacy verifies 6 of 6 medicines with no flags; the lookalike Droguería Centrall gets two flags.
 
 This MVP covers medicine only, so CUM is its only registry. Another category, such as food, may need another registry with its own codes, index and verifier ([ADR 0009](../docs/adr/0009-ai-analyst-evidence.md)).
 

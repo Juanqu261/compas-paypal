@@ -59,7 +59,7 @@ type DemoMerchant = {
 export async function seedDemoMerchantCategories(options: {
   ingest: (input: IngestCategoryClaimInput) => Promise<IngestionResult>;
   key: DemoSigningKey;
-  /** A real PayPal sandbox business account, when configured. It gets Droguería Central's evidence. */
+  /** A real PayPal sandbox business account, when configured. It gets Central Pharmacy's evidence. */
   sandboxMerchantId?: string;
   /** A second sandbox business account, when configured. It gets the liquor store's evidence. */
   sandboxLiquorId?: string;

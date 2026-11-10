@@ -190,7 +190,7 @@ export async function agentKit() {
 
   function directory() {
     return new StaticMerchantDirectory([
-      { id: PHARMACY, displayName: "Droguería Central", paypalMerchantId: PHARMACY_PAYPAL_ID },
+      { id: PHARMACY, displayName: "Central Pharmacy", paypalMerchantId: PHARMACY_PAYPAL_ID },
       { id: LOOKALIKE, displayName: "Farmacia Ofertas", paypalMerchantId: LOOKALIKE_PAYPAL_ID },
     ]);
   }

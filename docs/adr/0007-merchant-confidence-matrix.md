@@ -33,7 +33,7 @@ Unchanged: AI never authorizes, rules are deterministic, Open Payments metadata 
 
 ## Consequences
 
-- With `minimum: "HIGH"` the demo story is unchanged. Droguería Central is `PROVIDER_VERIFIED` × `NONE` = `HIGH`, and the liquor store declared no eligible category, so it gets `DENY`.
+- With `minimum: "HIGH"` the demo story is unchanged. Central Pharmacy is `PROVIDER_VERIFIED` × `NONE` = `HIGH`, and the liquor store declared no eligible category, so it gets `DENY`.
 - A *tienda* gets a bounded path: `MONITORED` budgets and payer confirmations, then mandates that accept `MEDIUM` or `LOW`, with an optional per-purchase cap.
 - An attested shop whose payers report mismatches drops to `REVIEW`.
 - Payer confirmations are now security-relevant, but the backend has **no payer authentication**. Anyone who knows a payer id can confirm. This must close before a real deployment.

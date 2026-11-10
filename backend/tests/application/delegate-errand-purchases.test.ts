@@ -55,7 +55,7 @@ async function kit() {
   let ids = 0;
   const service = new DelegatePurchaseService({
     mandates: mandates.service,
-    merchants: new StaticMerchantDirectory([{ id: PHARMACY, displayName: "Droguería Central", paypalMerchantId: PHARMACY_PAYPAL_ID }]),
+    merchants: new StaticMerchantDirectory([{ id: PHARMACY, displayName: "Central Pharmacy", paypalMerchantId: PHARMACY_PAYPAL_ID }]),
     registry: stubRegistry(),
     history: historyDeps(),
     payments: paypal.gateway,

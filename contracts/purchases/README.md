@@ -36,7 +36,7 @@ POST /purchases
 ```json
 { "preview": {
   "mandateId": "mandate-…",
-  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Droguería Central" },
+  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Central Pharmacy" },
   "requestedAmount": { "value": "1120", "assetCode": "USD", "assetScale": 2 },
   "mandateRules": { "passed": true, "reasonCodes": [] },
   "budget": { "passed": true, "reasonCodes": [] },
@@ -71,7 +71,7 @@ POST /purchases
 { "purchase": {
   "decisionId": "…",
   "mandateId": "mandate-…",
-  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Droguería Central" },
+  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Central Pharmacy" },
   "outcome": "ALLOW",
   "reasonCodes": [],
   "purposeCheck": { "outcome": "ALLOW", "reasonCodes": [], "matchedCategories": ["MEDICATION"], "enforced": true, "merchantConfidence": "HIGH" },
@@ -186,7 +186,7 @@ It lists the merchant's 8 newest COMPAS purchases that reached PayPal, and reads
 {
   "environment": "sandbox",
   "sandboxActivityUrl": "https://www.sandbox.paypal.com/myaccount/activities/",
-  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Droguería Central", "paypalMerchantId": "2H3UUEB7PL7A6" },
+  "merchant": { "id": "demo-merchant-drogueria-central", "displayName": "Central Pharmacy", "paypalMerchantId": "2H3UUEB7PL7A6" },
   "payments": [
     {
       "orderId": "0X890113GP3897051",

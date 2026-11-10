@@ -11,8 +11,10 @@ import { analystRecord } from "@/features/demo/analyst-view";
 import type { Act } from "@/features/demo/chapters";
 import { SandboxAccounts } from "@/features/demo/SandboxAccounts";
 import { DemoNotices } from "@/features/demo/DemoNotices";
+import { PurchaseTimeline } from "@/features/demo/PurchaseTimeline";
 import { StoryRail } from "@/features/demo/StoryRail";
 import { DemoSessionProvider, useDemoSession, type DemoCharge } from "@/features/demo/DemoSession";
+import { presentMerchantDisplayName } from "@/features/compas/lib/merchant-display";
 import { PayPalBusinessExperience } from "@/features/paypal-business/PayPalBusinessExperience";
 import { PayPalDelegateExperience } from "@/features/paypal-delegate/PayPalDelegateExperience";
 import { PayPalExperience } from "@/features/paypal/PayPalExperience";
@@ -155,7 +157,7 @@ function ChargeEvidence({ onShowAnalyst }: { onShowAnalyst: () => void }) {
         <div>
           <dt className="text-sm text-ink-soft">At checkout, COMPAS’s rules</dt>
           <dd className="mt-1 text-ink">
-            {decision.outcome} at {charge.merchantDisplayName}
+            {decision.outcome} at {presentMerchantDisplayName(charge.merchantDisplayName)}
             {decision.purposeCheck?.merchantConfidence ? (
               <span className="block text-sm text-ink-soft">
                 Merchant confidence: {decision.purposeCheck.merchantConfidence}
@@ -227,8 +229,9 @@ export function DemoStage({
           <div className="mt-6 border-y border-ink/15 bg-shoal/45 pt-8">
             <DemoPhones />
           </div>
-          <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
+          <div className="mx-auto max-w-7xl px-4 pt-8 pb-10 sm:px-8">
             <ScenarioPicker />
+            <PurchaseTimeline />
             <ChargeEvidence onShowAnalyst={() => show(1)} />
           </div>
         </div>

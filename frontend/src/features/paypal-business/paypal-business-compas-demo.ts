@@ -43,13 +43,13 @@ export const merchantCompasCategories: readonly {
   },
 ];
 
-/** Droguería Central already participates in COMPAS in the demo story. */
+/** Central Pharmacy already participates in COMPAS in the demo story. */
 export const defaultMerchantCompasConfig: MerchantCompasConfig = {
   enabled: true,
   categories: ["MEDICATION"],
 };
 
-export const merchantCompasEstablishment = "Droguería Central";
+export const merchantCompasEstablishment = "Central Pharmacy";
 
 export function merchantCompasCategoryLabels(
   categories: readonly MerchantCompasCategory[],

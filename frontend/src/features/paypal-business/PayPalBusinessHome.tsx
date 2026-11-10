@@ -172,7 +172,7 @@ function SandboxAccountCard({
         </a>
       ) : null}
       <p className="text-center text-[12px] leading-snug text-(--pp-muted)">
-        Log in with the shop's business test account to see the payment arrive.
+        Log in with the shop’s business test account to see the payment arrive.
       </p>
     </section>
   );

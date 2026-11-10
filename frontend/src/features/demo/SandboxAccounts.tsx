@@ -124,7 +124,7 @@ function AccountsForm({
       <p className="mt-2 max-w-3xl text-ink-soft">
         The money in this demo is PayPal sandbox money. Bring one personal and one business account from your PayPal
         developer dashboard: your personal account plays Pedro and approves each payment; your business account receives
-        it, standing in for Droguería Central.
+        it, standing in for Central Pharmacy.
       </p>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -139,7 +139,7 @@ function AccountsForm({
         <Field
           id="payee-account"
           label="Business account ID (receives the payments)"
-          hint="The trust evidence shown stays Droguería Central’s (demo/test data)."
+          hint="The trust evidence shown stays Central Pharmacy’s (demo/test data)."
           value={payee}
           onChange={setPayee}
           error={fieldError("payeeMerchantId")}
@@ -240,7 +240,7 @@ export function SandboxAccounts() {
           <>
             <span className="font-semibold">Your sandbox accounts.</span> Pedro approves as{" "}
             <span className="font-mono">{view.accounts.payerPayPalId}</span>; payments go to{" "}
-            <span className="font-mono">{view.accounts.payeeMerchantId}</span>, standing in for Droguería Central.
+            <span className="font-mono">{view.accounts.payeeMerchantId}</span>, standing in for Central Pharmacy.
           </>
         ) : (
           <>

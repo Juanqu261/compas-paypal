@@ -5,6 +5,7 @@ import { formatMoneyAmount } from "@/lib/format-money";
 import type { ActivityEntry, ActivityKind } from "../api/contracts";
 import { formatDateTime } from "../lib/dates";
 import { activityLabel, activityReason, payPalApprovalUrl } from "../lib/labels";
+import { presentMerchantDisplayName } from "../lib/merchant-display";
 import { CheckIcon, ClockIcon, EyeIcon, PauseIcon, ShieldIcon, StopIcon } from "./icons";
 
 const KIND_LOOK: Record<ActivityKind, { Icon: typeof CheckIcon; tone: string }> = {
@@ -91,7 +92,11 @@ export function ActivityList({
               <Glyph className="size-[18px]" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-medium text-(--cx-ink)">{entry.merchantDisplayName ?? "Merchant"}</p>
+              <p className="truncate text-[14px] font-medium text-(--cx-ink)">
+                {entry.merchantDisplayName
+                  ? presentMerchantDisplayName(entry.merchantDisplayName)
+                  : "Merchant"}
+              </p>
               <p className="text-[13px] text-(--cx-ink)">{activityLabel(entry.kind, entry.monitoredException)}</p>
               {reason ? <p className="text-[12px] leading-snug text-(--cx-muted)">{reason}</p> : null}
               <p className="text-[12px] text-(--cx-muted)">{formatDateTime(entry.recordedAt)}</p>

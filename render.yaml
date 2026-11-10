@@ -43,7 +43,7 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      # The presenter's sandbox accounts (Droguería Central's evidence and the presenter option).
+      # The presenter's sandbox accounts (Central Pharmacy's evidence and the presenter option).
       - key: DEMO_MERCHANT_PAYPAL_ID
         sync: false
       - key: DEMO_MERCHANT_PAYPAL_EMAIL

@@ -244,7 +244,9 @@ function AgentTerminal({ run }: { run?: AgentRun }) {
   }, [count]);
   return (
     <div className="overflow-hidden rounded-xl bg-bezel text-paper">
-      <p className="border-b border-paper/15 px-4 py-2 text-xs text-paper/65">The agent’s words are scripted. Every call below is real. Open one to see the exact JSON.</p>
+      <p className="border-b border-paper/15 px-4 py-2 text-xs text-paper/65">
+        Mode: <span className="font-semibold text-buff">scripted</span> (written reasoning). MCP calls below are real. This demo does not claim an autonomous LLM agent.
+      </p>
       <div ref={box} className="max-h-[28rem] overflow-y-auto px-4 py-4">
         {run ? (
           <ol className="flex flex-col gap-2.5">

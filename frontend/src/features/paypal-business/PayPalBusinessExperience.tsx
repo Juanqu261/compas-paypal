@@ -10,7 +10,7 @@ import { PayPalBusinessPaymentNotice } from "./PayPalBusinessPaymentNotice";
 type PayPalBusinessView = "home" | "compas";
 
 /**
- * The merchant's simulated PayPal Business app: Droguería Central, an online
+ * The merchant's simulated PayPal Business app: Central Pharmacy, an online
  * pharmacy that takes PayPal. It fills its container, so the same component
  * works full-screen at /paypal-business and inside a PhoneFrame at /demo. The
  * home is decoration. COMPAS builds the charge that travels to the customer's

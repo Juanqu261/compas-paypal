@@ -162,7 +162,7 @@ export function MerchantChargeCard({ onNew }: { onNew: () => void }) {
       ) : reasons.length > 0 && status.tone !== "ok" ? (
         <p className="mt-2 text-[13px] text-(--pp-muted)">{reasonText(reasons[0])}.</p>
       ) : null}
-      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulation: the charge travels to the customer's PayPal inside this browser.</p>
+      <p className="mt-2 text-[11px] text-(--pp-muted)">Simulation: the charge travels to the customer’s PayPal inside this browser.</p>
       <div className="mt-3 flex gap-2">
         {done ? (
           <button

@@ -2,6 +2,7 @@ import type { Mandate } from "../domain/mandate.ts";
 import type { MoneyAmount } from "../domain/money.ts";
 import type { PolicyReasonCode } from "../domain/policy-decision.ts";
 import type { PaymentFailureCode, SpendingRecord } from "../domain/spending.ts";
+import { presentMerchantDisplayName } from "../lib/merchant-display.ts";
 
 /**
  * What happened to one attempt, as people read it:
@@ -150,7 +151,9 @@ export function buildMandateActivity(
         id: record.id,
         recordedAt: record.recordedAt,
         kind,
-        ...(record.merchantDisplayName ? { merchantDisplayName: record.merchantDisplayName } : {}),
+        ...(record.merchantDisplayName
+          ? { merchantDisplayName: presentMerchantDisplayName(record.merchantDisplayName) }
+          : {}),
         requestedAmount: record.requestedAmount,
         monitoredException: record.monitoredException,
         ...(record.purposeCheck ? { purposeMatched: record.purposeCheck.outcome === "ALLOW" } : {}),

@@ -59,7 +59,7 @@ function spendingRecord(mandate: Mandate, id: string): SpendingRecord {
     mandateId: mandate.id,
     purchaseIntentId: `${id}-intent`,
     paypalMerchantId: "TESTPHARMACY2",
-    merchantDisplayName: "Droguería Central",
+    merchantDisplayName: "Central Pharmacy",
     requestedAmount: { value: "1120", assetCode: "USD", assetScale: 2 },
     decision: { outcome: "ALLOW", reasons: [] },
     merchantCategories: [{ category: "MEDICATION", trustLevel: "PROVIDER_VERIFIED" }],

@@ -12,7 +12,7 @@ const OTHER = "OTHERSHOPAAA1";
 const merchants = {
   getById: async (id: string) =>
     id === "demo-merchant-drogueria-central"
-      ? { id, displayName: "Droguería Central", paypalMerchantId: PHARMACY }
+      ? { id, displayName: "Central Pharmacy", paypalMerchantId: PHARMACY }
       : undefined,
 };
 
