@@ -10,11 +10,7 @@ A policy layer for purpose-restricted payments, on PayPal. Money stays where it 
 | Frontend | https://compas-paypal-web.onrender.com |
 | Backend `/health` | https://compas-paypal-api.onrender.com/health |
 
-Hosted on **Render Free** (`compas-paypal-web` + `compas-paypal-api`). First visit after idle can take ~30–60s while instances wake. Visitor demos are **in memory**: a sleep/restart clears them; if that happens mid–PayPal approval, COMPAS does **not** capture (`paypalOrder=ended`).
-
-Do **not** use `compas-backend.onrender.com` or `compas-frontend.onrender.com` — those hostnames belong to other apps.
-
-Submission copy, judge steps, and a ≤3‑minute video script: [docs/devpost-submission.md](docs/devpost-submission.md).
+Hosted on **Render** . Visitor demos are **in memory**: a sleep/restart clears them.
 
 ## The idea
 
