@@ -48,8 +48,8 @@ Checked 2026-11-10 against the names in this doc:
 
 | URL | Observed | Meaning |
 | --- | --- | --- |
-| `GET https://compas-backend.onrender.com/health` | HTTP **404** body `{"message":"Cannot GET /health","error":"Not Found","statusCode":404}` | DNS resolves to Render, but the process answering is **not** COMPAS (COMPAS would return JSON with `"status":"ok"` / `"identity":"demo"`). Wrong service, wrong `rootDir`/`startCommand`, or an old app still bound to that hostname. |
-| `GET https://compas-frontend.onrender.com/` and `/demo` | HTTP **503** empty HTML | The frontend service exists in Render's edge but is unavailable (failed deploy, crash loop, or not ready). |
+| `GET https://compas-backend.onrender.com/health` | HTTP **404** Nest-style body `{"message":"Cannot GET /health","error":"Not Found","statusCode":404}`; response also sets Helmet CSP headers and `access-control-allow-origin: https://compas-frontend-eta.vercel.app` | DNS resolves to Render, but the process is **not** this repo's COMPAS server (COMPAS returns `"status":"ok"` / `"identity":"demo"` and has no Helmet). The hostname is serving another Nest app tied to a Vercel frontend. |
+| `GET https://compas-frontend.onrender.com/` and `/demo` | HTTP **503** with header `x-render-routing: suspend-by-user` | The frontend Render service is **suspended in the dashboard** (not a cold start). Resume it there, or point the public demo at a live host. |
 
 Dashboard checks (names only — no secret values):
 
