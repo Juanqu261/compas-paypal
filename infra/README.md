@@ -38,27 +38,6 @@ Why the demo can be public, and what limits it: [ADR 0012](../docs/adr/0012-publ
 - The presenter link is `https://<frontend>/demo?presenter=<COMPAS_PRESENTER_KEY>`, the value Render generated (backend → Environment).
 - Walk the demo once with your own sandbox accounts, and once with the presenter link.
 
-## Plans and cost
-
-Both services are on Render's Starter plan in `render.yaml`. On the free plan an idle service sleeps, the first visit waits for it to wake, and every restart empties all visitors' demos. The frontend could run on the free plan if a slow first visit is acceptable; keep the backend on Starter.
-
-## Live hackathon URLs (Free)
-
-Use these — not the older `compas-backend` / `compas-frontend` hostnames:
-
-| Service | URL |
-| --- | --- |
-| Backend | https://compas-paypal-api.onrender.com |
-| Frontend / demo | https://compas-paypal-web.onrender.com/demo |
-
-Expected PayPal callback env (also sent as each order’s `return_url` / `cancel_url`):
-
-- `PAYPAL_RETURN_URI` = `https://compas-paypal-api.onrender.com/paypal/orders/return`
-- `PAYPAL_CANCEL_URI` = `https://compas-paypal-api.onrender.com/paypal/orders/cancel`
-- `PAYPAL_FRONTEND_RETURN_URL` = `https://compas-paypal-web.onrender.com/demo`
-- `PAYPAL_IDENTITY_RETURN_URI` = `https://compas-paypal-api.onrender.com/paypal/identity/return`
-- `PAYPAL_IDENTITY_FRONTEND_RETURN_URL` = `https://compas-paypal-web.onrender.com/paypal-business`
-
 ## Troubleshooting public URLs
 
 Older hostnames (other apps — do not use for COMPAS):
