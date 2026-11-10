@@ -701,6 +701,7 @@ const server = createServer(async (request, response) => {
   response.end(JSON.stringify({ error: "not_found" }));
 });
 
-server.listen(port, () => {
-  log.info(`COMPAS backend listening on ${port}`);
+// Render (and most PaaS) forward public HTTP only to 0.0.0.0, not localhost.
+server.listen(port, "0.0.0.0", () => {
+  log.info(`COMPAS backend listening on 0.0.0.0:${port}`);
 });
