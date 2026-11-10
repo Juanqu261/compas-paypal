@@ -6,9 +6,8 @@ A policy layer for purpose-restricted payments, on PayPal. Money stays where it 
 
 | Surface | URL |
 | --- | --- |
-| Demo (three acts) | https://compas-paypal-web.onrender.com/demo |
-| Frontend | https://compas-paypal-web.onrender.com |
-| Backend `/health` | https://compas-paypal-api.onrender.com/health |
+| Demo (three acts) | https://compas-frontend.onrender.com/demo |
+| Backend `/health` | https://compas-backend-mjyc.onrender.com/health |
 
 Hosted on **Render** . Visitor demos are **in memory**: a sleep/restart clears them.
 
