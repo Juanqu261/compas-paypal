@@ -236,10 +236,27 @@ export async function purchaseUnderMandate(
   if (!order) return { decision, record };
   log.info("PayPal order created, waiting for the payer", { decisionId, orderId: order.id, status: order.status });
 
-  const ordered = await deps.spending.recordOrder(record.id, {
-    orderId: order.id,
-    ...(order.approvalUrl ? { approvalUrl: order.approvalUrl } : {}),
-    state: "AWAITING_PAYER_APPROVAL",
-  });
-  return { decision, record: ordered, order };
+  // The PayPal order already exists. Do not release capacity if attaching it to
+  // the spending row fails: a retry with the same decision id (PayPal-Request-Id)
+  // must reclaim that order, not create a second one (F2).
+  const attach = async () =>
+    deps.spending.recordOrder(record.id, {
+      orderId: order.id,
+      ...(order.approvalUrl ? { approvalUrl: order.approvalUrl } : {}),
+      state: "AWAITING_PAYER_APPROVAL",
+    });
+  try {
+    return { decision, record: await attach(), order };
+  } catch (error) {
+    log.warn("recording PayPal order failed; retrying once", { decisionId, orderId: order.id });
+    try {
+      return { decision, record: await attach(), order };
+    } catch (retryError) {
+      log.warn("recording PayPal order failed twice; capacity stays reserved for this decision", {
+        decisionId,
+        orderId: order.id,
+      });
+      throw retryError;
+    }
+  }
 }

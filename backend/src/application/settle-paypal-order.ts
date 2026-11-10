@@ -223,7 +223,11 @@ export class PayPalOrderSettlement {
       state,
       captureId: order.capture.id,
     });
-    if (!moved) return this.#current(record);
+    if (!moved) {
+      // Another caller won the transition, or the row already moved. PayPal may
+      // already have captured: the next refresh re-reads COMPLETED and converges.
+      return this.#current(record);
+    }
     log.info(state === "COMPLETED" ? "payment captured" : "capture pending at PayPal", {
       decisionId: record.id,
       mandateId: record.mandateId,
@@ -231,10 +235,18 @@ export class PayPalOrderSettlement {
       captureId: order.capture.id,
       amount: formatAmount(record.requestedAmount),
     });
-    await recordPaidPurchase(
-      { record: moved, mandate, paymentState: state, observedAt: this.#now() },
-      this.#deps.history,
-    );
+    try {
+      await recordPaidPurchase(
+        { record: moved, mandate, paymentState: state, observedAt: this.#now() },
+        this.#deps.history,
+      );
+    } catch (error) {
+      // Capture is already recorded on the spending row. A history write must
+      // not undo that or leave the payer looking unpaid (F1).
+      this.#deps.logWarning?.(
+        `PayPal order of ${record.id} captured but merchant history was not written: ${errorCode(error) ?? "error"}.`,
+      );
+    }
     return state;
   }
 

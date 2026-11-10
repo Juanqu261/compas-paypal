@@ -241,3 +241,16 @@ test("a declined capture is not paid and gives the capacity back", async () => {
   assert.equal(await kit.remaining(), "4000");
   assert.equal(await kit.history.observations.findPaid("decision-1"), undefined, "a declined capture is not history");
 });
+
+test("F1: a capture stays COMPLETED if merchant history write fails", async () => {
+  const kit = await awaitingOrder();
+  kit.paypal.approve(kit.order.id);
+  kit.history.observations.append = async () => {
+    throw Object.assign(new Error("history down"), { code: "HISTORY_UNAVAILABLE" });
+  };
+
+  assert.deepEqual(await kit.settlement.approved(kit.order.id), { result: "COMPLETED", mandateId: MANDATE_ID });
+  assert.equal((await kit.stored()).paypal.state, "COMPLETED");
+  assert.equal(kit.paypal.calls.capture.length, 1);
+  assert.match(kit.warnings.join("\n"), /history was not written/);
+});

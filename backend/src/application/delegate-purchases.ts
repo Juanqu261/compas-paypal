@@ -23,6 +23,7 @@ import { categoriesNeedingHistory } from "../policy/merchant-category-evidence.t
 import { type Actor, type FieldError, type MandateErrorCode, type MandateService, parseMoney } from "./mandates.ts";
 import { loadMerchantHistory, type MerchantHistoryDeps } from "./merchant-history.ts";
 import { purchaseUnderMandate } from "./purchase-under-mandate.ts";
+import { createPayPalOrderIfAllowed } from "./create-paypal-order-if-allowed.ts";
 import { type Errand, errandWindowStart } from "../domain/errand.ts";
 import type { CatalogMappingRepository } from "../ports/catalog-mapping-repository.ts";
 import type { ErrandRepository } from "../ports/errand-repository.ts";
@@ -586,6 +587,48 @@ export class DelegatePurchaseService {
         recorded.requestedAmount.value === request.amount.value &&
         recorded.requestedAmount.assetCode === request.amount.assetCode;
       if (!same) return failure("IDEMPOTENCY_KEY_REUSED", "This key was already used for a different purchase.");
+      // ALLOW recorded without a PayPal order (create succeeded, attach failed): resume
+      // with the same decision id as PayPal-Request-Id so PayPal returns that order (F2).
+      if (recorded.decision.outcome === "ALLOW" && !recorded.paypal.orderId) {
+        log.info("resuming ALLOW without a recorded PayPal order", { intentId, decisionId: recorded.id });
+        try {
+          const order = await createPayPalOrderIfAllowed("ALLOW", this.#deps.payments, {
+            requestId: recorded.id,
+            payeeMerchantId: recorded.payeeMerchantId ?? recorded.paypalMerchantId,
+            amount: recorded.requestedAmount,
+            lineAmounts: [recorded.requestedAmount],
+            metadata: {
+              compasMandateId: mandate.id,
+              compasDecisionId: recorded.id,
+              externalReference: intentId,
+            },
+          });
+          if (order) {
+            const ordered = await this.#deps.spending.recordOrder(recorded.id, {
+              orderId: order.id,
+              ...(order.approvalUrl ? { approvalUrl: order.approvalUrl } : {}),
+              state: "AWAITING_PAYER_APPROVAL",
+            });
+            markReplayed();
+            return { ok: true, purchase: purchaseView(ordered, merchantView) };
+          }
+        } catch (error) {
+          const code = (error as { code?: unknown } | null)?.code;
+          this.#deps.logWarning?.(
+            `Purchase ${intentId} resume failed before a PayPal order was recorded: ${typeof code === "string" ? code : "error"}`,
+          );
+          if (code === "PAYEE_ACCOUNT_INVALID") {
+            return failure(
+              "PAYEE_ACCOUNT_INVALID",
+              "PayPal doesn't know the business account this purchase pays. Nothing was paid.",
+            );
+          }
+          return failure(
+            "PAYMENT_NOT_STARTED",
+            "The purchase stopped before a PayPal order existed for it. Nothing was paid.",
+          );
+        }
+      }
       markReplayed();
       log.info("purchase replayed from the spending log", { intentId, decisionId: recorded.id });
       return { ok: true, purchase: purchaseView(recorded, merchantView) };
