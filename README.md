@@ -2,6 +2,20 @@
 
 A policy layer for purpose-restricted payments, on PayPal. Money stays where it is: COMPAS moves permission, not money.
 
+## Public demo (PayPal AI Hackathon 2026)
+
+| Surface | URL |
+| --- | --- |
+| Demo (three acts) | https://compas-paypal-web.onrender.com/demo |
+| Frontend | https://compas-paypal-web.onrender.com |
+| Backend `/health` | https://compas-paypal-api.onrender.com/health |
+
+Hosted on **Render Free** (`compas-paypal-web` + `compas-paypal-api`). First visit after idle can take ~30–60s while instances wake. Visitor demos are **in memory**: a sleep/restart clears them; if that happens mid–PayPal approval, COMPAS does **not** capture (`paypalOrder=ended`).
+
+Do **not** use `compas-backend.onrender.com` or `compas-frontend.onrender.com` — those hostnames belong to other apps.
+
+Submission copy, judge steps, and a ≤3‑minute video script: [docs/devpost-submission.md](docs/devpost-submission.md).
+
 ## The idea
 
 Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicines. Andrea, who lives with Gladys, can buy them but must not receive the money. Pedro, Andrea and the pharmacy are all on PayPal.
@@ -100,10 +114,11 @@ CI (GitHub Actions): backend typecheck + tests; frontend lint, typecheck, tests,
 
 ## Known limitations
 
-- Public Render URLs may sleep or return 503 until warmed; set `COMPAS_PRESENTER_KEY` before sharing presenter accounts.
-- Visitors should use their own sandbox account IDs for payments; team presenter accounts are gated.
+- Render **Free** sleeps when idle; cold starts are slow and wipe in-memory visitor workspaces. Prefer warming `/health` before a live pitch.
+- Team presenter Sandbox accounts need the gated presenter link (`COMPAS_PRESENTER_KEY`). Public visitors use their own Sandbox account IDs.
 - Act 3’s in-demo agent is **scripted** (real MCP calls, written reasoning). Connect a real MCP client for autonomous shopping.
 - Settlement is demo-hardened (capture then history failure no longer undoes COMPLETED; incomplete ALLOW can resume the same PayPal-Request-Id). Not a claim of production-grade multi-region settlement.
+- Register PayPal Sandbox return URLs for the new API host if Login with PayPal / allowlists require it (see Devpost doc).
 - No Vault / payer-absent charges. No Live PayPal. No refunds/webhooks yet.
 
 Hackathon proof of concept. Not affiliated with or endorsed by PayPal or Elastic. No production integration is implied.

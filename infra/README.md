@@ -42,14 +42,31 @@ Why the demo can be public, and what limits it: [ADR 0012](../docs/adr/0012-publ
 
 Both services are on Render's Starter plan in `render.yaml`. On the free plan an idle service sleeps, the first visit waits for it to wake, and every restart empties all visitors' demos. The frontend could run on the free plan if a slow first visit is acceptable; keep the backend on Starter.
 
+## Live hackathon URLs (Free)
+
+Use these — not the older `compas-backend` / `compas-frontend` hostnames:
+
+| Service | URL |
+| --- | --- |
+| Backend | https://compas-paypal-api.onrender.com |
+| Frontend / demo | https://compas-paypal-web.onrender.com/demo |
+
+Expected PayPal callback env (also sent as each order’s `return_url` / `cancel_url`):
+
+- `PAYPAL_RETURN_URI` = `https://compas-paypal-api.onrender.com/paypal/orders/return`
+- `PAYPAL_CANCEL_URI` = `https://compas-paypal-api.onrender.com/paypal/orders/cancel`
+- `PAYPAL_FRONTEND_RETURN_URL` = `https://compas-paypal-web.onrender.com/demo`
+- `PAYPAL_IDENTITY_RETURN_URI` = `https://compas-paypal-api.onrender.com/paypal/identity/return`
+- `PAYPAL_IDENTITY_FRONTEND_RETURN_URL` = `https://compas-paypal-web.onrender.com/paypal-business`
+
 ## Troubleshooting public URLs
 
-Checked 2026-11-10 against the names in this doc:
+Older hostnames (other apps — do not use for COMPAS):
 
 | URL | Observed | Meaning |
 | --- | --- | --- |
-| `GET https://compas-backend.onrender.com/health` | HTTP **404** Nest-style body `{"message":"Cannot GET /health","error":"Not Found","statusCode":404}`; response also sets Helmet CSP headers and `access-control-allow-origin: https://compas-frontend-eta.vercel.app` | DNS resolves to Render, but the process is **not** this repo's COMPAS server (COMPAS returns `"status":"ok"` / `"identity":"demo"` and has no Helmet). The hostname is serving another Nest app tied to a Vercel frontend. |
-| `GET https://compas-frontend.onrender.com/` and `/demo` | HTTP **503** with header `x-render-routing: suspend-by-user` | The frontend Render service is **suspended in the dashboard** (not a cold start). Resume it there, or point the public demo at a live host. |
+| `GET https://compas-backend.onrender.com/health` | HTTP **404** Nest-style body | Wrong app (not COMPAS). |
+| `GET https://compas-frontend.onrender.com/` and `/demo` | HTTP **503** `x-render-routing: suspend-by-user` | Suspended unrelated/old frontend. |
 
 Dashboard checks (names only — no secret values):
 
