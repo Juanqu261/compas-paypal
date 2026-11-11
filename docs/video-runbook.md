@@ -60,7 +60,7 @@ Use the **public** hosts. Do not put the presenter key in the video, Devpost, RE
 
 ## Optional beat — care story (~20s)
 
-Open **Care story** under the acts. Show Farma Sur selected over the cheaper contested shop, the shampoo left out of the COMPAS lines, and say the panel’s capture and refund are labeled simulations. Do not present them as sandbox payments. The technical walkthrough is [AGENT_EVALUATION_GUIDE.md](AGENT_EVALUATION_GUIDE.md).
+Open **Care story** under the acts. On the public demo this panel is below the three phones. Show Farma Sur at USD 14 over Central Pharmacy at USD 18, the contested shop excluded, and the shampoo left out. Generate the cycle and say no PayPal order was created. If you show the receipt and the USD 5 refund, say they are labeled simulations. A browser walk on 2026-11-11 saw `VERIFIED_DOCUMENT_MATCH`, `MISMATCH` with the payment still completed, and remaining capacity USD 30.00. The technical walkthrough is [AGENT_EVALUATION_GUIDE.md](AGENT_EVALUATION_GUIDE.md).
 
 ## Do not
 
