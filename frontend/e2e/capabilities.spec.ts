@@ -38,6 +38,11 @@ test("care story: comparison, split basket, previews, cycle, receipt and refund"
 
   await page.getByTestId("capabilities-refund").click();
   await expect(page.getByTestId("capabilities-remaining")).toContainText("USD 30.00");
+  await page.getByTestId("capabilities-refund").click();
+  await expect(page.getByTestId("capabilities-remaining")).toContainText("USD 30.00");
+  await page.getByTestId("capabilities-revoke").click();
+  await expect(page.getByText("Plan status: REVOKED")).toBeVisible();
+  await expect(page.getByTestId("capabilities-generate")).toBeDisabled();
 
   await page.reload();
   await page.getByText("Care story: compare, split, receipt, refund, monthly plan").click();

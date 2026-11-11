@@ -171,7 +171,8 @@ export class CapabilitiesService {
   readonly #plans = new Map<string, CarePlan>();
   readonly #cycles = new Map<string, CareCycle>();
   readonly #pendingRefunds: AuthoritativeRefund[] = [];
-  readonly #events = new Set<string>();
+  /** Applied webhook ids. A failure is removed so PayPal can deliver the event again. Process memory only. */
+  readonly #events = new Map<string, "processing" | "applied">();
   readonly #locks = new Map<string, Promise<unknown>>();
   #story: Story | undefined;
   #ids = 0;
@@ -578,11 +579,24 @@ export class CapabilitiesService {
     }
   }
 
-  /** Ignores a webhook event id already seen. Returns false when it is new. */
-  rememberEvent(eventId: string): boolean {
-    if (this.#events.has(eventId)) return true;
-    this.#events.add(eventId);
-    return false;
+  /**
+   * Claims a webhook id. `applied` means a previous attempt finished.
+   * `processing` means another delivery is in flight. A new claim is held
+   * until `finishEvent`. This map is process memory: it is not a durable
+   * exactly-once store across a server restart.
+   */
+  claimEvent(eventId: string): "new" | "applied" | "processing" {
+    const state = this.#events.get(eventId);
+    if (state === "applied" || state === "processing") return state;
+    this.#events.set(eventId, "processing");
+    return "new";
+  }
+
+  /** `applied` keeps the id. A failure drops it so the same event can be retried. */
+  finishEvent(eventId: string, applied: boolean): void {
+    if (!this.#events.has(eventId)) return;
+    if (applied) this.#events.set(eventId, "applied");
+    else this.#events.delete(eventId);
   }
 
   async listRefunds(actor: Actor, purchaseId: string): Promise<CapabilityResult<{ refunds: RefundRecord[]; remaining?: MoneyAmount }>> {
@@ -761,6 +775,7 @@ export class CapabilitiesService {
       plans: [...this.#plans.values()],
       cycles: [...this.#cycles.values()],
       credited: [...this.#credited],
+      appliedEvents: [...this.#events.entries()].filter((entry) => entry[1] === "applied").map((entry) => entry[0]),
     });
   }
 
@@ -773,6 +788,7 @@ export class CapabilitiesService {
       plans: CarePlan[];
       cycles: CareCycle[];
       credited: string[];
+      appliedEvents?: string[];
     };
     this.#story = parsed.story ?? undefined;
     this.#purchases.clear();
@@ -797,6 +813,8 @@ export class CapabilitiesService {
     for (const cycle of parsed.cycles) this.#cycles.set(`${cycle.planId}:${cycle.periodId}`, cycle);
     this.#credited.clear();
     for (const id of parsed.credited) this.#credited.add(id);
+    this.#events.clear();
+    for (const id of parsed.appliedEvents ?? []) this.#events.set(id, "applied");
   }
 }
 

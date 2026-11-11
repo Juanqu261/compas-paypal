@@ -78,7 +78,7 @@ export async function handlePayPalWebhook(input: {
   headers: Record<string, string | undefined>;
   event: unknown;
   ports: PayPalRefundPorts;
-  serviceForCapture: (captureId: string) => Pick<CapabilitiesService, "rememberEvent" | "applyAuthoritativeRefund"> | undefined;
+  serviceForCapture: (captureId: string) => Pick<CapabilitiesService, "claimEvent" | "finishEvent" | "applyAuthoritativeRefund"> | undefined;
   /** Used when the verified refund's capture is not indexed yet. No credit. */
 }): Promise<JsonResponse> {
   const event = isRecord(input.event) ? input.event : undefined;
@@ -101,7 +101,20 @@ export async function handlePayPalWebhook(input: {
   if (!service) {
     return { status: 500, body: { error: "UNKNOWN_CAPTURE", message: "The capture is not on file. Capacity is unchanged. A later delivery can retry." } };
   }
-  if (eventId && service.rememberEvent(eventId)) return ok({ duplicate: true });
-  const applied = await service.applyAuthoritativeRefund(authoritative, "PAYPAL_WEBHOOK", `wh-${authoritative.paypalRefundId}`);
-  return fromResult(applied);
+  const claim = eventId ? service.claimEvent(eventId) : "new";
+  if (claim === "applied") return ok({ duplicate: true });
+  if (claim === "processing") {
+    return {
+      status: 503,
+      body: { error: "EVENT_IN_PROGRESS", message: "This notification is already being applied. Capacity is unchanged. A later delivery can retry." },
+    };
+  }
+  try {
+    const applied = await service.applyAuthoritativeRefund(authoritative, "PAYPAL_WEBHOOK", `wh-${authoritative.paypalRefundId}`);
+    if (eventId) service.finishEvent(eventId, applied.ok);
+    return fromResult(applied);
+  } catch {
+    if (eventId) service.finishEvent(eventId, false);
+    return { status: 500, body: { error: "REFUND_NOT_APPLIED", message: "The refund was not applied. Capacity is unchanged. A later delivery can retry." } };
+  }
 }

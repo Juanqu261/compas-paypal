@@ -263,6 +263,101 @@ test("a verified webhook uses the PayPal refund read, not the caller's amount", 
   assert.equal(after?.remainingAuthorizedAmount.value, "3000");
 });
 
+function refundWebhook(capabilities: CapabilitiesService, captureId: string, eventId: string, refundId = "R-RETRY") {
+  return handlePayPalWebhook({
+    headers: { "paypal-transmission-id": eventId },
+    event: {
+      id: eventId,
+      event_type: "PAYMENT.CAPTURE.REFUNDED",
+      resource: { id: refundId, status: "COMPLETED", amount: { currency_code: "USD", value: "40.00" }, capture_id: captureId },
+    },
+    ports: {
+      verifyWebhook: async () => ({ ok: true }),
+      getRefund: async () => ({ paypalRefundId: refundId, paypalCaptureId: captureId, amount: usd("500"), status: "COMPLETED" }),
+    },
+    serviceForCapture: () => capabilities,
+  });
+}
+
+test("a webhook that fails before the credit stays retryable and then credits once", async () => {
+  let failWrite = true;
+  const { capabilities, kit, errands, purchases } = service({
+    onBeforeRefundWrite: () => {
+      if (failWrite) throw new Error("disk");
+    },
+  });
+  const opened = await capabilities.openStory(PEDRO);
+  assert.ok(opened.ok);
+  if (!opened.ok) return;
+  const captured = await capabilities.recordSimulatedCapture(PEDRO);
+  assert.ok(captured.ok);
+  if (!captured.ok) return;
+  const captureId = captured.value.purchase.captureId;
+  const failed = await refundWebhook(capabilities, captureId, "WH-RETRY");
+  assert.equal(failed.status, 500);
+  assert.equal((await kit.mandates.getById(opened.value.story.mandateId))?.remainingAuthorizedAmount.value, "2500");
+
+  const beforeRetry = capabilities.exportState();
+  const restarted = new CapabilitiesService({ mandates: kit.service, capacity: kit.mandates, errands, purchases, now: () => NOW, newId: () => "restarted" });
+  restarted.importState(beforeRetry);
+  failWrite = false;
+  const recovered = await refundWebhook(restarted, captureId, "WH-RETRY");
+  assert.equal(recovered.status, 200);
+  assert.equal((await kit.mandates.getById(opened.value.story.mandateId))?.remainingAuthorizedAmount.value, "3000");
+  const again = await refundWebhook(restarted, captureId, "WH-RETRY");
+  assert.equal(again.status, 200);
+  assert.equal((again.body as { duplicate?: boolean }).duplicate, true);
+  assert.equal((await kit.mandates.getById(opened.value.story.mandateId))?.remainingAuthorizedAmount.value, "3000");
+});
+
+test("one in-flight webhook delivery does not let a second copy credit twice", async () => {
+  const { capabilities, kit } = service();
+  const opened = await capabilities.openStory(PEDRO);
+  assert.ok(opened.ok);
+  if (!opened.ok) return;
+  const captured = await capabilities.recordSimulatedCapture(PEDRO);
+  assert.ok(captured.ok);
+  if (!captured.ok) return;
+  const captureId = captured.value.purchase.captureId;
+  const original = kit.mandates.releaseCapacity.bind(kit.mandates);
+  let openGate: () => void = () => {};
+  let releaseHold: () => void = () => {};
+  const entered = new Promise<void>((resolve) => {
+    openGate = resolve;
+  });
+  const hold = new Promise<void>((resolve) => {
+    releaseHold = resolve;
+  });
+  kit.mandates.releaseCapacity = async (mandateId, amount) => {
+    openGate();
+    await hold;
+    return original(mandateId, amount);
+  };
+  const first = refundWebhook(capabilities, captureId, "WH-RACE");
+  await entered;
+  const overlap = await refundWebhook(capabilities, captureId, "WH-RACE");
+  assert.equal(overlap.status, 503);
+  releaseHold();
+  assert.equal((await first).status, 200);
+  const replay = await refundWebhook(capabilities, captureId, "WH-RACE");
+  assert.equal((replay.body as { duplicate?: boolean }).duplicate, true);
+  assert.equal((await kit.mandates.getById(opened.value.story.mandateId))?.remainingAuthorizedAmount.value, "3000");
+});
+
+test("two event ids for one PayPal refund credit the mandate once", async () => {
+  const { capabilities, kit } = service();
+  const opened = await capabilities.openStory(PEDRO);
+  assert.ok(opened.ok);
+  if (!opened.ok) return;
+  const captured = await capabilities.recordSimulatedCapture(PEDRO);
+  assert.ok(captured.ok);
+  if (!captured.ok) return;
+  const captureId = captured.value.purchase.captureId;
+  assert.equal((await refundWebhook(capabilities, captureId, "WH-A", "R-SAME")).status, 200);
+  assert.equal((await refundWebhook(capabilities, captureId, "WH-B", "R-SAME")).status, 200);
+  assert.equal((await kit.mandates.getById(opened.value.story.mandateId))?.remainingAuthorizedAmount.value, "3000");
+});
+
 test("the covered purchase body is only the medicine, and the alcohol preview creates no order", async () => {
   const { capabilities, purchases, recording } = service();
   const opened = await capabilities.openStory(PEDRO);

@@ -14,7 +14,7 @@ This is a reference for a person or an automated reviewer. It does not ask for a
 - **Technologies:** TypeScript, Node.js 22, Next.js 16, PayPal Sandbox Orders API (REST, no SDK), Elasticsearch, Claude through the official SDK, Postgres when `DATABASE_URL` is set, MCP, OAuth 2.1 with PKCE.
 - **License:** MIT (`LICENSE`)
 
-Checked on 2026-11-11 before this change was deployed: the demo URL returned HTTP 200, and the health URL returned `status=ok`, `paypal=sandbox`, `liveAgent=presenter_only`. The public hosts were still running the previous build. A Render rebuild is required before the care-story panel is on the public demo.
+Checked on 2026-11-11: the demo URL returned HTTP 200 and showed the three acts plus the Care story panel. The health URL returned `status=ok`, `paypal=sandbox`, `liveAgent=presenter_only`, `capabilities=in_memory`. A browser walk of that public demo selected Farma Sur, split the shampoo out, denied alcohol with no PayPal order, confirmed a cycle with no PayPal order, matched one receipt, mismatched another without changing the payment status, and left remaining capacity at USD 30.00 after the labeled USD 5 simulation. The webhook retry fix is newer than that deployed page and needs a Render rebuild before the public API has it.
 
 ## B. Problem and beneficiaries
 
@@ -97,7 +97,7 @@ A custodial wallet holds the funds. A purpose-bound token constrains a digital i
 - **Entry:** `POST /paypal/webhooks`, `POST /capabilities/refunds/simulate`
 - **Files:** `backend/src/domain/refund-accounting.ts`, `backend/src/integrations/paypal/paypal-refunds.ts`, `backend/src/api/capabilities.ts`
 - **Tests:** `backend/tests/domain/capabilities.test.ts`, `backend/tests/application/capabilities.test.ts`
-- **Behavior:** Capacity returns only for a completed refund, once, while the mandate is active and unexpired, and never above the original budget. A webhook body amount is not applied. Without `PAYPAL_WEBHOOK_ID` the verifier refuses the call. The panel button is `DEMO_SIMULATION`.
+- **Behavior:** Capacity returns only for a completed refund, once, while the mandate is active and unexpired, and never above the original budget. A webhook body amount is not applied. The event id is remembered only after the refund write succeeds, so a failed attempt can be delivered again. A second delivery of an applied event does not credit again. Without `PAYPAL_WEBHOOK_ID` the verifier refuses the call. The panel button is `DEMO_SIMULATION`. Event ids live in the demo workspace's memory. A process restart drops them with the workspace. That is not durable exactly-once processing.
 - **External calls:** not executed against a live capture in this verification.
 
 ### Care plans
@@ -130,7 +130,7 @@ No private credentials are required for 1–6.
 2. `cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build`
 3. `cd frontend && npx playwright install chromium && npm run e2e`
 4. Confirm `LICENSE` is MIT.
-5. Open https://compas-paypal-web.onrender.com/demo after the deploy that contains this commit. Until that rebuild, the public site is the previous build.
+5. Open https://compas-paypal-web.onrender.com/demo. On 2026-11-11 the Care story panel was already on that page. After a later deploy, repeat the panel once so the webhook retry fix is the one being served.
 6. Act 1: a pharmacy review. Act 2: a medication charge is allowed and an alcohol charge is denied before an order. Act 3: scripted mode shows MCP calls. Live mode may be presenter-only.
 7. Open **Care story**. Farma Sur is selected. The shampoo is outside the mandate. A cycle does not create a PayPal order. A matching receipt is `VERIFIED_DOCUMENT_MATCH`. A different medicine is `MISMATCH`. The simulated refund moves remaining capacity from USD 25 to USD 30 and does not call PayPal.
 8. `POST /mcp` without a token returns 401. Revocation is covered by `backend/tests/api/agents.test.ts`.
@@ -170,9 +170,9 @@ Status is from the local run on 2026-11-11 described in section G. It is not a c
 
 | Claim | Code | Test | Demo | Status on this run |
 | --- | --- | --- | --- | --- |
-| Backend typecheck and tests | `backend/` | `npm run typecheck`, `npm test` | — | typecheck passed; tests 482 passed, 0 failed, 11 skipped |
+| Backend typecheck and tests | `backend/` | `npm run typecheck`, `npm test` | — | typecheck passed; tests 485 passed, 0 failed, 11 skipped |
 | Frontend lint, types, tests, build | `frontend/` | `npm run lint`, `typecheck`, `test`, `build` | — | all passed; unit tests 56 passed |
-| Browser care story | `frontend/e2e/capabilities.spec.ts` | `npm run e2e` | `/demo` care-story panel | 4 Playwright tests passed, purchases disabled, not a live payment |
+| Browser care story and mandate boundary | `frontend/e2e/` | `npm run e2e` | `/demo` care-story panel and the purchase API | 5 Playwright tests passed, purchases disabled, not a live payment |
 | Cheapest eligible shop | `backend/src/domain/offer-comparison.ts` | `backend/tests/domain/capabilities.test.ts` | Farma Sur row | passed inside `npm test` and Playwright |
 | Blocked shop is not selected | `agent-shopping.ts` `compareOffers` | `agent-shopping.test.ts` | excluded lookalike row | passed inside `npm test` |
 | Split basket excludes shampoo | `basket-partition.ts` | domain capabilities test and Playwright | partition text | passed |
@@ -183,7 +183,7 @@ Status is from the local run on 2026-11-11 described in section G. It is not a c
 | MCP requires a token | `backend/src/api/mcp.ts` | `agents.test.ts`; Playwright | Act 3 | Playwright `POST /mcp` returned 401 |
 | Live sandbox capture | PayPal adapter | `paypal:smoke` when configured | Act 2 | not run in this verification |
 | Live Claude | `demo-agent-run.ts` | live-agent tests use a fake model | Act 3 live | model not called in this verification |
-| Public deploy contains this panel | Render | — | demo URL | not yet; health check was the previous build |
+| Public demo serves the care story | Render | browser walk on 2026-11-11 | `/demo` Care story | observed: Farma Sur, split basket, `STOP_DENY`, cycle with no order, receipt match and mismatch, USD 30.00 |
 
 ## L. Questions a reviewer can ask
 
