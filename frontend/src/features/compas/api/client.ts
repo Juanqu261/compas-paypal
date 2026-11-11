@@ -1,5 +1,9 @@
 import type {
   AgentConsentRequest,
+  CapabilityCycle,
+  CapabilityEvidence,
+  CapabilityPreview,
+  CapabilityStory,
   AgentEvent,
   AgentRun,
   AgentScenario,
@@ -343,6 +347,32 @@ export const compasApi = {
   /** What the server recorded about the agent's calls, for the delegate and the payer. */
   agentEvents: (partyId: string, grantId: string) =>
     request<{ events: AgentEvent[] }>(partyId, `/agents/grants/${encodeURIComponent(grantId)}/events`).then((result) => result.events),
+  openCapabilityStory: (partyId: string) => request<CapabilityStory>(partyId, "/capabilities/story", { method: "POST" }),
+  capabilityStory: (partyId: string) => request<CapabilityStory>(partyId, "/capabilities/story"),
+  recordCapabilityCapture: (partyId: string) =>
+    request<{ purchase: { id: string; status: string; paypalOrderCreated: false; source: string }; remaining: CapabilityStory["remaining"]; paypalOrderCreated: false }>(
+      partyId,
+      "/capabilities/capture",
+      { method: "POST" },
+    ),
+  generateCareCycle: (partyId: string, planId: string) =>
+    request<CapabilityCycle>(partyId, `/capabilities/care-plans/${encodeURIComponent(planId)}/cycles`, { method: "POST" }),
+  confirmCareCycle: (partyId: string, planId: string, periodId: string) =>
+    request<CapabilityCycle>(partyId, `/capabilities/care-plans/${encodeURIComponent(planId)}/cycles/${encodeURIComponent(periodId)}/confirm`, {
+      method: "POST",
+    }),
+  setCarePlanStatus: (partyId: string, planId: string, action: "pause" | "resume" | "revoke") =>
+    request<{ plan: { id: string; status: string } }>(partyId, `/capabilities/care-plans/${encodeURIComponent(planId)}/${action}`, { method: "POST" }),
+  submitCapabilityEvidence: (partyId: string, body: unknown) =>
+    request<CapabilityEvidence>(partyId, "/capabilities/evidence", { method: "POST", body }),
+  simulateCapabilityRefund: (partyId: string, body: { purchaseId: string; idempotencyKey: string; amount: CapabilityStory["remaining"] }) =>
+    request<{ refund: { status: string }; remaining: CapabilityStory["remaining"]; duplicate: boolean }>(partyId, "/capabilities/refunds/simulate", {
+      method: "POST",
+      body,
+    }),
+  previewCapabilityFixture: (partyId: string, fixture: "medication" | "alcohol") =>
+    request<CapabilityPreview>(partyId, "/capabilities/preview", { method: "POST", body: { fixture } }),
+  previewCoveredPurchase: (partyId: string) => request<CapabilityPreview>(partyId, "/capabilities/preview-covered", { method: "POST" }),
   analystFindings: async (merchantId: string) => {
     const response = await send(`/analyst/findings?merchantId=${encodeURIComponent(merchantId)}`, { method: "GET" });
     if (!response.ok) throw await readError(response);

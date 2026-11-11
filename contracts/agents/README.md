@@ -1,6 +1,6 @@
 # Agent contracts
 
-Any MCP client can shop for a delegate through Compas, bound to the errands the delegate picked ([ADR 0011](../../docs/adr/0011-agents-mcp.md)). The code is in `backend/src/api/oauth.ts` and `backend/src/api/mcp.ts`. The agent has no PayPal tool.
+Any MCP client can shop for a delegate through Compas, bound to the errands the delegate picked ([ADR 0011](../../docs/adr/0011-agents-mcp.md)). The code is in `backend/src/api/oauth.ts` and `backend/src/api/mcp.ts`. The agent has no PayPal tool. It has five tools: `search_eligible_merchants`, `compare_offers`, `check_purchase`, `propose_purchase` and `get_mandate_status`. `compare_offers` ranks catalog prices. It cannot capture, refund, or override eligibility.
 
 ## For the MCP client
 
@@ -22,7 +22,8 @@ Every tool takes an `errandId` the delegate gave this agent. Any other errand, u
 
 | Tool | Input | Returns |
 | --- | --- | --- |
-| `search_eligible_merchants` | `{ errandId }` | `merchants[]`: `merchantId`, `displayName`, `confidence`, `offers[]` (`skuId`, `forErrandItem`, `product`, `unitPrice`). Only shops that already meet the mandate's minimum confidence |
+| `search_eligible_merchants` | `{ errandId }` | `merchants[]`: `merchantId`, `displayName`, `confidence`, `offers[]` (`skuId`, `forErrandItem`, `product`, `unitPrice`, `cum`, `availability`). `availability` is `UNKNOWN`: COMPAS has no inventory feed. A `comparison` for the errand's first confirmed CUM may be attached. Only shops that already meet the mandate's minimum confidence are listed |
+| `compare_offers` | `{ errandId, quantity? }` | Deterministic ranking of catalog offers for that CUM. `selected` is the lowest eligible price. A contested or blocked shop is in `excluded` and is not selected, even if it is cheaper. The model cannot pass a merchant id. Orders nothing. Call `check_purchase` before `propose_purchase` |
 | `check_purchase` | `{ errandId, merchantId, items: [{ skuId, quantity? }] }` | `wouldHappen` (`ALLOW`, `REVIEW`, `DENY`), `reasonCodes`, `explanation`. Orders nothing |
 | `propose_purchase` | the same, plus optional `idempotencyKey` | `outcome`, `reasonCodes`, `explanation`, `payment` (`ORDER_CREATED` waiting for the payer, or `NOT_CREATED`), `replayed`, `nextStep` |
 | `get_mandate_status` | `{ errandId }` | the errand's allowed and held units and amount, and the budget's remaining capacity |

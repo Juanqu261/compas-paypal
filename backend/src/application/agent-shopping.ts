@@ -11,6 +11,7 @@ import type { MerchantCatalogRepository } from "../ports/merchant-catalog.ts";
 import type { MerchantDirectory } from "../ports/merchant-directory.ts";
 import type { MerchantRegistry } from "../ports/merchant-registry.ts";
 import { categoriesNeedingHistory, evaluateMerchantCategoryEvidence } from "../policy/merchant-category-evidence.ts";
+import { compareOffers, type PharmacyOfferInput } from "../domain/offer-comparison.ts";
 import { formatAmount, logger } from "../lib/log.ts";
 import { resolveCatalogLine } from "./catalog-mappings.ts";
 import type { DelegatePurchaseService } from "./delegate-purchases.ts";
@@ -142,9 +143,91 @@ export class AgentShoppingService {
     const scope = await this.#scope(principal, isRecord(input) ? input.errandId : undefined);
     if (!scope) return notAuthorized();
     const { errand, mandate } = scope;
-    const now = this.#now();
 
+    const collected = await this.#collectOffers(errand, mandate, false);
     const merchants = [];
+    for (const merchant of collected.merchants) {
+      const offers = [];
+      for (const offer of merchant.offers) {
+        const record = await this.#deps.cum.getByCum(offer.cum);
+        offers.push({
+          skuId: offer.skuId,
+          forErrandItem: offer.forErrandItem,
+          product: record ? `${record.product}${record.presentation ? ` (${record.presentation})` : ""}` : offer.forErrandItem,
+          unitPrice: money(offer.unitPrice),
+          cum: offer.cum,
+          availability: "UNKNOWN" as const,
+        });
+      }
+      merchants.push({
+        merchantId: merchant.merchantId,
+        displayName: merchant.displayName,
+        confidence: merchant.confidence,
+        offers,
+      });
+    }
+    const primaryCum = errand.items[0]?.acceptedCums[0];
+    const comparison = primaryCum
+      ? compareOffers({
+          requestedCum: primaryCum,
+          quantity: 1,
+          currency: mandate.remainingAuthorizedAmount,
+          remaining: mandate.remainingAuthorizedAmount,
+          offers: collected.flat,
+        })
+      : undefined;
+    log.info("merchants searched", { grantId: principal.grant.id, errandId: errand.id, eligible: merchants.length });
+    return { isError: false, data: { merchants, ...(comparison ? { comparison } : {}) } };
+  }
+
+  /**
+   * Ranks the errand's product across vetted and excluded shops. The selected
+   * shop is the ranker's, not the model's. Excluded shops are named so the
+   * explanation can say why a lower price was refused. Catalog text is not returned.
+   */
+  async compareOffers(principal: AgentPrincipal, input: unknown): Promise<ToolResult> {
+    const record = isRecord(input) ? input : undefined;
+    const scope = await this.#scope(principal, record?.errandId);
+    if (!scope) return notAuthorized();
+    let quantity = 1;
+    if (record?.quantity !== undefined) {
+      if (typeof record.quantity !== "number" || !Number.isInteger(record.quantity) || record.quantity < 1 || record.quantity > MAX_AGENT_QUANTITY) {
+        return toolError("INVALID_INPUT", "quantity must be a whole number from 1 to 20.");
+      }
+      quantity = record.quantity;
+    }
+    const cum = scope.errand.items[0]?.acceptedCums[0];
+    if (!cum) return toolError("INVALID_INPUT", "This errand has no confirmed product.");
+    const collected = await this.#collectOffers(scope.errand, scope.mandate, true);
+    const comparison = compareOffers({
+      requestedCum: cum,
+      quantity,
+      currency: scope.mandate.remainingAuthorizedAmount,
+      remaining: scope.mandate.remainingAuthorizedAmount,
+      offers: collected.flat,
+    });
+    log.info("offers compared", { grantId: principal.grant.id, errandId: scope.errand.id, selected: comparison.selected?.merchantId });
+    return {
+      isError: false,
+      data: {
+        comparison,
+        guidance: "Propose selected.merchantId and selected.skuId only after check_purchase would ALLOW. Do not propose an excluded merchant.",
+      },
+    };
+  }
+
+  /**
+   * Shops that list a verified CUM the errand accepts. `includeExcluded` keeps
+   * shops the mandate's merchant step did not pass, so a comparison can say
+   * why they were refused. Their catalog text is never copied out.
+   */
+  async #collectOffers(errand: Errand, mandate: Mandate, includeExcluded: boolean): Promise<{
+    merchants: { merchantId: string; displayName: string; confidence: string; offers: { skuId: string; cum: string; forErrandItem: string; unitPrice: MoneyAmount }[] }[];
+    flat: PharmacyOfferInput[];
+  }> {
+    const now = this.#now();
+    const merchants = [];
+    const flat: PharmacyOfferInput[] = [];
     for (const merchant of await this.#deps.merchants.list()) {
       const resolution = await this.#deps.registry.resolve(merchant.paypalMerchantId);
       const history = await loadMerchantHistory(
@@ -154,34 +237,35 @@ export class AgentShoppingService {
         this.#deps.history,
       );
       const step = evaluateMerchantCategoryEvidence(resolution, mandate.purposePolicy, history);
-      if (step.result !== "PASS") continue;
-
+      const eligible = step.result === "PASS";
+      if (!eligible && !includeExcluded) continue;
+      const confidence = "confidence" in step && step.confidence ? step.confidence.confidence : "UNKNOWN";
       const catalog = await this.#deps.catalogs.get(merchant.paypalMerchantId);
-      const offers = [];
+      const offers: { skuId: string; cum: string; forErrandItem: string; unitPrice: MoneyAmount }[] = [];
       for (const item of catalog?.items ?? []) {
-        if (!item.price) continue;
         const line = await resolveCatalogLine(merchant.paypalMerchantId, item.skuId, this.#deps);
         const errandItem = line.cum ? errand.items.find((candidate) => candidate.acceptedCums.includes(line.cum!)) : undefined;
         if (!line.cum || !errandItem) continue;
-        const record = await this.#deps.cum.getByCum(line.cum);
-        offers.push({
-          skuId: item.skuId,
-          forErrandItem: errandItem.label,
-          product: record ? `${record.product}${record.presentation ? ` (${record.presentation})` : ""}` : errandItem.label,
-          unitPrice: money(item.price),
-        });
-      }
-      if (offers.length > 0) {
-        merchants.push({
+        if (!item.price && !includeExcluded) continue;
+        flat.push({
           merchantId: merchant.id,
           displayName: merchant.displayName,
-          confidence: step.confidence.confidence,
-          offers,
+          skuId: item.skuId,
+          cum: line.cum,
+          ...(item.price ? { unitPrice: item.price } : {}),
+          confidence,
+          eligible,
+          availability: "UNKNOWN",
         });
+        if (eligible && item.price) {
+          offers.push({ skuId: item.skuId, cum: line.cum, forErrandItem: errandItem.label, unitPrice: item.price });
+        }
+      }
+      if (offers.length > 0) {
+        merchants.push({ merchantId: merchant.id, displayName: merchant.displayName, confidence, offers });
       }
     }
-    log.info("merchants searched", { grantId: principal.grant.id, errandId: errand.id, eligible: merchants.length });
-    return { isError: false, data: { merchants } };
+    return { merchants, flat };
   }
 
   // -------------------------------------------------------------------------

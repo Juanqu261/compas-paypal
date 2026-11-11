@@ -34,6 +34,7 @@ export class DemoWorkspaces<W> {
   readonly #byId = new Map<string, Entry<W>>();
   readonly #byToken = new Map<string, Entry<W>>();
   readonly #byOrder = new Map<string, string>();
+  readonly #byCapture = new Map<string, string>();
   readonly #byAgentSecret = new Map<string, string>();
 
   constructor(deps: {
@@ -68,6 +69,7 @@ export class DemoWorkspaces<W> {
     const id = `ws-${randomUUID()}`;
     const workspace = await this.#create({
       onOrder: (orderId) => this.#byOrder.set(orderId, id),
+      onCapture: (captureId) => this.#byCapture.set(captureId, id),
       onAgentToken: (hash) => this.#byAgentSecret.set(hash, id),
     });
     const entry: Entry<W> = { id, token: this.#newToken(), workspace, lastUsed: this.#now() };
@@ -106,6 +108,11 @@ export class DemoWorkspaces<W> {
     return this.byId(this.#byOrder.get(orderId));
   }
 
+  /** The workspace whose capture this refund refers to. */
+  byCapture(captureId: string): W | undefined {
+    return this.byId(this.#byCapture.get(captureId));
+  }
+
   /** The workspace that issued the agent token with this hash. */
   byAgentSecret(hash: string): W | undefined {
     return this.byId(this.#byAgentSecret.get(hash));
@@ -133,7 +140,7 @@ export class DemoWorkspaces<W> {
   #end(entry: Entry<W>, reason: "idle" | "evicted" | "reset"): void {
     this.#byId.delete(entry.id);
     this.#byToken.delete(entry.token);
-    for (const index of [this.#byOrder, this.#byAgentSecret]) {
+    for (const index of [this.#byOrder, this.#byCapture, this.#byAgentSecret]) {
       for (const [key, id] of index) if (id === entry.id) index.delete(key);
     }
     this.#onEnd(entry.id);

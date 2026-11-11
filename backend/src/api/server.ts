@@ -62,7 +62,9 @@ import {
   MAX_CONSENT_BODY_BYTES,
   MAX_OAUTH_BODY_BYTES,
 } from "./oauth.ts";
+import { handleCapabilitiesRequest, handlePayPalWebhook, isCapabilitiesPath, MAX_CAPABILITY_BODY_BYTES, PAYPAL_WEBHOOK_PATH } from "./capabilities.ts";
 import { handlePayPalReturn, isPayPalReturnPath } from "./paypal-return.ts";
+import { createPayPalRefundPorts } from "../integrations/paypal/paypal-refunds.ts";
 import { ERRANDS_PATH, handleErrandRequest, isErrandApiPath, MAX_ERRAND_BODY_BYTES, readErrandDraftsMode } from "./errands.ts";
 import {
   handleMerchantOnboardingRequest,
@@ -121,6 +123,7 @@ log.info(
 
 // PayPal sandbox only. Without the app credentials every PayPal call throws.
 const paypal = createPayPalGateway();
+const paypalRefunds = createPayPalRefundPorts();
 if (!paypal.configured) {
   log.warn(`PayPal is not configured (missing ${paypal.missing.join(", ")}). PayPal calls will throw.`);
 }
@@ -261,7 +264,7 @@ setInterval(() => workspaces.sweep(), 5 * 60 * 1000).unref();
 // Answers the agent calls that come before any workspace is known (discovery,
 // registration, the authorization request) and those whose token no live
 // workspace issued. No visitor ever acts in it, so it holds no one's data.
-const lobby = await createDemoWorkspace(workspaceShared, parties, { onOrder: () => {}, onAgentToken: () => {} });
+const lobby = await createDemoWorkspace(workspaceShared, parties, { onOrder: () => {}, onAgentToken: () => {}, onCapture: () => {} });
 const agentWorkspace = (secretHash: string | undefined) => (secretHash && workspaces.byAgentSecret(secretHash)) || lobby;
 
 function sendJson(response: ServerResponse, { status, body }: JsonResponse): void {
@@ -472,8 +475,44 @@ const server = createServer(async (request, response) => {
         mcpUrl: workspaceShared.mcpUrl,
         liveAgent: liveHealth,
         liveRunsPerDemo: Number.isFinite(liveRunsPerDemo) ? liveRunsPerDemo : undefined,
+        capabilities: "in_memory",
       }),
     );
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === PAYPAL_WEBHOOK_PATH) {
+    try {
+      const raw = await readRequestBody(request, MAX_CAPABILITY_BODY_BYTES);
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(raw);
+      const event = JSON.parse(text) as unknown;
+      const header = (name: string) => {
+        const value = request.headers[name];
+        return typeof value === "string" ? value : undefined;
+      };
+      sendJson(
+        response,
+        await handlePayPalWebhook({
+          headers: {
+            "paypal-auth-algo": header("paypal-auth-algo"),
+            "paypal-cert-url": header("paypal-cert-url"),
+            "paypal-transmission-id": header("paypal-transmission-id"),
+            "paypal-transmission-sig": header("paypal-transmission-sig"),
+            "paypal-transmission-time": header("paypal-transmission-time"),
+          },
+          event,
+          ports: paypalRefunds,
+          serviceForCapture: (captureId) => workspaces.byCapture(captureId)?.capabilities,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        sendJson(response, { status: 413, body: { error: "BODY_TOO_LARGE" } });
+        return;
+      }
+      httpLog.error(`PayPal webhook failed: ${error instanceof Error ? error.name : "error"}`);
+      sendJson(response, { status: 400, body: { error: "INVALID_BODY", message: "The webhook body was not read. Capacity is unchanged." } });
+    }
     return;
   }
 
@@ -694,6 +733,41 @@ const server = createServer(async (request, response) => {
       }
     } catch (error) {
       httpLog.error(`Agent request failed: ${error instanceof Error ? error.name : "error"}`);
+      sendJson(response, { status: 500, body: { error: "internal_error" } });
+    }
+    return;
+  }
+
+  if (isCapabilitiesPath(url.pathname)) {
+    try {
+      if (!demoIdentity) {
+        sendJson(response, { status: 503, body: { error: "IDENTITY_NOT_CONFIGURED", message: "Demo sessions are disabled." } });
+        return;
+      }
+      const session = sessionIn(request);
+      if (!session) {
+        sendJson(response, { status: 401, body: { error: "UNAUTHENTICATED", message: "A session token is required." } });
+        return;
+      }
+      let body: unknown;
+      if (request.method === "POST") {
+        const parsed = await readJsonBody(request, MAX_CAPABILITY_BODY_BYTES);
+        if (!parsed.ok) {
+          sendJson(response, parsed.response);
+          return;
+        }
+        body = parsed.body;
+      }
+      sendJson(
+        response,
+        await handleCapabilitiesRequest(
+          { method: request.method ?? "GET", url, body },
+          session.actor,
+          session.workspace.capabilities,
+        ),
+      );
+    } catch (error) {
+      httpLog.error(`Capabilities request failed: ${error instanceof Error ? error.message : String(error)}`);
       sendJson(response, { status: 500, body: { error: "internal_error" } });
     }
     return;

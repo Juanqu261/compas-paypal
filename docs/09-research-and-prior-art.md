@@ -70,12 +70,21 @@ COMPAS is a payment-control primitive. It is not a universal solution to fraud o
 - **Paternalism.** A purpose limit overrides the recipient's choice. The payer has to intend that, and the delegate has to see it.
 - **Miscoded merchants.** A pharmacy coded as general retail, or a liquor store coded as a pharmacy, breaks the policy. Trust level is there so a self-declaration is not treated as proof.
 - **Collusion.** A delegate and a merchant can disguise an ineligible purchase as an eligible one. The audit trail records the claim they made. It does not detect a lie by itself.
-- **False invoices.** An eligible category on a fictitious bill can pass a category rule. Invoice verification is out of scope.
+- **False invoices.** An eligible category on a fictitious bill can pass a category rule. Structured fulfillment evidence can show that a receipt matches the authorized purchase. That is document consistency, not proof the goods were delivered, and a matching document can still be untruthful.
 - **AI errors.** A wrong or low-confidence category must become `REVIEW` or `DENY`, not a payment.
 - **Small-merchant exclusion.** Strict evidence rules favor merchants that already have clean category data.
 - **Privacy.** Purpose, items, and health context are sensitive. What PayPal receives stays opaque.
-- **Refunds.** A refund has to restore authorization capacity as well as value. That behavior is not specified yet: TODO.
+- **Refunds.** A completed refund can restore authorization capacity while the mandate is still active and inside its window. It must not restore more than the original budget, must not double-credit a repeated event, and must not revive a revoked or expired mandate. PayPal's capture refund and webhook signature verification are the external references: [Refund captured payment](https://developer.paypal.com/docs/api/payments/v2/#captures_refund) and [Verify webhook signature](https://developer.paypal.com/docs/api/webhooks/v1/#verify-webhook-signature_post). COMPAS is not integrated with those systems beyond the sandbox Orders and Payments APIs.
 - **Split transactions.** Splitting one purchase into many small eligible tickets can evade a naive budget or basket rule.
 - **Purpose-policy abuse.** A policy can be written so broadly that it restricts nothing, or so narrowly that it cannot be used. The product does not judge whether a payer's purpose is fair.
 
 COMPAS can reduce unauthorized use of allocated funds by enforcing purpose restrictions at payment time and producing an auditable decision trail.
+
+## Other restricted-payment and agent references
+
+These are architectural references. COMPAS does not integrate with them.
+
+- **e-RUPI** (National Payments Corporation of India) is a purpose-specific digital voucher redeemed at an accepting merchant, without putting unrestricted cash in the beneficiary's account. <https://www.npci.org.in/what-we-do/e-rupi/product-overview>
+- **M-TIBA** is a Kenyan health-payments wallet associated with PharmAccess, Safaricom and CarePay. It is a health-wallet design, not a COMPAS integration.
+- **Pix Automático** (Banco Central do Brasil) is a recurring-payment arrangement on Pix. COMPAS care plans prepare a cycle; they do not create a PayPal charge when a cycle is due. Pix documentation: <https://www.bcb.gov.br/estabilidadefinanceira/pix>
+- **Prompt injection.** Merchant text, receipt text and model output are untrusted. The deterministic policy and the tool boundary are what stop an instruction in that text from authorizing, capturing or refunding. OWASP lists prompt injection as LLM01: <https://genai.owasp.org/llmrisk/llm01-prompt-injection/>

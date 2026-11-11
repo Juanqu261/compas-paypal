@@ -6,6 +6,7 @@ import type { DemoScenario } from "@/demo/scenarios";
 import { compasApi } from "@/features/compas/api/client";
 import { useResource } from "@/features/compas/api/hooks";
 import { AgentAct } from "@/features/demo/AgentAct";
+import { CapabilitiesPanel } from "@/features/demo/CapabilitiesPanel";
 import { AnalystAct } from "@/features/demo/AnalystAct";
 import { analystRecord } from "@/features/demo/analyst-view";
 import type { Act } from "@/features/demo/chapters";
@@ -241,6 +242,7 @@ export function DemoStage({
           <AgentAct onApproval={() => show(2)} onAnalyst={() => show(1)} />
         </div>
       </Activity>
+      <CapabilitiesPanel />
     </DemoSessionProvider>
   );
 }

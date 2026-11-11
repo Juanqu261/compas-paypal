@@ -82,6 +82,7 @@ With `TEST_DATABASE_URL` set, `npm test` also runs the Postgres adapter tests; o
 | The analyst can't reach PayPal | `integration/analyst-never-reaches-paypal` |
 | Cámara binding and Log in with PayPal | `application/certificate-binding`, `application/merchant-identity`, `api/merchant-onboarding` |
 | Errands: holds, reservations, releases, drafts | `application/errands`, `application/delegate-errand-purchases` |
+| Pharmacy comparison, fulfillment evidence, split basket, refunds, care plans | `domain/capabilities`, `application/capabilities`, `application/agent-shopping` |
 | Elastic search, inference stream, bulk | `integrations/elastic/elastic` |
 | Claude adapter: structured output, refusals | `integrations/anthropic/claude-analyst-model` |
 

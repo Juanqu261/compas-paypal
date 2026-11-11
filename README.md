@@ -1,124 +1,137 @@
 # COMPAS
 
-A policy layer for purpose-restricted payments, on PayPal. Money stays where it is: COMPAS moves permission, not money.
+COMPAS turns ordinary PayPal payments into purpose-restricted, auditable transactions. A payer can let someone else cause a payment for a stated purpose, within a budget, without giving that person the money. COMPAS moves permission, not money. PayPal moves the money.
 
-## Public demo (PayPal AI Hackathon 2026)
+Hackathon: PayPal AI Hackathon 2026. License: [MIT](LICENSE).
 
-| Surface | URL |
-| --- | --- |
-| Demo (three acts) | https://compas-frontend.onrender.com/demo |
-| Backend `/health` | https://compas-backend-mjyc.onrender.com/health |
+Reviewers, including automated ones: [docs/AGENT_EVALUATION_GUIDE.md](docs/AGENT_EVALUATION_GUIDE.md).
 
-Hosted on **Render** . Visitor demos are **in memory**: a sleep/restart clears them.
+## Public demo
 
-## The idea
+Checked on 2026-11-11.
 
-Pedro, abroad, wants up to USD 40 available for his grandmother Gladys's medicines. Andrea, who lives with Gladys, can buy them but must not receive the money. Pedro, Andrea and the pharmacy are all on PayPal.
+| Surface | URL | What responded |
+| --- | --- | --- |
+| Demo | https://compas-paypal-web.onrender.com/demo | HTTP 200, title COMPAS |
+| Backend health | https://compas-paypal-api.onrender.com/health | HTTP 200, `status=ok`, `paypal=sandbox`, `liveAgent=presenter_only` |
 
-- **Pedro** creates a **mandate**: Andrea may pay for `MEDICATION`, up to USD 40.
-- **Andrea** buys at a pharmacy. COMPAS checks the cart against the mandate. Alcohol is denied before any order exists.
-- On `ALLOW`, COMPAS creates a **PayPal order** payable to the pharmacy's PayPal Business account. **Pedro approves it at PayPal**, and COMPAS captures it.
+Use this pair. `https://compas-frontend.onrender.com/demo` and `https://compas-backend-mjyc.onrender.com/health` also answered as COMPAS that day. They are earlier hosts, not the canonical pair. Do not use `compas-backend.onrender.com`.
 
-### Why PayPal
+Hosted on Render. Visitor workspaces are in memory. A sleep or restart clears them. The health check above is the deployed build from before this care-story work. A Render rebuild is required before the public demo shows the new panel.
 
-- The money never leaves Pedro's PayPal account and never reaches Andrea.
-- Every payment is a PayPal order that Pedro approves and COMPAS captures, so PayPal stays the rail and the authority.
-- The pharmacy is paid directly, as a verified PayPal Business account.
-- COMPAS adds the purpose: what the money may buy, checked before PayPal is asked to move anything.
+## What it solves
 
-### The AI layer
+Pedro wants up to USD 40 available for his grandmother Gladys's medicines. Andrea, who lives with Gladys, can shop. She must not receive the USD 40. The pharmacy is paid on PayPal. COMPAS checks the purpose before any order exists.
 
-- **Analyst.** An AI analyst reviews merchants ahead of time. It maps catalogs to INVIMA medicine codes (CUM) with Elastic, and flags lookalike shops. A deterministic verifier checks every mapping against INVIMA's data. The AI only finds evidence; it never raises a shop's trust, and it never authorizes a payment.
-- **Binding.** Log in with PayPal and a Cámara de Comercio certificate bind a PayPal account to a registered business.
-- **Errands.** Andrea confirms an errand ("one box of losartán 50 mg"). A cart with anything more is held for review.
-- **MCP endpoint.** Any AI agent can shop for Andrea through `POST /mcp`, which has four tools: `search_eligible_merchants`, `check_purchase`, `propose_purchase` and `get_mandate_status`. The agent is limited to the errands Andrea gave it, names only SKUs and quantities, and has no PayPal tool. Act 3 of `/demo` shows one working: a scripted agent making real MCP calls, with Andrea's consent and the server's own log. See [contracts/agents/](contracts/agents/README.md).
+- Pedro creates a mandate: Andrea may cause a `MEDICATION` payment, up to USD 40.
+- Andrea buys at a pharmacy. Alcohol against that mandate is `DENY`. No PayPal order is created.
+- On `ALLOW`, COMPAS creates one PayPal sandbox order payable to the pharmacy. Pedro approves it at PayPal. COMPAS checks the mandate and the order again, then captures.
+- `remainingAuthorizedAmount` is authorization capacity. It is not a PayPal balance and not custody.
+
+COMPAS is not a wallet, a bank, a payment rail, a custody account, a token, or a blockchain.
+
+## What is built
+
+The deterministic policy engine decides `ALLOW`, `DENY`, or `REVIEW`. Only `ALLOW` may create a PayPal order. `DENY` and `REVIEW` never do. The payer approves every sandbox payment. AI classifies and explains. It does not authorize, capture, or refund.
+
+- **Merchant analyst.** Elasticsearch proposes INVIMA CUM candidates. Claude proposes a mapping or abstains. A deterministic verifier re-reads the code. A flag never authorizes a payment. Act 1 of `/demo`.
+- **Errands.** Andrea confirms what may be bought, by CUM, with unit and amount caps.
+- **MCP agent.** OAuth 2.1 with PKCE. Five tools: `search_eligible_merchants`, `compare_offers`, `check_purchase`, `propose_purchase`, `get_mandate_status`. No PayPal tool. Act 3 has two modes over that server:
+  - **Scripted agent.** Written narration, real MCP calls. Public.
+  - **Live agent.** Claude chooses the tool calls. The same policy decides. On the public deploy, live mode is presenter-gated. The presenter key is not in this repository.
+- **Pharmacy comparison.** `compare_offers` ranks catalog prices for the confirmed CUM. A cheaper contested shop is excluded. Stock is unknown. The model cannot override the ranking.
+- **Split basket.** A mixed cart is split. Only the eligible lines can reach the payment gate. The personal lines are not marked paid.
+- **Proof of purpose.** After a completed purchase, a structured receipt is compared with the authorized merchant, CUM, quantity and amount. `VERIFIED_DOCUMENT_MATCH` is document consistency, not proof of delivery. A mismatch leaves the payment status unchanged.
+- **Refund reconciliation.** A completed refund can restore capacity while the mandate is active and inside its window, once per refund id, never above the original budget. Webhook amounts are not trusted. The demo button is a labeled simulation through that same accounting.
+- **Recurring care plan.** A monthly plan can prepare the next errand. Generating a cycle does not create a PayPal order. Pause, resume and revoke are payer actions. A revoked plan does not resume.
+
+The optional **Care story** panel on `/demo` walks the five additions with fictional demo/test data. Act 2 remains the live sandbox payment.
+
+## Real, simulated, and not built
+
+| Real, when configured | Simulated, and labeled | Not this build |
+| --- | --- | --- |
+| PayPal sandbox order, approval, capture | PayPal app screens for Pedro, Andrea and the pharmacy | Production PayPal, Vault, payer-absent charges |
+| Webhook signature check and refund read, when `PAYPAL_WEBHOOK_ID` is set | The care-story capture and the USD 5 refund button (`DEMO_SIMULATION`) | A refund of an arbitrary existing capture |
+| Analyst calls to Elastic and Claude | Wallet KYB and Cámara fixtures | A second product registry beyond medicine |
+| MCP tool calls and OAuth consent | Scripted agent narration | An automatic PayPal charge when a care cycle is due |
+| Deterministic CUM verification | The three-shop price table in the care story (demo/test data) | Physical delivery confirmation |
+
+An unimplemented or unconfigured PayPal call throws. It does not invent an order, an approval, or a capture.
 
 ## Repository
 
 | Path | What |
 | --- | --- |
-| `frontend/` | Next.js demo: `/demo`, `/paypal` (Pedro), `/paypal-delegate` (Andrea), `/paypal-business` (online pharmacy) |
-| `backend/` | Domain, policy, PayPal, analyst, HTTP API. See [backend/README.md](backend/README.md) |
-| `contracts/` | API contracts shared by frontend and backend |
-| `data/` | Seeds, demo fixtures, Postgres migrations |
-| `docs/` | Product, architecture, ADRs |
+| `frontend/` | Next.js demo: `/demo`, `/paypal`, `/paypal-delegate`, `/paypal-business` |
+| `backend/` | Domain, policy, PayPal, analyst, MCP, care capabilities |
+| `contracts/` | Shared API notes, including the agent tools |
+| `data/` | Seeds and Postgres migrations. `20261111140000_capabilities.sql` is additive and not applied |
+| `docs/` | Product, ADRs, the evaluation guide |
+| `infra/` | Render notes |
 
-The PayPal screens (Pedro's, Andrea's and the pharmacy's PayPal Business) are simulations. The PayPal orders are real sandbox orders.
+The frontend and the backend do not import each other's source.
 
-## Run
+## Setup
 
 ```bash
 cd backend && npm install && npm run dev     # API on :4000
-cd frontend && npm install && npm run dev    # demo on http://localhost:3000
+cd frontend && npm install && npm run dev    # http://localhost:3000/demo
 ```
 
-Configuration goes in `backend/.env`, starting from `backend/.env.example`.
+Copy `backend/.env.example` to `backend/.env`. Secrets stay there. They are not `NEXT_PUBLIC_*` variables.
 
-### Connect your own AI agent
+| Variable | Role |
+| --- | --- |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | Sandbox REST app. Missing: the gateway throws |
+| `PAYPAL_ENVIRONMENT` | `sandbox` only |
+| `PAYPAL_WEBHOOK_ID` | Webhook verification. Missing: notifications are refused and capacity is unchanged |
+| `COMPAS_DEMO_PURCHASES` | `enabled` lets a demo session create sandbox orders. Otherwise preview still runs and no order is created |
+| `DEMO_MERCHANT_PAYPAL_ID`, `DEMO_LIQUOR_PAYPAL_ID`, `DEMO_PAYER_PAYPAL_ID` | Presenter sandbox account ids, not emails or passwords |
+| `COMPAS_PRESENTER_KEY` | Gates the presenter accounts and, on the public deploy, live Claude |
+| `ELASTICSEARCH_URL`, `ELASTICSEARCH_API_KEY` | CUM search |
+| `ANTHROPIC_API_KEY` | Analyst and live Act 3. Empty: live mode is unavailable; scripted mode still runs |
+| `DATABASE_URL` | Shared trust log and analyst runs. Visitor mandates stay in memory either way |
+| `CUM_REGISTRY` | `demo` uses the committed subset |
 
-Any MCP client can shop for Andrea, locally. With Claude Code:
+`data/migrations/20261026120000_paypal_rail.sql` truncates runtime tables. Do not run it again. The capabilities migration is new and has not been applied. Applying it is a separate deployment step on a database that already has the PayPal schema.
+
+## Tests
 
 ```bash
-claude mcp add --transport http compas http://localhost:4000/mcp
+cd backend && npm run typecheck && npm test
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+cd frontend && npm run e2e
 ```
 
-1. Open `/demo` and give Andrea an errand: run Act 3 once, or set up a budget and an errand in Act 2. Choose the sandbox accounts in Act 2 if the agent should create a PayPal order.
-2. Sign the client in (in Claude Code: `/mcp`, then `compas`, then Authenticate). It opens `/agents/authorize` in your default browser. Use the browser where `/demo` is open, because the consent screen acts as that demo's Andrea and lists her open errands.
-3. Andrea picks the errands the agent may use. Then ask the agent to buy one, for example "Pide la losartán de mi abuela". It has four tools: `search_eligible_merchants`, `check_purchase`, `propose_purchase` and `get_mandate_status`. An `ALLOW` creates a PayPal order that Pedro approves on his phone in Act 2. The agent can't approve it.
+`npm test` does not call PayPal, Elastic, or Claude. `npm run e2e` starts a local API with purchases disabled and drives `/demo`. It is not a live sandbox payment.
 
-What the agent did is in Act 3's server log and in Pedro's and Andrea's activity. The routes and tools are in [contracts/agents/](contracts/agents/README.md).
+Sandbox checks, only when `backend/.env` is configured, and not part of CI: `npm run paypal:smoke` and `npm run compas:smoke` in `backend/`. Do not repeat captures to re-check the UI.
 
-## What is simulated vs real
+CI runs the backend and frontend checks above, plus the Playwright smoke, without sandbox secrets.
 
-| Simulated | Real (PayPal Sandbox / live services) |
-| --- | --- |
-| PayPal app screens for Pedro, Andrea, and the pharmacy (`/paypal`, `/paypal-delegate`, `/paypal-business`) | PayPal Orders API: create, payer approval, capture |
-| Wallet KYB / Cámara fixtures for trust evidence | Elastic CUM search + Claude (or Elastic Inference) for the analyst |
-| Act 3 agent *reasoning* (scripted narration) | Act 3 MCP tool calls, OAuth consent, COMPAS policy |
-| Visitor demo workspaces (in memory) | Shared analyst run cache when `DATABASE_URL` is set |
+## Judges
 
-COMPAS never holds money. `remainingAuthorizedAmount` is authorization capacity, not a PayPal balance.
-
-## Proven Sandbox payment chain
-
-Local automated E2E (2026-11-09), one capture only:
-
-1. Mandate USD 40 · `ACTIVE`
-2. Medication purchase USD 1.00 → `ALLOW`
-3. PayPal order created → payer `KUHH9HTUKXYMN` · payee `FYFGX237GSG2U`
-4. Pedro approved at Sandbox
-5. Capture `COMPLETED`
-6. Central Pharmacy received USD 1.00 (Business activity + payments API)
-7. Mandate remaining USD 39.00
-8. Alcohol attempt → `DENY` · no new order · budget unchanged
-
-Harness (gitignored): `.personal-docs/paypal-e2e-audit/`. Do not re-run captures on deploy.
-
-## Test
-
-The backend suite covers the policy gate, PayPal, the trust matrix, the analyst, CUM mapping, the Cámara binding and errands. The live checks run against the sandbox and Elastic: `paypal:smoke`, `compas:smoke`, `cum:index` and `analyst:smoke`. Details are in [backend/README.md](backend/README.md#tests).
-
-CI (GitHub Actions): backend typecheck + tests; frontend lint, typecheck, tests, build. No sandbox secrets in CI.
-
-## Docs
-
-- [AGENTS.md](AGENTS.md): context for coding agents.
-- [docs/](docs/): vision, domain model, PayPal mapping, policy engine, AI, security.
-- [docs/adr/](docs/adr/): decisions. 0008 is the PayPal rail, 0009 the AI analyst, 0010 errands, 0011 agents over MCP, 0012 the public demo.
-- [infra/README.md](infra/README.md): deploying to Render.
+1. Open the demo. Act 1 shows a merchant review. Act 2 is the medication payment and the alcohol refusal. Act 3 is the agent. Scripted mode is public. Live mode may be presenter-only.
+2. Open **Care story**. The comparison selects Farma Sur, not the cheaper contested shop. The shampoo stays out of the COMPAS lines. Generating a cycle does not create a PayPal order. The receipt and the USD 5 refund are labeled simulations.
+3. An external MCP client can use `POST /mcp` on the API. See [contracts/agents/README.md](contracts/agents/README.md).
 
 ## Known limitations
 
-- Render **Free** sleeps when idle; cold starts are slow and wipe in-memory visitor workspaces. Prefer warming `/health` before a live pitch.
-- Team presenter Sandbox accounts need the gated presenter link (`COMPAS_PRESENTER_KEY`). Public visitors use their own Sandbox account IDs.
-- Act 3’s in-demo agent is **scripted** (real MCP calls, written reasoning). Connect a real MCP client for autonomous shopping.
-- Settlement is demo-hardened (capture then history failure no longer undoes COMPLETED; incomplete ALLOW can resume the same PayPal-Request-Id). Not a claim of production-grade multi-region settlement.
-- Register PayPal Sandbox return URLs for the new API host if Login with PayPal / allowlists require it (see Devpost doc).
-- No Vault / payer-absent charges. No Live PayPal. No refunds/webhooks yet.
+- Sandbox only. No production PayPal integration is implied.
+- Render Free sleeps and drops in-memory workspaces.
+- The care-story capture and refund do not move sandbox money. A live refund still needs PayPal and `PAYPAL_WEBHOOK_ID`.
+- Receipt verification does not prove delivery. There is no image or PDF upload.
+- The three-shop price table is fictional demo data. Live `compare_offers` uses catalog prices for shops the mandate already accepts.
+- The capabilities tables are not in the shared database until the new migration is applied. The demo does not need that database for visitor state.
+- Live Claude is capped and may be presenter-gated. This repository does not contain the presenter key.
 
-Hackathon proof of concept. Not affiliated with or endorsed by PayPal or Elastic. No production integration is implied.
+Not affiliated with or endorsed by PayPal, Elastic, or INVIMA.
 
-## License
+## Docs
 
-This project is licensed under the [MIT License](LICENSE).
-
+- [docs/AGENT_EVALUATION_GUIDE.md](docs/AGENT_EVALUATION_GUIDE.md)
+- [docs/](docs/) — vision, PayPal mapping, policy, security
+- [docs/adr/](docs/adr/) — 0008 PayPal, 0009 analyst, 0010 errands, 0011 agents, 0012 public demo, 0013 care capabilities
+- [docs/devpost-submission.md](docs/devpost-submission.md) and [docs/video-runbook.md](docs/video-runbook.md)
+- [AGENTS.md](AGENTS.md) — instructions for coding agents

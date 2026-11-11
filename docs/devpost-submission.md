@@ -6,7 +6,9 @@ Public demo (Render Free):
 - Backend: https://compas-paypal-api.onrender.com
 - Demo: https://compas-paypal-web.onrender.com/demo
 
-Do **not** use older `compas-backend.onrender.com` / `compas-frontend.onrender.com` URLs (other apps).
+Canonical hosts, checked on 2026-11-11: the frontend demo and `https://compas-paypal-api.onrender.com/health` both answered (`status=ok`, PayPal sandbox). `https://compas-frontend.onrender.com/demo` and `https://compas-backend-mjyc.onrender.com/health` also answered as COMPAS that day. Use the canonical pair so the demo and the PayPal return URL stay on one deployment. Do not use `compas-backend.onrender.com` (a different app).
+
+Reviewers: [AGENT_EVALUATION_GUIDE.md](AGENT_EVALUATION_GUIDE.md).
 
 ---
 
@@ -59,7 +61,7 @@ At purchase time, rules decide — not the model:
 
 ## 6. MCP and agentic commerce
 
-COMPAS exposes an MCP server (`POST /mcp`) with four tools: `search_eligible_merchants`, `check_purchase`, `propose_purchase`, `get_mandate_status`.
+COMPAS exposes an MCP server (`POST /mcp`) with five tools: `search_eligible_merchants`, `compare_offers`, `check_purchase`, `propose_purchase`, `get_mandate_status`. `compare_offers` ranks catalog prices. It cannot override eligibility.
 
 - Agents are **sub-delegates** under Andrea’s consent (OAuth 2.1 + PKCE).
 - Agents name SKUs/quantities only; COMPAS sets prices/categories.
@@ -68,7 +70,9 @@ COMPAS exposes an MCP server (`POST /mcp`) with four tools: `search_eligible_mer
 **Act 3 of `/demo`:** two labeled modes over the **same** MCP server (OAuth 2.1 + PKCE + Andrea’s consent + AgentGrant):
 
 1. **Scripted demonstration** — written reasoning, planted-injection cases, **real** MCP calls. Always public.
-2. **Live Claude agent** — Claude Haiku chooses tool names/arguments; Compas executes only the four MCP tools and decides ALLOW/DENY/REVIEW. Claude cannot pay, capture, or refund. On the public Free deploy, Live is **presenter-gated** (private `?presenter=` link; key never in Devpost) and capped per demo workspace so visitors cannot burn Anthropic credit. Scripted remains the default for judges.
+2. **Live Claude agent** — Claude Haiku chooses tool names/arguments; Compas executes only the five MCP tools and decides ALLOW/DENY/REVIEW. Claude cannot pay, capture, or refund. On the public Free deploy, Live is **presenter-gated** (private `?presenter=` link; key never in Devpost) and capped per demo workspace so visitors cannot burn Anthropic credit. Scripted remains the default for judges.
+
+The same demo has an optional **Care story** panel under the three acts: a monthly medication plan (no automatic PayPal charge), a deterministic pharmacy comparison, a split basket, a structured receipt check, and a labeled simulated partial refund that restores authorization capacity. None of those panel actions is a PayPal order. Act 2 remains the live sandbox payment.
 
 Any external MCP client can still connect to `/mcp` separately.
 

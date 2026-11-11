@@ -1,3 +1,4 @@
+import { CapabilitiesService } from "../../application/capabilities.ts";
 import { AgentAuthService } from "../../application/agent-auth.ts";
 import { AgentShoppingService } from "../../application/agent-shopping.ts";
 import { DelegatePurchaseService, type PurchaseExecutionMode } from "../../application/delegate-purchases.ts";
@@ -62,6 +63,7 @@ export type DemoWorkspaceShared = {
 export type DemoWorkspaceHooks = {
   onOrder: (orderId: string) => void;
   onAgentToken: (hash: string) => void;
+  onCapture: (captureId: string) => void;
 };
 
 /**
@@ -103,6 +105,8 @@ export async function createDemoWorkspace(
 
   // The only path to a capture: it reads the order from PayPal and the mandate
   // from the repository again, and captures only what still matches.
+  // Assigned after purchases exist. A capture during construction cannot happen.
+  let capabilities: CapabilitiesService | undefined;
   const settlement = new PayPalOrderSettlement({
     payments,
     spending,
@@ -111,6 +115,10 @@ export async function createDemoWorkspace(
     history,
     errands,
     logWarning,
+    onCaptured: (record) => {
+      if (record.paypal.captureId) hooks.onCapture(record.paypal.captureId);
+      return capabilities?.noteCapture(record);
+    },
   });
 
   const mandates = new MandateService({
@@ -174,7 +182,6 @@ export async function createDemoWorkspace(
     purchases,
   });
 
-  // Demo MCP clients (scripted + optional live Claude): HTTP only, same /mcp endpoint.
   const demoAgents = new DemoAgentRuns({
     origin: shared.publicUrl,
     mcpUrl: shared.mcpUrl,
@@ -200,7 +207,14 @@ export async function createDemoWorkspace(
       : {}),
   });
 
-  return { usage, accounts, parties, merchants, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents };
+  capabilities = new CapabilitiesService({
+    mandates,
+    capacity: mandateRepository,
+    errands,
+    purchases,
+  });
+
+  return { usage, accounts, parties, merchants, payments, mandates, spending, settlement, purchases, errandService, agentAuth, agentShopping, demoAgents, capabilities };
 }
 
 export type DemoWorkspace = Awaited<ReturnType<typeof createDemoWorkspace>>;
