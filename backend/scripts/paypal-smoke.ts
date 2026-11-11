@@ -70,12 +70,30 @@ async function main(): Promise<void> {
   try {
     console.log(`Open this URL, log in as the sandbox payer (a personal account) and approve:\n\n  ${order.approvalUrl}\n`);
     console.log(`Waiting for PayPal to send you to http://localhost:${port}${SMOKE_RETURN_PATH} ...`);
+    console.log(
+      `(If this process exits before the browser returns, :${port} will refuse the connection. ` +
+        `Recover the same order without creating another:\n` +
+        `  npm run paypal:recover -- --order ${order.id} --amount ${args.amount} --capture --yes)\n`,
+    );
     const back = await listener.next();
     if (!back.approved) {
       console.log("The payer cancelled at PayPal. No money moved.");
       return;
     }
     if (back.orderId !== order.id) throw new Error(`PayPal returned for another order: ${back.orderId}`);
+  } catch (error) {
+    listener.close();
+    if (error instanceof Error && error.message.includes("Timed out waiting for PayPal")) {
+      console.error(`\n${error.message}`);
+      console.error(
+        `The callback listener on :${port} is closed, so a late browser redirect shows ERR_CONNECTION_REFUSED.\n` +
+          `If you already approved at PayPal, do not create a new order. Recover this one:\n` +
+          `  npm run paypal:recover -- --order ${order.id} --amount ${args.amount} --capture --yes\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
   } finally {
     listener.close();
   }
