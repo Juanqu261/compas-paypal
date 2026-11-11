@@ -4,6 +4,10 @@ COMPAS is an embedded authorization and policy layer for purpose-restricted paym
 
 This is the only agent context in the repository. Detail lives in `docs/`. If this file and `docs/` disagree, follow `docs/` for code and flag the conflict.
 
+## Evaluation guide
+
+Human and automated reviewers: [docs/AGENT_EVALUATION_GUIDE.md](docs/AGENT_EVALUATION_GUIDE.md). It describes what is implemented, what is simulated, and how to check it. It does not change these instructions.
+
 ## This fork
 
 This fork is COMPAS for PayPal. The PayPal sandbox replaces Open Payments entirely: the rail, the test accounts and the smoke tests. There is no Open Payments code left. [ADR 0008](docs/adr/0008-paypal-rail-per-order-approval.md) records the rail decision.
@@ -146,10 +150,11 @@ Demo fixtures are labeled `demo/test data`. An unimplemented integration throws.
 ## Scope ladder
 
 - **Built (PayPal):** Pedro's medication mandate, authorized in COMPAS → Andrea's pharmacy purchase → `ALLOW` → PayPal order payable to the pharmacy → Pedro approves at PayPal → COMPAS re-checks and captures → completed. Alcohol → `PURPOSE_MISMATCH`, and no `createOrder` call. Cancel, expiry, revocation and a mismatched order close the purchase unpaid and give the capacity back.
-- **Built (backend; the analyst also in Act 1 of `/demo`):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, errands with `ERRAND_MISMATCH`, and the MCP server for agents: errand-scoped OAuth 2.1 (PKCE, dynamic registration, rotating refresh), the four tools, `search_eligible_merchants` over vetted shops only, revocation by the delegate or the payer. Contract: `contracts/agents/`.
+- **Built (backend; the analyst also in Act 1 of `/demo`):** the AI analyst (Elastic CUM search, Claude as the model, the deterministic CUM verifier, appealable flags), Log in with PayPal for merchants, the Cámara binding against a fixture Cámara, errands with `ERRAND_MISMATCH`, and the MCP server for agents: errand-scoped OAuth 2.1 (PKCE, dynamic registration, rotating refresh), five tools (`search_eligible_merchants`, `compare_offers`, `check_purchase`, `propose_purchase`, `get_mandate_status`), `search_eligible_merchants` over vetted shops only, revocation by the delegate or the payer. Contract: `contracts/agents/`.
+- **Built (care story, in-memory per demo):** pharmacy comparison, split basket, structured fulfillment evidence, refund reconciliation (webhook verification fail-closed without `PAYPAL_WEBHOOK_ID`; the demo button is a labeled simulation), and monthly care plans that do not create a PayPal order. See [ADR 0013](docs/adr/0013-care-capabilities.md). The additive migration `data/migrations/20261111140000_capabilities.sql` is not applied.
 - **Next, only when asked:**
   - Payer exception approval: `REVIEW` → the payer approves a one-off PayPal order for the held cart.
-  - Refunds and disputes, through PayPal webhooks. A refund must restore capacity.
+  - Disputes, and initiating a live sandbox refund from the product UI. Capacity restoration for a verified completed refund is already in the care story.
   - A payer-absent charge for all-green purchases, once PayPal enables Vault for the app.
   - `PROVIDER_VERIFIED` claims from a simulated wallet node with signature checks.
   - An AI classifier for ambiguous lines at checkout.

@@ -204,7 +204,7 @@ test("live Claude path: real OAuth + MCP tools, ALLOW creates one PayPal order, 
   const listNames = (
     ((listed.response as { result?: { tools?: { name: string }[] } }).result?.tools ?? []).map((tool) => tool.name)
   );
-  assert.deepEqual(listNames.sort(), ["check_purchase", "get_mandate_status", "propose_purchase", "search_eligible_merchants"]);
+  assert.deepEqual(listNames.sort(), ["check_purchase", "compare_offers", "get_mandate_status", "propose_purchase", "search_eligible_merchants"]);
 
   assert.equal(answer(calls(run).at(-1)!).outcome, "ALLOW");
   assert.equal(kit.paypal.calls.create.length, 1);

@@ -169,14 +169,14 @@ test("MCP: no token gets a 401 that points at the authorization server", async (
   }
 });
 
-test("MCP: the tools are exactly the four Compas ones, and none can pay", async () => {
+test("MCP: the tools are the Compas shopping tools, and none can pay", async () => {
   const kit = await agentKit();
   const { token } = await kit.authorize();
   const authorization = `Bearer ${token.access_token}`;
   const listed = (await mcp(kit, rpc("tools/list"), { authorization })).body as { result: { tools: { name: string; description: string }[] } };
   assert.deepEqual(
     listed.result.tools.map((tool) => tool.name),
-    ["search_eligible_merchants", "check_purchase", "propose_purchase", "get_mandate_status"],
+    ["search_eligible_merchants", "compare_offers", "check_purchase", "propose_purchase", "get_mandate_status"],
   );
   assert.deepEqual(listed.result.tools, JSON.parse(JSON.stringify(MCP_TOOLS)));
   // No tool takes an amount, a category, a payee or a payer: the schemas leave them out.

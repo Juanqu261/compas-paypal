@@ -42,7 +42,7 @@ test("a demo stops creating PayPal orders at its limit, and says so before PayPa
       mcpUrl: "http://localhost:4000/mcp",
     },
     createDemoPartyDirectory({}),
-    { onOrder: () => {}, onAgentToken: () => {} },
+    { onOrder: () => {}, onAgentToken: () => {}, onCapture: () => {} },
   );
   workspace.accounts.set({ source: "PRESENTER" });
   assert.equal(workspace.purchases.execution.allowed, true);

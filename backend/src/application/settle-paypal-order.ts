@@ -28,6 +28,8 @@ export type PayPalSettlementDeps = {
   errands?: Pick<ErrandRepository, "release">;
   now?: () => Date;
   logWarning?: (message: string) => void;
+  /** After a capture is recorded. A failure here does not undo the capture. */
+  onCaptured?: (record: SpendingRecord) => Promise<void> | void;
 };
 
 const AWAITING: readonly PaymentState[] = ["AWAITING_PAYER_APPROVAL"];
@@ -241,11 +243,18 @@ export class PayPalOrderSettlement {
         this.#deps.history,
       );
     } catch (error) {
-      // Capture is already recorded on the spending row. A history write must
-      // not undo that or leave the payer looking unpaid (F1).
       this.#deps.logWarning?.(
         `PayPal order of ${record.id} captured but merchant history was not written: ${errorCode(error) ?? "error"}.`,
       );
+    }
+    if (state === "COMPLETED") {
+      try {
+        await this.#deps.onCaptured?.(moved);
+      } catch (error) {
+        this.#deps.logWarning?.(
+          `PayPal order of ${record.id} captured but the refund ledger was not told: ${errorCode(error) ?? "error"}.`,
+        );
+      }
     }
     return state;
   }

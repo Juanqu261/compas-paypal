@@ -58,6 +58,10 @@ Use the **public** hosts. Do not put the presenter key in the video, Devpost, RE
 - If Claude hangs > ~45s on Live: cut to Scripted (“same MCP leash, written reasoning”) or poll the run panel once more; do not invent steps.
 - If Live is disabled: you are not on the presenter link — Scripted still works.
 
+## Optional beat — care story (~20s)
+
+Open **Care story** under the acts. Show Farma Sur selected over the cheaper contested shop, the shampoo left out of the COMPAS lines, and say the panel’s capture and refund are labeled simulations. Do not present them as sandbox payments. The technical walkthrough is [AGENT_EVALUATION_GUIDE.md](AGENT_EVALUATION_GUIDE.md).
+
 ## Do not
 
 - Show or speak the presenter key.

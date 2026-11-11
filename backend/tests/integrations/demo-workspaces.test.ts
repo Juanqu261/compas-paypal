@@ -171,7 +171,7 @@ function sharedDeps(gateway: PayPalGateway): DemoWorkspaceShared {
   };
 }
 
-const NO_HOOKS: DemoWorkspaceHooks = { onOrder: () => {}, onAgentToken: () => {} };
+const NO_HOOKS: DemoWorkspaceHooks = { onOrder: () => {}, onAgentToken: () => {}, onCapture: () => {} };
 
 test("two visitors' Pedros don't see each other's budgets", async () => {
   const shared = sharedDeps({} as PayPalGateway);
@@ -200,6 +200,7 @@ test("a workspace announces every PayPal order it creates", async () => {
   const workspace = await createDemoWorkspace(sharedDeps(gateway), createDemoPartyDirectory({}), {
     onOrder: (orderId) => announced.push(orderId),
     onAgentToken: () => {},
+    onCapture: () => {},
   });
   await workspace.payments.createOrder({} as never);
   assert.deepEqual(announced, ["5O190127TN364715T"]);

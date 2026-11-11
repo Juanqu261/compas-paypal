@@ -473,3 +473,50 @@ export type AgentConsentRequest = {
   }[];
   expiresAt: string;
 };
+
+/** Care-story panel. Amounts are minor units. `paypalOrderCreated: false` means this call did not create a PayPal order. */
+export type CapabilityMoney = Money;
+
+export type CapabilityStory = {
+  story: { mandateId: string; purchaseId: string; carePlanId: string; dataLabel: "demo/test data" };
+  remaining: CapabilityMoney;
+  comparison: {
+    requestedCum: string;
+    selected?: { merchantId: string; displayName: string; confidence: string; unitPrice: CapabilityMoney };
+    eligible: readonly { merchantId: string; displayName: string; confidence: string; unitPrice: CapabilityMoney }[];
+    excluded: readonly { merchantId: string; displayName: string; confidence: string; reason?: string }[];
+    savings?: CapabilityMoney;
+    explanation: string;
+    dataLabel?: "demo/test data";
+  };
+  partition: {
+    eligible: readonly { id: string; label: string; amount: CapabilityMoney; reasonCodes: readonly string[] }[];
+    ineligible: readonly { id: string; label: string; amount: CapabilityMoney; reasonCodes: readonly string[] }[];
+    totals: { eligible: CapabilityMoney; ineligible: CapabilityMoney };
+    checkoutAllowed: boolean;
+    explanation: string;
+    dataLabel?: "demo/test data";
+  };
+  purchase?: { id: string; status: string; paypalOrderCreated: false; source: string };
+  paypalOrderCreated: false;
+};
+
+export type CapabilityCycle = {
+  cycle: { periodId: string; status: string; errandId?: string; paypalOrderCreated: false };
+  created?: boolean;
+  paypalOrderCreated: false;
+};
+
+export type CapabilityEvidence = {
+  evidence: { verificationStatus: string; reasonCodes?: readonly string[] };
+  duplicate: boolean;
+  paymentStatus: string;
+};
+
+export type CapabilityPreview = {
+  next: string;
+  reasonCodes?: readonly string[];
+  paypalOrderCreated: false;
+  amount?: CapabilityMoney;
+  lineCount?: number;
+};

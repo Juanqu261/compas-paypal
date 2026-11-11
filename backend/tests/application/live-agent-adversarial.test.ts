@@ -257,7 +257,7 @@ test("tools/list never exposes capture or refund", async () => {
   const listed = run.steps.find((step) => step.kind === "rpc" && step.method === "tools/list");
   assert.ok(listed && listed.kind === "rpc");
   const names = ((listed.response as { result?: { tools?: { name: string }[] } }).result?.tools ?? []).map((tool) => tool.name);
-  assert.deepEqual(names.sort(), ["check_purchase", "get_mandate_status", "propose_purchase", "search_eligible_merchants"]);
+  assert.deepEqual(names.sort(), ["check_purchase", "compare_offers", "get_mandate_status", "propose_purchase", "search_eligible_merchants"]);
   assert.ok(!names.some((name) => /capture|refund|vault|approve/i.test(name)));
 });
 
