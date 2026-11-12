@@ -95,6 +95,35 @@ function ScenarioPicker() {
   );
 }
 
+const PHONE_STEPS = [
+  { who: "Pedro, left phone", what: "Open COMPAS and authorize up to USD 40 for Gladys’s medication." },
+  { who: "Pharmacy, right phone", what: "Charge the medication. The liquor charge is denied and creates no PayPal order." },
+  { who: "Back to Pedro", what: "He approves the allowed order at the PayPal sandbox. Andrea never receives the money." },
+] as const;
+
+function PhoneGuide() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 sm:px-8">
+      <p className="text-sm font-semibold tracking-wide text-route-deep uppercase">How to run the simulation</p>
+      <p className="mt-2 text-sm text-ink sm:hidden">
+        Pedro authorizes the medication budget, the pharmacy charges, and Pedro approves the allowed order at PayPal. A
+        liquor charge is denied and creates no order.
+      </p>
+      <ol className="mt-3 hidden gap-3 sm:grid sm:grid-cols-3">
+        {PHONE_STEPS.map((step, index) => (
+          <li key={step.who} className="rounded-2xl border border-ink/15 bg-paper px-4 py-3">
+            <p className="font-semibold text-ink">
+              <span className="mr-2 font-display text-route">{index + 1}</span>
+              {step.who}
+            </p>
+            <p className="mt-1 text-sm text-ink-soft">{step.what}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function DemoPhones() {
   return (
     <div className="flex snap-x snap-mandatory gap-8 overflow-x-auto px-4 pt-2 pb-10 sm:px-8 lg:justify-center lg:overflow-visible">
@@ -209,14 +238,21 @@ export function DemoStage({
   const [act, setAct] = useState<Act>(1);
   const show = (next: Act) => {
     startTransition(() => setAct(next));
-    window.scrollTo({ top: 0 });
+    document.getElementById("demo-story")?.scrollIntoView({ block: "start" });
   };
 
   return (
     <DemoSessionProvider scenarios={scenarios}>
-      <StoryRail act={act} onChange={show} />
+      <div className="border-b border-ink/15 bg-shoal/45 pt-4">
+        <DemoPhones />
+        <PhoneGuide />
+        <div className="h-6" />
+      </div>
+      <div id="demo-story">
+        <StoryRail act={act} onChange={show} />
+      </div>
       <DemoNotices />
-      {/* Activity keeps a hidden act's state: the phones keep their screens while Act 1 shows. */}
+      {/* Activity keeps a hidden act's state while another act shows. */}
       <Activity mode={act === 1 ? "visible" : "hidden"}>
         <div role="tabpanel" id="act-panel-1" aria-labelledby="act-tab-1">
           <AnalystAct />
@@ -224,14 +260,19 @@ export function DemoStage({
       </Activity>
       <Activity mode={act === 2 ? "visible" : "hidden"}>
         <div role="tabpanel" id="act-panel-2" aria-labelledby="act-tab-2">
-          <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-8">
-            <SandboxAccounts />
-          </div>
-          <div className="mt-6 border-y border-ink/15 bg-shoal/45 pt-8">
-            <DemoPhones />
-          </div>
           <div className="mx-auto max-w-7xl px-4 pt-8 pb-10 sm:px-8">
             <ScenarioPicker />
+            <details className="mt-6 rounded-2xl border border-ink/15 bg-paper [&_summary::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer px-5 py-4 font-semibold text-ink">
+                Sandbox accounts
+                <span className="mt-1 block text-sm font-normal text-ink-soft">
+                  Add them before a real PayPal charge. The phones above are the walkthrough, and a denied purchase still creates no order.
+                </span>
+              </summary>
+              <div className="border-t border-ink/10 px-5 py-4">
+                <SandboxAccounts />
+              </div>
+            </details>
             <PurchaseTimeline />
             <ChargeEvidence onShowAnalyst={() => show(1)} />
           </div>

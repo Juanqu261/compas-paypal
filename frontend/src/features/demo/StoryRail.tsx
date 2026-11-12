@@ -3,7 +3,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ACTS, CHAPTERS, chapterOf, type Act } from "./chapters";
 
-const nodeBase = "grid size-10 shrink-0 place-items-center rounded-full font-display text-xl";
+const nodeBase = "grid size-8 shrink-0 place-items-center rounded-full font-display sm:size-10";
 
 /** Puts the hint under the selected act's column. */
 const HINT_COLUMN: Record<Act, string> = {
@@ -20,7 +20,7 @@ const HINT_COLUMN: Record<Act, string> = {
  */
 export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) => void }) {
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [dismissed, setDismissed] = useState<ReadonlySet<Act>>(() => new Set<Act>());
+  const [dismissed, setDismissed] = useState<ReadonlySet<Act>>(() => new Set<Act>([2]));
   const hintShown = !dismissed.has(act);
 
   function setHint(shown: boolean) {
@@ -49,19 +49,21 @@ export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) =>
 
   return (
     <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-8">
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <p className="text-sm font-semibold tracking-wide text-route-deep uppercase">Follow the story</p>
-        {hintShown ? null : (
-          <button
-            type="button"
-            onClick={() => setHint(true)}
-            className="text-sm font-semibold text-route-deep underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route"
-          >
-            Show hint
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {hintShown ? null : (
+            <button
+              type="button"
+              onClick={() => setHint(true)}
+              className="text-sm font-semibold text-route-deep underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-route"
+            >
+              Show hint
+            </button>
+          )}
+        </div>
       </div>
-      <div role="tablist" aria-label="Demo acts" onKeyDown={onKeyDown} className="mt-3 grid gap-4 sm:grid-cols-3">
+      <div role="tablist" aria-label="Demo acts" onKeyDown={onKeyDown} className="mt-3 grid grid-cols-3 gap-2 sm:gap-4">
         {CHAPTERS.map((chapter, index) => {
           const selected = chapter.act === act;
           return (
@@ -80,7 +82,7 @@ export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) =>
               className="group relative flex flex-col gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-route"
             >
               <span
-                className={`${nodeBase} transition-colors duration-200 motion-reduce:transition-none ${
+                className={`${nodeBase} text-lg transition-colors duration-200 motion-reduce:transition-none sm:text-xl ${
                   selected ? "bg-ink text-paper" : "border border-ink/30 bg-paper text-ink-soft group-hover:border-ink/60"
                 }`}
               >
@@ -89,7 +91,7 @@ export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) =>
               {index < CHAPTERS.length - 1 ? (
                 <span aria-hidden className="pointer-events-none absolute top-5 left-12 -right-2 hidden h-0.5 bg-ink/15 sm:block" />
               ) : null}
-              <span className={`text-lg leading-snug font-semibold ${selected ? "text-ink" : "text-ink-soft group-hover:text-ink"}`}>
+              <span className={`text-sm leading-snug font-semibold sm:text-lg ${selected ? "text-ink" : "text-ink-soft group-hover:text-ink"}`}>
                 {chapter.title}
               </span>
             </button>
@@ -98,7 +100,7 @@ export function StoryRail({ act, onChange }: { act: Act; onChange: (act: Act) =>
         {hintShown ? (
           <div
             role="status"
-            className={`relative mt-1 rounded-xl border border-route/30 bg-paper p-3.5 shadow-sm sm:col-span-1 ${HINT_COLUMN[act]} sm:row-start-2`}
+            className={`relative col-span-3 mt-1 rounded-xl border border-route/30 bg-paper p-3.5 shadow-sm sm:col-span-1 ${HINT_COLUMN[act]} sm:row-start-2`}
           >
             <span
               aria-hidden

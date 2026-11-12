@@ -4,7 +4,12 @@ const API = "http://127.0.0.1:4010";
 
 test("care story: comparison, split basket, previews, cycle, receipt and refund", async ({ page }) => {
   await page.goto("/demo");
-  await page.getByRole("tab", { name: /When an AI shops/i }).click();
+  const act = page.getByRole("tab", { name: /When an AI shops/i });
+  // The phones render first, so this tab is below them. A click during hydration is dropped.
+  await expect(async () => {
+    await act.click();
+    await expect(act).toHaveAttribute("aria-selected", "true");
+  }).toPass();
   await expect(page.getByText("Scripted demonstration")).toBeVisible();
 
   await page.getByText("Care story: compare, split, receipt, refund, monthly plan").click();

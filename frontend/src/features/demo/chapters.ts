@@ -17,7 +17,7 @@ export const CHAPTERS: readonly Chapter[] = [
   {
     act: 2,
     title: "The purchase",
-    move: "Add your PayPal sandbox accounts. Then, on Pedro’s phone, open COMPAS and make a budget, and charge it from the pharmacy’s phone.",
+    move: "The three phones are the recording. Pedro authorizes the budget, the pharmacy charges, and Pedro approves the allowed order at PayPal.",
   },
   {
     act: 3,

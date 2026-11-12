@@ -121,11 +121,10 @@ function AccountsForm({
 
   return (
     <form onSubmit={submit} className="rounded-3xl border border-ink/15 bg-paper p-5 sm:p-6">
-      <h3 className="font-display text-2xl text-ink">Pay with your own PayPal sandbox accounts</h3>
+      <h3 className="font-display text-2xl text-ink">PayPal sandbox accounts</h3>
       <p className="mt-2 max-w-3xl text-ink-soft">
-        The money in this demo is PayPal sandbox money. Bring one personal and one business account from your PayPal
-        developer dashboard: your personal account plays Pedro and approves each payment; your business account receives
-        it, standing in for Central Pharmacy.
+        One personal account plays Pedro and approves each payment. One business account receives it, standing in for
+        Central Pharmacy. Account IDs only, never a password.
       </p>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
