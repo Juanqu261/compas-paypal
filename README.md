@@ -4,13 +4,6 @@ COMPAS turns ordinary PayPal payments into purpose-restricted, auditable transac
 
 Hackathon: PayPal AI Hackathon 2026. License: [MIT](LICENSE).
 
-## Public demo
-
-| Surface | URL | What responded |
-| --- | --- | --- |
-| Demo | https://compas-frontend.onrender.com/demo | HTTP 200, title COMPAS |
-| Backend health | https://compas-backend-mjyc.onrender.com/health | HTTP 200, `status=ok`, `paypal=sandbox`, `liveAgent=presenter_only` |
-
 ## What it solves
 
 Pedro wants up to USD 40 available for his grandmother Gladys's medicines. Andrea, who lives with Gladys, can shop. She must not receive the USD 40. The pharmacy is paid on PayPal. COMPAS checks the purpose before any order exists.
