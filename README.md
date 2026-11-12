@@ -4,20 +4,12 @@ COMPAS turns ordinary PayPal payments into purpose-restricted, auditable transac
 
 Hackathon: PayPal AI Hackathon 2026. License: [MIT](LICENSE).
 
-Reviewers, including automated ones: [docs/AGENT_EVALUATION_GUIDE.md](docs/AGENT_EVALUATION_GUIDE.md).
-
 ## Public demo
-
-Checked on 2026-11-11.
 
 | Surface | URL | What responded |
 | --- | --- | --- |
-| Demo | https://compas-paypal-web.onrender.com/demo | HTTP 200, title COMPAS |
-| Backend health | https://compas-paypal-api.onrender.com/health | HTTP 200, `status=ok`, `paypal=sandbox`, `liveAgent=presenter_only` |
-
-Use this pair. `https://compas-frontend.onrender.com/demo` and `https://compas-backend-mjyc.onrender.com/health` also answered as COMPAS that day. They are earlier hosts, not the canonical pair. Do not use `compas-backend.onrender.com`.
-
-Hosted on Render. Visitor workspaces are in memory. A sleep or restart clears them. The health check above is the deployed build from before this care-story work. A Render rebuild is required before the public demo shows the new panel.
+| Demo | https://compas-frontend.onrender.com/demo | HTTP 200, title COMPAS |
+| Backend health | https://compas-backend-mjyc.onrender.com/health | HTTP 200, `status=ok`, `paypal=sandbox`, `liveAgent=presenter_only` |
 
 ## What it solves
 
@@ -27,8 +19,6 @@ Pedro wants up to USD 40 available for his grandmother Gladys's medicines. Andre
 - Andrea buys at a pharmacy. Alcohol against that mandate is `DENY`. No PayPal order is created.
 - On `ALLOW`, COMPAS creates one PayPal sandbox order payable to the pharmacy. Pedro approves it at PayPal. COMPAS checks the mandate and the order again, then captures.
 - `remainingAuthorizedAmount` is authorization capacity. It is not a PayPal balance and not custody.
-
-COMPAS is not a wallet, a bank, a payment rail, a custody account, a token, or a blockchain.
 
 ## What is built
 
@@ -110,21 +100,13 @@ Sandbox checks, only when `backend/.env` is configured, and not part of CI: `npm
 
 CI runs the backend and frontend checks above, plus the Playwright smoke, without sandbox secrets.
 
-## Judges
-
-1. Open the demo. Act 1 shows a merchant review. Act 2 is the medication payment and the alcohol refusal. Act 3 is the agent. Scripted mode is public. Live mode may be presenter-only.
-2. Open **Care story**. The comparison selects Farma Sur, not the cheaper contested shop. The shampoo stays out of the COMPAS lines. Generating a cycle does not create a PayPal order. The receipt and the USD 5 refund are labeled simulations.
-3. An external MCP client can use `POST /mcp` on the API. See [contracts/agents/README.md](contracts/agents/README.md).
-
 ## Known limitations
 
-- Sandbox only. No production PayPal integration is implied.
-- Render Free sleeps and drops in-memory workspaces.
 - The care-story capture and refund do not move sandbox money. A live refund still needs PayPal and `PAYPAL_WEBHOOK_ID`.
 - Receipt verification does not prove delivery. There is no image or PDF upload.
 - The three-shop price table is fictional demo data. Live `compare_offers` uses catalog prices for shops the mandate already accepts.
 - The capabilities tables are not in the shared database until the new migration is applied. The demo does not need that database for visitor state.
-- Live Claude is capped and may be presenter-gated. This repository does not contain the presenter key.
+- Live Claude is capped and may be presenter-gated.
 
 Not affiliated with or endorsed by PayPal, Elastic, or INVIMA.
 
